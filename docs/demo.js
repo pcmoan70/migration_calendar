@@ -730,13 +730,41 @@
   }
 
   // ---- Inference -----------------------------------------------------------
-  async function runInference(flatInputs, batchSize) {
+  // opts.task: "raw" (default, full output) | "column" (opts.speciesIdx) |
+  // "richness" (opts.threshold, optional opts.mask). The worker reduces the
+  // output so only small arrays cross the thread boundary.
+  async function runInference(flatInputs, batchSize, opts) {
+    opts = opts || {};
     var id = ++inferenceId;
     return new Promise(function (resolve, reject) {
       pendingInferences.set(id, { resolve: resolve, reject: reject });
       var buf = new Float32Array(flatInputs).buffer;
-      worker.postMessage({ type: "infer", id: id, flatInputs: buf, batchSize: batchSize }, [buf]);
+      var msg = { type: "infer", id: id, flatInputs: buf, batchSize: batchSize, task: opts.task || "raw" };
+      if (opts.task === "column") msg.speciesIdx = opts.speciesIdx;
+      if (opts.task === "richness") { msg.threshold = opts.threshold; if (opts.mask) msg.mask = opts.mask; }
+      worker.postMessage(msg, [buf]);   // mask (if any) is cloned, not transferred
     });
+  }
+
+  // Progress bar inside the computing overlay (0..1).
+  function setComputeProgress(frac) {
+    var bar = document.getElementById("computing-progress-bar");
+    if (bar) bar.style.width = Math.max(0, Math.min(1, frac)) * 100 + "%";
+  }
+
+  // Uint8Array(nSpecies) marking the active group, or null for "all".
+  function groupMask() {
+    if (speciesGroup === "all") return null;
+    var m = new Uint8Array(labels.length);
+    for (var i = 0; i < labels.length; i++) m[i] = labelClass[i] === speciesGroup ? 1 : 0;
+    return m;
+  }
+
+  // Total inference chunks across all weeks (for the progress bar).
+  function totalChunks(weekMissing, chunk) {
+    var n = 0;
+    for (var i = 0; i < weekMissing.length; i++) n += Math.ceil(weekMissing[i].missing.length / chunk) || 1;
+    return n;
   }
 
   // ---- Overlay -------------------------------------------------------------
@@ -913,6 +941,7 @@
 
     rendering = true;
     showComputingOverlay(true, name);
+    var chunksTotal = totalChunks(weekMissing, CHUNK), chunksDone = 0;
     try {
       for (var wi = 0; wi < weekMissing.length; wi++) {
         var wm = weekMissing[wi];
@@ -927,8 +956,10 @@
         for (var start = 0; start < wm.missing.length; start += CHUNK) {
           if (gen !== renderGeneration) return;
           var end = Math.min(start + CHUNK, wm.missing.length);
-          var out = await runInference(inputs.subarray(start * 3, end * 3), end - start);
-          for (var j = 0; j < end - start; j++) rawProbs[start + j] = out[j * nSpecies + speciesIdx];
+          // Worker returns just this species' column (end-start floats).
+          var out = await runInference(inputs.subarray(start * 3, end * 3), end - start, { task: "column", speciesIdx: speciesIdx });
+          for (var j = 0; j < end - start; j++) rawProbs[start + j] = out[j];
+          setComputeProgress(++chunksDone / chunksTotal);
         }
         if (gen !== renderGeneration) return;
         for (var k = 0; k < wm.missing.length; k++) wm.cellMap.set(cellId(wm.missing[k].lat, wm.missing[k].lon), rawProbs[k]);
@@ -1013,6 +1044,8 @@
 
     rendering = true;
     showComputingOverlay(true, richName);
+    var mask = groupMask();
+    var chunksTotal = totalChunks(weekMissing, CHUNK), chunksDone = 0;
     try {
       for (var wi = 0; wi < weekMissing.length; wi++) {
         var wm = weekMissing[wi];
@@ -1027,12 +1060,12 @@
         for (var start = 0; start < wm.missing.length; start += CHUNK) {
           if (gen !== renderGeneration) return;
           var end = Math.min(start + CHUNK, wm.missing.length);
-          var out = await runInference(inputs.subarray(start * 3, end * 3), end - start);
-          for (var j = 0; j < end - start; j++) {
-            var count = 0, base = j * nSpecies;
-            for (var s = 0; s < nSpecies; s++) if (out[base + s] >= RICHNESS_THRESHOLD && inGroup(s)) count++;
-            counts[start + j] = count;
-          }
+          // Worker counts species ≥ threshold (optionally masked to a group)
+          // and returns one count per cell.
+          var out = await runInference(inputs.subarray(start * 3, end * 3), end - start,
+            { task: "richness", threshold: RICHNESS_THRESHOLD, mask: mask });
+          for (var j = 0; j < end - start; j++) counts[start + j] = out[j];
+          setComputeProgress(++chunksDone / chunksTotal);
         }
         if (gen !== renderGeneration) return;
         for (var k = 0; k < wm.missing.length; k++) wm.cellMap.set(cellId(wm.missing[k].lat, wm.missing[k].lon), counts[k]);

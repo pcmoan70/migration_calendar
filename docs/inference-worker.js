@@ -6,9 +6,17 @@
  * Protocol (postMessage):
  *   Main -> Worker:  { type: "init",  modelUrl }
  *   Worker -> Main:  { type: "init",  ok, error? }
- *   Main -> Worker:  { type: "infer", id, flatInputs: ArrayBuffer, batchSize }
+ *   Main -> Worker:  { type: "infer", id, flatInputs, batchSize, task, ... }
  *   Worker -> Main:  { type: "infer", id, data: ArrayBuffer }
  *                   | { type: "infer", id, error }
+ *
+ * `task` selects how the (batchSize × nSpecies) model output is reduced
+ * *inside the worker* so we only transfer small arrays back to the UI
+ * thread (critical for memory + responsiveness when sweeping many cells):
+ *   "raw"      — return the full output (batchSize × nSpecies floats).
+ *   "column"   — return one species column (batchSize floats); needs speciesIdx.
+ *   "richness" — return a per-cell count of species ≥ threshold (batchSize
+ *                floats); optional mask (Uint8Array) restricts to a group.
  */
 
 /* global ort */
@@ -41,8 +49,31 @@ self.onmessage = async function (e) {
       var tensor = new ort.Tensor("float32", flatInputs, [batchSize, 3]);
       var results = await session.run({ input: tensor });
       var outKey = Object.keys(results)[0];
-      var output = new Float32Array(results[outKey].data);
-      self.postMessage({ type: "infer", id: id, data: output.buffer }, [output.buffer]);
+      var full = results[outKey].data;               // batchSize * nSpecies
+      var nSpecies = full.length / batchSize;
+      var task = e.data.task || "raw";
+      var out, b, base, s;
+
+      if (task === "column") {
+        var idx = e.data.speciesIdx;
+        out = new Float32Array(batchSize);
+        for (b = 0; b < batchSize; b++) out[b] = full[b * nSpecies + idx];
+      } else if (task === "richness") {
+        var thr = e.data.threshold;
+        var mask = e.data.mask ? new Uint8Array(e.data.mask) : null;
+        out = new Float32Array(batchSize);
+        for (b = 0; b < batchSize; b++) {
+          base = b * nSpecies;
+          var count = 0;
+          for (s = 0; s < nSpecies; s++) {
+            if (full[base + s] >= thr && (!mask || mask[s])) count++;
+          }
+          out[b] = count;
+        }
+      } else {
+        out = new Float32Array(full);                 // copy out of ORT buffer
+      }
+      self.postMessage({ type: "infer", id: id, data: out.buffer }, [out.buffer]);
     } catch (err) {
       self.postMessage({ type: "infer", id: id, error: err.message });
     }
