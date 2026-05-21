@@ -24,34 +24,26 @@
   var lang = "en";            // current UI + species-name language code
   var langTaxCol = "com_name"; // taxonomy.csv column for current language
   var taxByCode = {};          // species_code -> { com_name, class_name, common_name_xx, ... }
-  var availableTaxCols = {};   // taxonomy.csv header columns that actually exist
-  var langHasNames = true;     // does the current language have a names column?
 
   function t(key, vars) { return window.GeoI18N.t(lang, key, vars); }
 
-  // Whether the active language has its own species-name column in the
-  // taxonomy (e.g. Italian does not — it's documentation-only).
-  function updateLangHasNames() {
-    langHasNames = lang === "en" || availableTaxCols[langTaxCol] === true;
-  }
-
   // Localized common name for a label, falling back to the English common name
-  // then the scientific name. For a language that HAS a names column, a missing
-  // or English-duplicate entry is shown bracketed, e.g. "[Small Gold
-  // Grasshopper]". For a language with NO names column at all (documentation-
-  // only, e.g. Italian), names are shown in plain English without brackets.
+  // then the scientific name. When a non-English language is active but only an
+  // English name is available — the language column is missing, empty, or just
+  // repeats the English name (e.g. Italian, which has no names column at all) —
+  // it is shown in brackets to flag it as unresolved, e.g. "[Barn Swallow]".
   function speciesName(label) {
     var row = label && taxByCode[label.key];
     if (row) {
       var en = row.com_name || "";
       var loc = row[langTaxCol] || "";
-      if (lang === "en" || !langHasNames) return en || loc || (label && (label.common || label.sci || label.key)) || "";
+      if (lang === "en") return en || loc || (label && (label.common || label.sci || label.key)) || "";
       // Real translation: present and not just a copy of the English name.
       if (loc && (!en || loc.toLowerCase() !== en.toLowerCase())) return loc;
       if (en) return "[" + en + "]";
       if (loc) return "[" + loc + "]";
     }
-    if (label && label.common) return (lang === "en" || !langHasNames) ? label.common : "[" + label.common + "]";
+    if (label && label.common) return lang === "en" ? label.common : "[" + label.common + "]";
     return (label && (label.sci || label.key)) || "";       // scientific: no brackets
   }
 
@@ -464,7 +456,6 @@
     try {
       await Promise.all([initWorker(), loadLabels(), loadTaxonomy()]);
       buildLabelClass();
-      updateLangHasNames();   // taxonomy header is known now
       document.getElementById("demo-loading").style.display = "none";
       document.getElementById("demo-app").style.display = "block";
       populateLangSelect();
@@ -533,8 +524,6 @@
     var header = rows[0];
     var codeCol = header.indexOf("species_code");
     if (codeCol < 0) return;
-    availableTaxCols = {};
-    for (var h = 0; h < header.length; h++) availableTaxCols[header[h]] = true;
     // Only retain columns we actually use (com_name + class_name + languages).
     var wanted = { com_name: true, class_name: true };
     window.GeoI18N.LANGS.forEach(function (L) { wanted[L.taxCol] = true; });
@@ -592,7 +581,6 @@
     var L = window.GeoI18N.langByCode(code);
     lang = L.code;
     langTaxCol = L.taxCol;
-    updateLangHasNames();
     document.documentElement.setAttribute("lang", lang);
     if (skipRefresh) return;
     window.GeoState.save({ lang: lang });
