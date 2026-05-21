@@ -24,26 +24,34 @@
   var lang = "en";            // current UI + species-name language code
   var langTaxCol = "com_name"; // taxonomy.csv column for current language
   var taxByCode = {};          // species_code -> { com_name, class_name, common_name_xx, ... }
+  var availableTaxCols = {};   // taxonomy.csv header columns that actually exist
+  var langHasNames = true;     // does the current language have a names column?
 
   function t(key, vars) { return window.GeoI18N.t(lang, key, vars); }
 
+  // Whether the active language has its own species-name column in the
+  // taxonomy (e.g. Italian does not — it's documentation-only).
+  function updateLangHasNames() {
+    langHasNames = lang === "en" || availableTaxCols[langTaxCol] === true;
+  }
+
   // Localized common name for a label, falling back to the English common name
-  // then the scientific name. When a non-English language is active but only an
-  // English name is available — either the language column is empty or it just
-  // repeats the English name (the taxonomy often does this for untranslated
-  // species) — it is shown in brackets, e.g. "[Small Gold Grasshopper]".
+  // then the scientific name. For a language that HAS a names column, a missing
+  // or English-duplicate entry is shown bracketed, e.g. "[Small Gold
+  // Grasshopper]". For a language with NO names column at all (documentation-
+  // only, e.g. Italian), names are shown in plain English without brackets.
   function speciesName(label) {
     var row = label && taxByCode[label.key];
     if (row) {
       var en = row.com_name || "";
       var loc = row[langTaxCol] || "";
-      if (lang === "en") return en || loc || (label && (label.common || label.sci || label.key)) || "";
+      if (lang === "en" || !langHasNames) return en || loc || (label && (label.common || label.sci || label.key)) || "";
       // Real translation: present and not just a copy of the English name.
       if (loc && (!en || loc.toLowerCase() !== en.toLowerCase())) return loc;
       if (en) return "[" + en + "]";
       if (loc) return "[" + loc + "]";
     }
-    if (label && label.common) return lang === "en" ? label.common : "[" + label.common + "]";
+    if (label && label.common) return (lang === "en" || !langHasNames) ? label.common : "[" + label.common + "]";
     return (label && (label.sci || label.key)) || "";       // scientific: no brackets
   }
 
@@ -411,6 +419,7 @@
             '<button class="an-tab" data-tab="timeline" data-i18n="tab.timeline">Timeline</button>' +
             '<button class="an-tab" data-tab="prob" data-i18n="tab.prob">Probability</button>' +
             '<button class="an-tab" data-tab="arrival" data-i18n="tab.arrival">Arrivals</button>' +
+            '<button class="an-tab" data-tab="focus" data-i18n="tab.focus">Focus</button>' +
             '<button class="an-tab" data-tab="scatter" data-i18n="tab.scatter">Scatter</button>' +
           '</div>' +
           '<div id="an-controls">' +
@@ -455,6 +464,7 @@
     try {
       await Promise.all([initWorker(), loadLabels(), loadTaxonomy()]);
       buildLabelClass();
+      updateLangHasNames();   // taxonomy header is known now
       document.getElementById("demo-loading").style.display = "none";
       document.getElementById("demo-app").style.display = "block";
       populateLangSelect();
@@ -523,6 +533,8 @@
     var header = rows[0];
     var codeCol = header.indexOf("species_code");
     if (codeCol < 0) return;
+    availableTaxCols = {};
+    for (var h = 0; h < header.length; h++) availableTaxCols[header[h]] = true;
     // Only retain columns we actually use (com_name + class_name + languages).
     var wanted = { com_name: true, class_name: true };
     window.GeoI18N.LANGS.forEach(function (L) { wanted[L.taxCol] = true; });
@@ -580,6 +592,7 @@
     var L = window.GeoI18N.langByCode(code);
     lang = L.code;
     langTaxCol = L.taxCol;
+    updateLangHasNames();
     document.documentElement.setAttribute("lang", lang);
     if (skipRefresh) return;
     window.GeoState.save({ lang: lang });
@@ -1561,7 +1574,7 @@
 
     if (analysisTab === "timeline") renderTimelineTab(container, ctx);
     else if (analysisTab === "scatter") window.GeoAnalysis.renderScatter(container, ctx);
-    else window.GeoAnalysis.renderHeatmap(container, ctx, analysisTab === "arrival");
+    else window.GeoAnalysis.renderHeatmap(container, ctx, analysisTab);   // "prob" | "arrival" | "focus"
 
     // CSV reflects the active tab.
     var built = window.GeoAnalysis.buildCsv(ctx, analysisTab);
@@ -1745,11 +1758,12 @@
       for (var i = 0; i < nSpecies; i++) {
         var cur = all[wkIdx * nSpecies + i];
         if (cur < threshold || !inGroup(i) || isHidden(labels[i].key)) continue;
-        var mx = 0;
-        for (var k = 0; k < 48; k++) { var v = all[k * nSpecies + i]; if (v > mx) mx = v; }
+        var probs = new Float32Array(48), mx = 0;
+        for (var k = 0; k < 48; k++) { var v = all[k * nSpecies + i]; probs[k] = v; if (v > mx) mx = v; }
         var prev = all[((wkIdx + 47) % 48) * nSpecies + i], next = all[((wkIdx + 1) % 48) * nSpecies + i];
         var delta = mx > 1e-6 ? (next - prev) / mx : 0;
-        items.push({ key: labels[i].key, sci: labels[i].sci, name: speciesName(labels[i]), prob: cur, delta: delta, checked: false });
+        var focus = window.GeoAnalysis.focusSeries(probs, mx)[wkIdx];
+        items.push({ key: labels[i].key, sci: labels[i].sci, name: speciesName(labels[i]), prob: cur, delta: delta, focus: focus, checked: false, locality: "", notes: "" });
       }
       items.sort(function (a, b) { return b.prob - a.prob; });
       var place = (await reverseGeocode(lat, lon)) || (lat.toFixed(3) + ", " + lon.toFixed(3));
@@ -1814,12 +1828,17 @@
     var html = '<h3 class="chk-title">' + escapeHtml(cl.name) + "</h3>";
     html += '<div class="chk-meta">' + meta + ' · <span id="chk-progress">' + checked + " / " + cl.items.length + "</span></div>";
     html += '<table class="chk-table"><thead><tr><th class="chk-cb"></th><th>' + escapeHtml(t("th.rank")) + "</th><th>" + escapeHtml(t("th.species")) +
-      "</th><th>" + escapeHtml(t("th.sci")) + "</th><th>" + escapeHtml(t("th.prob")) + "</th><th>" + escapeHtml(t("th.change")) + "</th></tr></thead><tbody>";
+      "</th><th>" + escapeHtml(t("th.sci")) + "</th><th>" + escapeHtml(t("th.prob")) + "</th><th>" + escapeHtml(t("th.change")) +
+      "</th><th>" + escapeHtml(t("th.focus")) + "</th><th>" + escapeHtml(t("th.locality")) + "</th><th>" + escapeHtml(t("th.notes")) + "</th></tr></thead><tbody>";
     cl.items.forEach(function (it, idx) {
       var dcls = it.delta > 0.001 ? "delta-up" : (it.delta < -0.001 ? "delta-down" : "delta-flat");
+      var focus = (it.focus == null) ? "" : Math.round(it.focus);
       html += '<tr><td class="chk-cb"><input type="checkbox" class="chk-box" data-idx="' + idx + '"' + (it.checked ? " checked" : "") + "></td>" +
         "<td>" + (idx + 1) + "</td><td>" + escapeHtml(it.name) + '</td><td style="font-style:italic">' + escapeHtml(it.sci) + "</td>" +
-        "<td>" + (it.prob * 100).toFixed(1) + '%</td><td class="' + dcls + '">' + (it.delta * 100).toFixed(1) + "%</td></tr>";
+        "<td>" + (it.prob * 100).toFixed(1) + '%</td><td class="' + dcls + '">' + (it.delta * 100).toFixed(1) + "%</td>" +
+        "<td>" + focus + "</td>" +
+        '<td><input type="text" class="chk-text" data-idx="' + idx + '" data-field="locality" value="' + escapeHtml(it.locality || "") + '"></td>' +
+        '<td><input type="text" class="chk-text" data-idx="' + idx + '" data-field="notes" value="' + escapeHtml(it.notes || "") + '"></td></tr>';
     });
     html += "</tbody></table>";
     body.innerHTML = html;
@@ -1833,14 +1852,23 @@
         if (prog) prog.textContent = c.items.filter(function (it) { return it.checked; }).length + " / " + c.items.length;
       });
     });
+    body.querySelectorAll(".chk-text").forEach(function (inp) {
+      inp.addEventListener("change", function () {
+        var c = getChecklist(currentChecklistId);
+        if (!c) return;
+        c.items[+this.getAttribute("data-idx")][this.getAttribute("data-field")] = this.value;
+        updateChecklist(c);
+      });
+    });
   }
 
   function buildChecklistCsv(cl) {
     var esc = function (v) { var s = String(v == null ? "" : v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
     var lines = ["# " + cl.name + " | " + (cl.place || "") + " | week " + cl.week + " | " + (cl.createdAt || "").slice(0, 10)];
-    lines.push("checked,rank,common_name,scientific_name,probability,change");
+    lines.push("checked,rank,common_name,scientific_name,probability,change,focus,locality,notes");
     cl.items.forEach(function (it, idx) {
-      lines.push([it.checked ? 1 : 0, idx + 1, esc(it.name), esc(it.sci), it.prob.toFixed(6), it.delta.toFixed(6)].join(","));
+      lines.push([it.checked ? 1 : 0, idx + 1, esc(it.name), esc(it.sci), it.prob.toFixed(6), it.delta.toFixed(6),
+        (it.focus == null ? "" : it.focus.toFixed(2)), esc(it.locality || ""), esc(it.notes || "")].join(","));
     });
     return lines.join("\n");
   }

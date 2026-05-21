@@ -40,6 +40,16 @@ window.GeoAnalysis = (function () {
     return (next - prev) / maxYear;
   }
 
+  // "Focus": cumulative sum of the weekly arrival score across the year,
+  // normalized so the peak of the cumulative curve is 100. Peaks at the time
+  // of year the species is most present; lower (toward 0/negative) off-season.
+  function focusSeries(probs, maxYear) {
+    var out = new Array(48), s = 0, mx = -Infinity, w;
+    for (w = 0; w < 48; w++) { s += arrivalAt(probs, w, maxYear); out[w] = s; if (s > mx) mx = s; }
+    for (w = 0; w < 48; w++) out[w] = mx > 1e-9 ? (out[w] / mx) * 100 : 0;
+    return out;
+  }
+
   // ---- Shared: build the visible species cohort ---------------------------
   // Returns [{ idx, label, probs:Float32Array(48), maxYear, curProb }] for
   // species whose current-week probability clears the threshold and that
@@ -73,26 +83,36 @@ window.GeoAnalysis = (function () {
     return out;
   }
 
-  // ---- Heatmap (probability / arrivals) -----------------------------------
-  function renderHeatmap(el, ctx, isArrival) {
+  // ---- Heatmap (probability / arrivals / focus) ---------------------------
+  // mode: "prob" | "arrival" | "focus".
+  function renderHeatmap(el, ctx, mode) {
     var rows = visibleSpecies(ctx);
     var wkIdx = ctx.week - 1;
     var esc = ctx.escapeHtml;
+    var isArrival = mode === "arrival", isFocus = mode === "focus";
 
     if (rows.length === 0) {
       el.innerHTML = '<p class="an-empty">' + esc(ctx.t("analysis.empty")) + "</p>";
       return;
     }
 
-    // Sort: probability by current-week prob desc; arrivals by the strongest
-    // arrival across prev/current/next week (so neighbours bubble up too).
+    // Per-row 48-week series for the active mode.
+    rows.forEach(function (r) {
+      if (isFocus) r.series = focusSeries(r.probs, r.maxYear);
+      else if (isArrival) {
+        r.series = new Array(48);
+        for (var w = 0; w < 48; w++) r.series[w] = arrivalAt(r.probs, w, r.maxYear);
+      }
+    });
+
+    // Sort: prob by current-week probability; arrivals by the strongest arrival
+    // across prev/current/next week; focus by the current-week focus value.
     if (isArrival) {
       rows.forEach(function (r) {
-        var c = arrivalAt(r.probs, wkIdx, r.maxYear);
-        var p = arrivalAt(r.probs, (wkIdx + 47) % 48, r.maxYear);
-        var n = arrivalAt(r.probs, (wkIdx + 1) % 48, r.maxYear);
-        r.sortKey = Math.max(c, p, n);
+        r.sortKey = Math.max(r.series[wkIdx], r.series[(wkIdx + 47) % 48], r.series[(wkIdx + 1) % 48]);
       });
+    } else if (isFocus) {
+      rows.forEach(function (r) { r.sortKey = r.series[wkIdx]; });
     } else {
       rows.forEach(function (r) { r.sortKey = r.curProb; });
     }
@@ -100,7 +120,7 @@ window.GeoAnalysis = (function () {
 
     // Probability colour is min-max stretched across visible cells.
     var gMin = Infinity, gMax = -Infinity;
-    if (!isArrival) {
+    if (mode === "prob") {
       for (var r = 0; r < rows.length; r++) {
         for (var w = 0; w < 48; w++) {
           var v = rows[r].probs[w];
@@ -129,10 +149,14 @@ window.GeoAnalysis = (function () {
       for (var cc = 0; cc < 48; cc++) {
         var color, text;
         if (isArrival) {
-          var av = arrivalAt(row.probs, cc, row.maxYear);
+          var av = row.series[cc];
           color = arrivalColor(av);
           // Show only the number; negatives keep their "-", positives have no sign.
           text = Math.abs(av) >= 0.005 ? (av * 100).toFixed(0) : "";
+        } else if (isFocus) {
+          var fv = row.series[cc];
+          color = probColor(Math.max(0, Math.min(1, fv / 100)));
+          text = Math.abs(fv) >= 1 ? Math.round(fv).toString() : "";
         } else {
           var pv = row.probs[cc];
           var norm = gRange > 0 ? (pv - gMin) / gRange : 0;
@@ -298,9 +322,11 @@ window.GeoAnalysis = (function () {
       for (var w = 1; w <= 48; w++) hdr.push("week_" + w);
       lines.push(hdr.join(","));
       rows.forEach(function (r) {
-        var vals = [];
+        var vals = [], fs = mode === "focus" ? focusSeries(r.probs, r.maxYear) : null;
         for (var ww = 0; ww < 48; ww++) {
-          vals.push(mode === "arrival" ? arrivalAt(r.probs, ww, r.maxYear).toFixed(6) : r.probs[ww].toFixed(6));
+          vals.push(mode === "arrival" ? arrivalAt(r.probs, ww, r.maxYear).toFixed(6)
+            : mode === "focus" ? fs[ww].toFixed(3)
+            : r.probs[ww].toFixed(6));
         }
         lines.push([r.label.key, esc(ctx.speciesName(r.label)), esc(r.label.sci)].concat(vals).join(","));
       });
@@ -313,5 +339,6 @@ window.GeoAnalysis = (function () {
     renderHeatmap: renderHeatmap,
     renderScatter: renderScatter,
     buildCsv: buildCsv,
+    focusSeries: focusSeries,
   };
 })();

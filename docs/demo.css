@@ -886,3 +886,20 @@ table.chk-table .chk-cb { width: 28px; text-align: center; }
   body { background: #fff; }
   table.chk-table th, table.chk-table td { border-color: #999; }
 }
+
+/* Checklist editable text columns (Locality / Notes) */
+.chk-text {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #cfd6da;
+  border-radius: 3px;
+  padding: 3px 5px;
+  font: inherit;
+  font-size: 0.85rem;
+}
+table.chk-table td:nth-child(8) input,
+table.chk-table td:nth-child(9) input { min-width: 100px; }
+@media print {
+  /* leave room to write Locality/Notes by hand */
+  .chk-text { border: none; border-bottom: 1px solid #bbb; border-radius: 0; }
+}
