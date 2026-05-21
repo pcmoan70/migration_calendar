@@ -207,6 +207,39 @@
   var analysisTab = "timeline";
   var scatterSort = { column: "arrival", dir: "desc" };
 
+  // Species the user has chosen to hide ("Do not show"). species_code -> true.
+  var hiddenSpecies = {};
+  var menuKey = null, menuName = "";   // species the context menu currently targets
+
+  function isHidden(key) { return !!hiddenSpecies[key]; }
+  function loadHidden() {
+    hiddenSpecies = {};
+    (window.GeoState.get("hidden", []) || []).forEach(function (k) { hiddenSpecies[k] = true; });
+  }
+  function persistHidden() { window.GeoState.save({ hidden: Object.keys(hiddenSpecies) }); }
+  function hideSpecies(key) {
+    if (!key) return;
+    hiddenSpecies[key] = true;
+    persistHidden(); refreshHiddenUI(); refreshCurrentView();
+  }
+  function unhideSpecies(key) {
+    delete hiddenSpecies[key];
+    persistHidden(); refreshHiddenUI(); refreshCurrentView();
+  }
+
+  // Clickable species-name span (opens the Filter / Do-not-show menu).
+  function nameLinkHtml(label) {
+    var n = escapeHtml(speciesName(label));
+    return '<span class="sp-link" data-key="' + escapeHtml(label.key) + '" data-name="' + n + '">' + n + "</span>";
+  }
+
+  // "Filter" action: drop the name into the analysis filter box and apply it.
+  function applyNameFilter(name) {
+    var f = document.getElementById("an-filter");
+    if (f) f.value = name;
+    if (currentMode === "barchart" && analysisData) renderActiveTab();
+  }
+
   // Base map tile layers
   var baseLayer = null;
   var BASEMAPS = {
@@ -295,18 +328,21 @@
             '</select>' +
           '</div>' +
           '<div class="ctrl-group" id="barchart-threshold-wrap" style="display:none">' +
-            '<label for="barchart-threshold" data-i18n="ctrl.bcthreshold">Min avg probability</label>' +
-            '<select id="barchart-threshold">' +
-              '<option value="1">1%</option>' +
-              '<option value="5" selected>5%</option>' +
-              '<option value="10">10%</option>' +
-              '<option value="25">25%</option>' +
-              '<option value="50">50%</option>' +
-            '</select>' +
+            '<label data-i18n="ctrl.bcthreshold">Probability range</label>' +
+            '<div id="prob-range">' +
+              '<div class="pr-track"></div>' +
+              '<input type="range" id="prob-min" min="0" max="100" step="1" value="5" />' +
+              '<input type="range" id="prob-max" min="0" max="100" step="1" value="100" />' +
+            '</div>' +
+            '<div id="prob-range-vals"><span id="prob-min-val">5%</span> – <span id="prob-max-val">100%</span></div>' +
           '</div>' +
           '<div class="ctrl-group" id="savedloc-wrap">' +
             '<label data-i18n="ctrl.savedloc">Saved locations</label>' +
             '<div id="savedloc-list"></div>' +
+          '</div>' +
+          '<div class="ctrl-group" id="hidden-wrap" style="display:none">' +
+            '<label data-i18n="ctrl.hidden">Hidden species</label>' +
+            '<div id="hidden-list"></div>' +
           '</div>' +
           '<div class="ctrl-group ctrl-group-btn" id="saveloc-btn-wrap" style="display:none">' +
             '<button id="saveloc-btn" class="demo-btn" data-i18n="btn.saveloc">\u2605 Save</button>' +
@@ -349,6 +385,10 @@
           '<div class="sp-coords" id="bc-coords"></div>' +
           '<div id="bc-container"></div>' +
         '</div>' +
+        '<div id="sp-menu" style="display:none">' +
+          '<button type="button" class="sp-menu-item" data-act="filter" data-i18n="menu.filter">Filter</button>' +
+          '<button type="button" class="sp-menu-item" data-act="hide" data-i18n="menu.hide">Do not show</button>' +
+        '</div>' +
         '<details id="about-panel">' +
           '<summary data-i18n="about.title">About the model &amp; how values are computed</summary>' +
           '<div id="about-body"></div>' +
@@ -372,6 +412,7 @@
       initMap();
       bindControls();
       refreshSavedLocations();
+      refreshHiddenUI();
       setStatus(t("status.selectSpecies"));
     } catch (e) {
       document.getElementById("demo-loading").innerHTML =
@@ -491,6 +532,7 @@
     applyI18n();
     populateWeekSelect();   // re-label weeks in the new language
     refreshSavedLocations();
+    refreshHiddenUI();      // re-localize hidden-species chip names
     refreshCurrentView();   // re-render species names in the active panel
   }
 
@@ -666,9 +708,19 @@
       if (currentMode === "list" && marker) { var ll = marker.getLatLng(); renderSpeciesList(ll.lat, ll.lng); }
     });
 
-    document.getElementById("barchart-threshold").addEventListener("change", function () {
+    // Two-sided probability range (min/max) for the analysis tabs.
+    function onProbRange(e) {
+      var loEl = document.getElementById("prob-min"), hiEl = document.getElementById("prob-max");
+      var lo = +loEl.value, hi = +hiEl.value;
+      // Keep min ≤ max by pushing whichever handle the user is dragging.
+      if (lo > hi) { if (e && e.target === loEl) hiEl.value = lo, hi = lo; else loEl.value = hi, lo = hi; }
+      document.getElementById("prob-min-val").textContent = lo + "%";
+      document.getElementById("prob-max-val").textContent = hi + "%";
+      window.GeoState.save({ probMin: lo, probMax: hi });
       if (currentMode === "barchart" && analysisData) renderActiveTab();
-    });
+    }
+    document.getElementById("prob-min").addEventListener("input", onProbRange);
+    document.getElementById("prob-max").addEventListener("input", onProbRange);
 
     document.getElementById("play-btn").addEventListener("click", toggleAnimation);
 
@@ -676,6 +728,31 @@
 
     document.getElementById("csv-download-btn").addEventListener("click", function () {
       if (lastCsvData) downloadCsv(lastCsvData.filename, lastCsvData.content);
+    });
+
+    // Species-name context menu: clicking a name (in any list/table) opens a
+    // small menu with "Filter" and "Do not show".
+    var spMenu = document.getElementById("sp-menu");
+    document.addEventListener("click", function (e) {
+      var link = e.target.closest ? e.target.closest(".sp-link") : null;
+      if (link) {
+        e.preventDefault();
+        menuKey = link.getAttribute("data-key");
+        menuName = link.getAttribute("data-name");
+        spMenu.style.left = e.pageX + "px";
+        spMenu.style.top = e.pageY + "px";
+        spMenu.style.display = "block";
+        return;
+      }
+      if (!spMenu.contains(e.target)) spMenu.style.display = "none";
+    });
+    spMenu.querySelectorAll(".sp-menu-item").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var act = this.getAttribute("data-act");
+        if (act === "hide") hideSpecies(menuKey);
+        else if (act === "filter") applyNameFilter(menuName);
+        spMenu.style.display = "none";
+      });
     });
 
     var searchEl = document.getElementById("species-search");
@@ -1170,7 +1247,7 @@
       var isRatio = cmp.ratio === true;   // "Annual max" → show current ÷ peak
       var results = [];
       for (var i = 0; i < labels.length; i++) {
-        if (out[i] >= threshold && inGroup(i)) {
+        if (out[i] >= threshold && inGroup(i) && !isHidden(labels[i].key)) {
           var cval = 0;
           if (hasCompare) cval = isRatio ? (cmp.probs[i] > 0 ? out[i] / cmp.probs[i] : 0) : (out[i] - cmp.probs[i]);
           results.push({ label: labels[i], prob: out[i], cmpVal: cval });
@@ -1184,7 +1261,7 @@
         t("sp.summary", { lat: lat.toFixed(4), lon: lon.toFixed(4), week: week, n: results.length, p: (threshold * 100).toFixed(0) });
       document.getElementById("sp-tbody").innerHTML = results.map(function (r, idx) {
         var cmpCell = !hasCompare ? "<td></td>" : (isRatio ? ratioCell(r.cmpVal) : deltaCell(r.cmpVal));
-        return '<tr><td>' + (idx + 1) + '</td><td>' + escapeHtml(speciesName(r.label)) + '</td><td style="font-style:italic">' +
+        return '<tr><td>' + (idx + 1) + '</td><td>' + nameLinkHtml(r.label) + '</td><td style="font-style:italic">' +
                escapeHtml(r.label.sci) + '</td><td>' + (r.prob * 100).toFixed(1) + '%</td><td class="prob-bar-cell"><div class="prob-bar" style="width:' +
                Math.round(r.prob * 100) + '%"></div></td>' + cmpCell + '</tr>';
       }).join("");
@@ -1341,11 +1418,14 @@
       nSpecies: analysisData.nSpecies,
       labels: labels,
       week: +document.getElementById("week-select").value,
-      thresholdFrac: +document.getElementById("barchart-threshold").value / 100,
+      thresholdFrac: +document.getElementById("prob-min").value / 100,
+      thresholdMax: +document.getElementById("prob-max").value / 100,
       filterText: document.getElementById("an-filter").value.trim(),
       topN: +document.getElementById("an-topn").value,
       scatterSort: scatterSort,
       inGroup: inGroup,
+      isHidden: function (key) { return isHidden(key); },
+      nameLink: nameLinkHtml,
       speciesName: speciesName,
       escapeHtml: escapeHtml,
       months: window.GeoI18N.months(lang),
@@ -1405,7 +1485,7 @@
       var r = rows[ri];
       html += '<div class="bc-species"><div class="bc-header">' +
         '<span class="bc-rank">' + (ri + 1) + '</span>' +
-        '<span class="bc-name">' + escapeHtml(speciesName(r.label)) + '</span>' +
+        '<span class="bc-name">' + nameLinkHtml(r.label) + '</span>' +
         '<span class="bc-sci">' + escapeHtml(r.label.sci) + '</span>' +
         '<span class="bc-avg">' + t("bc.avg", { p: (r.avg * 100).toFixed(1) }) + '</span>' +
         '</div><div class="bc-bars">';
@@ -1509,6 +1589,24 @@
     });
   }
 
+  // Editable "Hidden species" chips (× restores a species).
+  function refreshHiddenUI() {
+    var box = document.getElementById("hidden-list");
+    var wrap = document.getElementById("hidden-wrap");
+    if (!box || !wrap) return;
+    var keys = Object.keys(hiddenSpecies);
+    wrap.style.display = keys.length ? "" : "none";
+    box.innerHTML = keys.map(function (k) {
+      var lbl = labelsByKey[k];
+      var n = escapeHtml(lbl ? speciesName(lbl) : k);
+      return '<span class="savedloc-chip"><span class="savedloc-go" style="cursor:default">' + n + "</span>" +
+        '<button type="button" class="hidden-del" data-key="' + escapeHtml(k) + '" title="' + escapeHtml(t("loc.unhide")) + '" aria-label="' + escapeHtml(t("loc.unhide")) + '">×</button></span>';
+    }).join("");
+    box.querySelectorAll(".hidden-del").forEach(function (b) {
+      b.addEventListener("click", function () { unhideSpecies(this.getAttribute("data-key")); });
+    });
+  }
+
   function saveCurrentLocation() {
     if (!marker) return;
     var ll = marker.getLatLng();
@@ -1553,6 +1651,14 @@
 
     speciesGroup = window.GeoState.get("group", "all");
     document.getElementById("group-select").value = speciesGroup;
+
+    var pMin = window.GeoState.get("probMin", null), pMax = window.GeoState.get("probMax", null);
+    if (pMin !== null) document.getElementById("prob-min").value = pMin;
+    if (pMax !== null) document.getElementById("prob-max").value = pMax;
+    document.getElementById("prob-min-val").textContent = document.getElementById("prob-min").value + "%";
+    document.getElementById("prob-max-val").textContent = document.getElementById("prob-max").value + "%";
+
+    loadHidden();
 
     var sp = window.GeoState.get("species", null);
     if (sp && labelsByKey[sp]) {

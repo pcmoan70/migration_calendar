@@ -51,8 +51,10 @@ window.GeoAnalysis = (function () {
     for (var i = 0; i < ctx.nSpecies; i++) {
       var cur = ctx.allProbs[wkIdx * ctx.nSpecies + i];
       if (cur < ctx.thresholdFrac) continue;
+      if (ctx.thresholdMax != null && cur > ctx.thresholdMax) continue;
       if (ctx.inGroup && !ctx.inGroup(i)) continue;
       var lbl = ctx.labels[i];
+      if (ctx.isHidden && ctx.isHidden(lbl.key)) continue;
       if (f) {
         var nm = ctx.speciesName(lbl).toLowerCase();
         if (nm.indexOf(f) < 0 && lbl.sci.toLowerCase().indexOf(f) < 0 && lbl.key.indexOf(f) < 0) continue;
@@ -120,7 +122,7 @@ window.GeoAnalysis = (function () {
 
     for (var ri = 0; ri < rows.length; ri++) {
       var row = rows[ri];
-      html += '<tr><td class="an-name" title="' + esc(row.label.sci) + '">' + esc(ctx.speciesName(row.label)) + "</td>";
+      html += '<tr><td class="an-name" title="' + esc(row.label.sci) + '">' + ctx.nameLink(row.label) + "</td>";
       for (var cc = 0; cc < 48; cc++) {
         var color, text;
         if (isArrival) {
@@ -245,7 +247,7 @@ window.GeoAnalysis = (function () {
     tbl += "</tr></thead><tbody>";
     rows.forEach(function (r) {
       var norm = pRange > 0 ? (r.probability - pMin) / pRange : 0;
-      tbl += "<tr><td>" + esc(ctx.speciesName(r.label)) + "</td>";
+      tbl += "<tr><td>" + ctx.nameLink(r.label) + "</td>";
       tbl += '<td class="an-num an-tint" style="background:' + probColor(norm) + '">' + (r.probability * 100).toFixed(1) + "%</td>";
       tbl += '<td class="an-num an-tint" style="background:' + arrivalColor(r.arrival) + '">' + (r.arrival * 100).toFixed(1) + "%</td></tr>";
     });
