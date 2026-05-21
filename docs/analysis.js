@@ -41,12 +41,16 @@ window.GeoAnalysis = (function () {
   }
 
   // "Focus": cumulative sum of the weekly arrival score across the year,
-  // normalized so the peak of the cumulative curve is 100. Peaks at the time
-  // of year the species is most present; lower (toward 0/negative) off-season.
+  // min–max normalized to 0–100 (year low = 0, peak = 100). Peaks at the time
+  // of year the species is most present. Min–max (rather than dividing by the
+  // max) keeps it bounded: the raw cumulative sum is small and can be negative,
+  // so dividing by a near-zero max would blow values up to thousands.
   function focusSeries(probs, maxYear) {
-    var out = new Array(48), s = 0, mx = -Infinity, w;
-    for (w = 0; w < 48; w++) { s += arrivalAt(probs, w, maxYear); out[w] = s; if (s > mx) mx = s; }
-    for (w = 0; w < 48; w++) out[w] = mx > 1e-9 ? (out[w] / mx) * 100 : 0;
+    var cum = new Array(48), s = 0, mn = Infinity, mx = -Infinity, w;
+    for (w = 0; w < 48; w++) { s += arrivalAt(probs, w, maxYear); cum[w] = s; if (s < mn) mn = s; if (s > mx) mx = s; }
+    var range = mx - mn;
+    var out = new Array(48);
+    for (w = 0; w < 48; w++) out[w] = range > 1e-9 ? ((cum[w] - mn) / range) * 100 : 0;
     return out;
   }
 
