@@ -87,6 +87,7 @@ window.GeoI18N = (function () {
       "compare.next": "Next week",
       "compare.mean": "Annual mean",
       "compare.max": "Annual max",
+      "compare.annualtop": "Annual Top",
       "ctrl.savedloc": "Saved locations",
       "ph.savedloc": "No saved locations yet",
       "loc.delete": "Delete location",
@@ -115,7 +116,7 @@ window.GeoI18N = (function () {
       "tab.timeline": "Timeline",
       "tab.prob": "Probability",
       "tab.arrival": "Arrivals",
-      "tab.focus": "Focus",
+      "tab.focus": "Annual Top",
       "tab.scatter": "Scatter",
       "analysis.empty": "No species above the threshold.",
       "ctrl.filter": "Filter species",
@@ -175,6 +176,7 @@ window.GeoI18N = (function () {
         "<li><b>Timeline</b> — each species' probability across all 48 weeks.</li>" +
         "<li><b>Probability</b> — a species × week heatmap (red = low, green = high), stretched across the values currently on screen.</li>" +
         "<li><b>Arrivals</b> — for each species and week, an arrival score <code>(P[next week] − P[previous week]) ÷ max</code>, where <code>max</code> is that species' highest weekly probability over the year. Green = probability rising (arriving), red = falling (departing); weeks wrap around the year boundary (1 ↔ 48).</li>" +
+        "<li><b>Annual Top</b> — the running (cumulative) total of the weekly arrival scores, rescaled to 0–100 (the year's low = 0, its peak = 100). It highlights the part of the year when the species is most present.</li>" +
         "<li><b>Scatter</b> — the current week's arrival score (x-axis) versus probability (y-axis) for the top species, with a sortable table below.</li>" +
         "</ul>" +
         "<h4>Species List — “Compare to” column</h4>" +
@@ -221,6 +223,7 @@ window.GeoI18N = (function () {
       "compare.next": "Nästa vecka",
       "compare.mean": "Årsmedel",
       "compare.max": "Årsmax",
+      "compare.annualtop": "Årstopp",
       "ctrl.savedloc": "Sparade platser",
       "ph.savedloc": "Inga sparade platser än",
       "loc.delete": "Ta bort plats",
@@ -249,7 +252,7 @@ window.GeoI18N = (function () {
       "tab.timeline": "Tidslinje",
       "tab.prob": "Sannolikhet",
       "tab.arrival": "Ankomster",
-      "tab.focus": "Fokus",
+      "tab.focus": "Årstopp",
       "tab.scatter": "Spridning",
       "analysis.empty": "Inga arter över tröskeln.",
       "ctrl.filter": "Filtrera arter",
@@ -309,6 +312,7 @@ window.GeoI18N = (function () {
         "<li><b>Tidslinje</b> — varje arts sannolikhet över alla 48 veckor.</li>" +
         "<li><b>Sannolikhet</b> — en värmekarta art × vecka (rött = lågt, grönt = högt), skalad efter värdena på skärmen.</li>" +
         "<li><b>Ankomster</b> — för varje art och vecka en ankomstpoäng <code>(P[nästa vecka] − P[föregående vecka]) ÷ max</code>, där <code>max</code> är artens högsta veckosannolikhet under året. Grönt = stigande (ankommer), rött = fallande (lämnar); veckorna går runt årsgränsen (1 ↔ 48).</li>" +
+        "<li><b>Årstopp</b> — den löpande (kumulativa) summan av veckornas ankomstpoäng, omskalad till 0–100 (årets lägsta = 0, toppen = 100). Lyfter fram den del av året då arten är som mest närvarande.</li>" +
         "<li><b>Spridning</b> — aktuell veckas ankomstpoäng (x) mot sannolikhet (y) för topparterna, med en sorterbar tabell under.</li>" +
         "</ul>" +
         "<h4>Artlista — kolumnen ”Jämför med”</h4>" +
@@ -347,6 +351,7 @@ window.GeoI18N = (function () {
         "<li><b>Tidslinje</b> — hver arts sannsynlighet over alle 48 ukene.</li>" +
         "<li><b>Sannsynlighet</b> — et varmekart art × uke (rødt = lavt, grønt = høyt), skalert etter verdiene på skjermen.</li>" +
         "<li><b>Ankomster</b> — for hver art og uke en ankomstscore <code>(P[neste uke] − P[forrige uke]) ÷ maks</code>, der <code>maks</code> er artens høyeste ukesannsynlighet gjennom året. Grønt = stigende (ankommer), rødt = synkende (forlater); ukene går rundt årsgrensen (1 ↔ 48).</li>" +
+        "<li><b>Årstopp</b> — den løpende (kumulative) summen av ukentlige ankomstscorer, skalert til 0–100 (årets laveste = 0, toppen = 100). Fremhever den delen av året da arten er mest til stede.</li>" +
         "<li><b>Spredning</b> — gjeldende ukes ankomstscore (x) mot sannsynlighet (y) for topp-artene, med en sorterbar tabell under.</li>" +
         "</ul>" +
         "<h4>Artsliste — kolonnen «Sammenlign med»</h4>" +
@@ -383,6 +388,7 @@ window.GeoI18N = (function () {
         "<li><b>Chronologie</b> — la probabilité de chaque espèce sur les 48 semaines.</li>" +
         "<li><b>Probabilité</b> — une carte de chaleur espèce × semaine (rouge = faible, vert = élevé), étirée selon les valeurs affichées.</li>" +
         "<li><b>Arrivées</b> — pour chaque espèce et semaine, un score d'arrivée <code>(P[semaine suivante] − P[semaine précédente]) ÷ max</code>, où <code>max</code> est la probabilité hebdomadaire la plus élevée de l'espèce sur l'année. Vert = en hausse (arrivée), rouge = en baisse (départ) ; les semaines bouclent à la limite de l'année (1 ↔ 48).</li>" +
+        "<li><b>Pic annuel</b> — la somme cumulée des scores d'arrivée hebdomadaires, ramenée à 0–100 (minimum de l'année = 0, pic = 100). Met en évidence la période de l'année où l'espèce est la plus présente.</li>" +
         "<li><b>Nuage de points</b> — le score d'arrivée de la semaine en cours (axe x) en fonction de la probabilité (axe y) pour les principales espèces, avec un tableau triable en dessous.</li>" +
         "</ul>" +
         "<h4>Liste d'espèces — colonne « Comparer à »</h4>" +
@@ -419,6 +425,7 @@ window.GeoI18N = (function () {
         "<li><b>Zeitverlauf</b> — die Wahrscheinlichkeit jeder Art über alle 48 Wochen.</li>" +
         "<li><b>Wahrscheinlichkeit</b> — eine Heatmap Art × Woche (rot = niedrig, grün = hoch), gestreckt über die angezeigten Werte.</li>" +
         "<li><b>Ankünfte</b> — für jede Art und Woche ein Ankunftswert <code>(P[nächste Woche] − P[vorherige Woche]) ÷ max</code>, wobei <code>max</code> die höchste Wochenwahrscheinlichkeit der Art im Jahr ist. Grün = steigend (Ankunft), rot = fallend (Abzug); die Wochen laufen über die Jahresgrenze um (1 ↔ 48).</li>" +
+        "<li><b>Jahreshoch</b> — die kumulative Summe der wöchentlichen Ankunftswerte, auf 0–100 skaliert (Jahrestief = 0, Höhepunkt = 100). Hebt die Zeit des Jahres hervor, in der die Art am stärksten präsent ist.</li>" +
         "<li><b>Streudiagramm</b> — der Ankunftswert der aktuellen Woche (x-Achse) gegen die Wahrscheinlichkeit (y-Achse) für die wichtigsten Arten, mit einer sortierbaren Tabelle darunter.</li>" +
         "</ul>" +
         "<h4>Artenliste — Spalte „Vergleichen mit“</h4>" +
@@ -455,6 +462,7 @@ window.GeoI18N = (function () {
         "<li><b>Tijdlijn</b> — de waarschijnlijkheid van elke soort over alle 48 weken.</li>" +
         "<li><b>Waarschijnlijkheid</b> — een heatmap soort × week (rood = laag, groen = hoog), uitgerekt over de waarden op het scherm.</li>" +
         "<li><b>Aankomsten</b> — voor elke soort en week een aankomstscore <code>(P[volgende week] − P[vorige week]) ÷ max</code>, waarbij <code>max</code> de hoogste wekelijkse waarschijnlijkheid van de soort in het jaar is. Groen = stijgend (aankomst), rood = dalend (vertrek); de weken lopen rond bij de jaargrens (1 ↔ 48).</li>" +
+        "<li><b>Jaartop</b> — de cumulatieve som van de wekelijkse aankomstscores, geschaald naar 0–100 (jaarminimum = 0, piek = 100). Toont het deel van het jaar waarin de soort het meest aanwezig is.</li>" +
         "<li><b>Spreidingsdiagram</b> — de aankomstscore van de huidige week (x-as) tegen de waarschijnlijkheid (y-as) voor de topsoorten, met een sorteerbare tabel eronder.</li>" +
         "</ul>" +
         "<h4>Soortenlijst — kolom ‘Vergelijken met’</h4>" +
@@ -491,6 +499,7 @@ window.GeoI18N = (function () {
         "<li><b>Cronologia</b> — la probabilità di ogni specie su tutte le 48 settimane.</li>" +
         "<li><b>Probabilità</b> — una mappa di calore specie × settimana (rosso = basso, verde = alto), estesa sui valori a schermo.</li>" +
         "<li><b>Arrivi</b> — per ogni specie e settimana, un punteggio di arrivo <code>(P[settimana successiva] − P[settimana precedente]) ÷ max</code>, dove <code>max</code> è la probabilità settimanale più alta della specie nell'anno. Verde = in aumento (arrivo), rosso = in calo (partenza); le settimane si chiudono al confine dell'anno (1 ↔ 48).</li>" +
+        "<li><b>Picco annuale</b> — la somma cumulativa dei punteggi di arrivo settimanali, riscalata a 0–100 (minimo dell'anno = 0, picco = 100). Evidenzia il periodo dell'anno in cui la specie è più presente.</li>" +
         "<li><b>Grafico a dispersione</b> — il punteggio di arrivo della settimana corrente (asse x) rispetto alla probabilità (asse y) per le specie principali, con una tabella ordinabile sotto.</li>" +
         "</ul>" +
         "<h4>Elenco specie — colonna « Confronta con »</h4>" +

@@ -343,6 +343,7 @@
               '<option value="next" data-i18n="compare.next">Next week</option>' +
               '<option value="mean" data-i18n="compare.mean">Annual mean</option>' +
               '<option value="annualmax" data-i18n="compare.max">Annual max</option>' +
+              '<option value="annualtop" data-i18n="compare.annualtop">Annual Top</option>' +
             '</select>' +
           '</div>' +
           '<div class="ctrl-group" id="barchart-threshold-wrap" style="display:none">' +
@@ -438,6 +439,7 @@
           '<div id="about-body"></div>' +
         '</details>' +
         '<div id="demo-footer" data-i18n="footer.attrib"></div>' +
+        '<div id="visit-counter"><img src="https://api.visitorbadge.io/api/visitors?path=https%3A%2F%2Fpcmoan70.github.io%2Fmigration_calendar&label=page%20visits&labelColor=%230f1b24&countColor=%232f6f4f" alt="page visits" /></div>' +
       '</div>';
 
     // Restore saved language before building the UI text.
@@ -679,7 +681,7 @@
     document.getElementById("compare-wrap").style.display = currentMode === "list" ? "" : "none";
     // The probability min–max slider applies to the Species List, the checklist
     // (derived from it) and the analysis tabs.
-    document.getElementById("barchart-threshold-wrap").style.display = (currentMode === "list" || currentMode === "barchart") ? "" : "none";
+    document.getElementById("barchart-threshold-wrap").style.display = (currentMode === "range" || currentMode === "list" || currentMode === "barchart") ? "" : "none";
     // Week applies in every mode (incl. Migration timeline, where it sets the
     // "current week" used by the Probability / Arrivals / Scatter tabs).
     document.getElementById("week-select-wrap").style.display = "";
@@ -767,6 +769,7 @@
       window.GeoState.save({ probMin: lo, probMax: hi });
       if (currentMode === "barchart" && analysisData) renderActiveTab();
       else if (currentMode === "list" && marker) { var ll = marker.getLatLng(); renderSpeciesList(ll.lat, ll.lng); }
+      else if (currentMode === "range" && cachedRender) showCachedWeek();
     }
     document.getElementById("prob-min").addEventListener("input", onProbRange);
     document.getElementById("prob-max").addEventListener("input", onProbRange);
@@ -1081,7 +1084,15 @@
   function normalizeProbs(raw) {
     var maxProb = 0;
     for (var i = 0; i < raw.length; i++) if (raw[i] > maxProb) maxProb = raw[i];
-    return { probs: perceptualNorm(raw, maxProb), maxProb: maxProb };
+    var norm = perceptualNorm(raw, maxProb);
+    // Hide cells whose raw probability falls outside the min–max range slider
+    // so the same control filters the species-range overlay.
+    var pmin = +document.getElementById("prob-min").value / 100;
+    var pmax = +document.getElementById("prob-max").value / 100;
+    if (pmin > 0 || pmax < 1) {
+      for (var j = 0; j < raw.length; j++) if (raw[j] < pmin || raw[j] > pmax) norm[j] = 0;
+    }
+    return { probs: norm, maxProb: maxProb };
   }
 
   // Weeks to compute for a range/richness render: just the selected week
@@ -1296,35 +1307,44 @@
   // aligned to the label index, or null when no comparison is selected.
   async function computeComparison(lat, lon, week) {
     var mode = document.getElementById("compare-select").value;
-    var nSpecies = labels.length;
+    var nSpecies = labels.length, wkIdx = week - 1;
     if (mode === "prev" || mode === "next") {
       var cw = mode === "prev" ? (week - 1 < 1 ? 48 : week - 1) : (week + 1 > 48 ? 1 : week + 1);
       var out = await runInference(new Float32Array([lat, lon, cw]), 1);
-      return { probs: out, refLabel: weekText(cw) };
+      return { probs: out, refLabel: weekText(cw), kind: "delta" };
     }
-    if (mode === "mean" || mode === "annualmax") {
+    if (mode === "mean" || mode === "annualmax" || mode === "annualtop") {
       var inputs = new Float32Array(48 * 3);
       for (var w = 0; w < 48; w++) { inputs[w * 3] = lat; inputs[w * 3 + 1] = lon; inputs[w * 3 + 2] = w + 1; }
       var all = await runInference(inputs, 48);
-      var agg = new Float32Array(nSpecies);
+      var agg = new Float32Array(nSpecies), s, wk, v;
       if (mode === "annualmax") {
-        // Per-species peak probability across the 48 weeks; the list shows
-        // current week ÷ this peak (ratio mode), so 100% = the species' best week.
-        for (var s = 0; s < nSpecies; s++) {
+        // Per-species peak probability; the list shows current ÷ peak (ratio).
+        for (s = 0; s < nSpecies; s++) {
           var mx = 0;
-          for (var wk = 0; wk < 48; wk++) { var v = all[wk * nSpecies + s]; if (v > mx) mx = v; }
+          for (wk = 0; wk < 48; wk++) { v = all[wk * nSpecies + s]; if (v > mx) mx = v; }
           agg[s] = mx;
         }
-        return { probs: agg, refLabel: t("compare.max"), ratio: true };
+        return { probs: agg, refLabel: t("compare.max"), kind: "ratio" };
       }
-      for (var s2 = 0; s2 < nSpecies; s2++) {
+      if (mode === "annualtop") {
+        // Per-species "Annual Top" (focus) value at the current week (0–100).
+        var scratch = new Float32Array(48);
+        for (s = 0; s < nSpecies; s++) {
+          var mxt = 0;
+          for (wk = 0; wk < 48; wk++) { v = all[wk * nSpecies + s]; scratch[wk] = v; if (v > mxt) mxt = v; }
+          agg[s] = window.GeoAnalysis.focusSeries(scratch, mxt)[wkIdx];
+        }
+        return { probs: agg, refLabel: t("compare.annualtop"), kind: "focus" };
+      }
+      for (s = 0; s < nSpecies; s++) {
         var sum = 0;
-        for (var wk2 = 0; wk2 < 48; wk2++) sum += all[wk2 * nSpecies + s2];
-        agg[s2] = sum / 48;
+        for (wk = 0; wk < 48; wk++) sum += all[wk * nSpecies + s];
+        agg[s] = sum / 48;
       }
-      return { probs: agg, refLabel: t("compare.mean") };
+      return { probs: agg, refLabel: t("compare.mean"), kind: "delta" };
     }
-    return { probs: null, refLabel: "" };
+    return { probs: null, refLabel: "", kind: null };
   }
 
   function deltaCell(delta) {
@@ -1342,6 +1362,13 @@
     return '<td class="ratio-cell" style="background:' + bg + '">' + (r * 100).toFixed(0) + "%</td>";
   }
 
+  // Cell for the "Annual Top" comparison: focus value 0–100, tinted red→green.
+  function focusCell(v) {
+    var n = Math.max(0, Math.min(100, v));
+    var bg = "hsl(" + (10 + (n / 100) * 120) + ", 60%, 42%)";
+    return '<td class="ratio-cell" style="background:' + bg + '">' + Math.round(n) + "</td>";
+  }
+
   async function renderSpeciesList(lat, lon) {
     var week = +document.getElementById("week-select").value;
     var pmin = +document.getElementById("prob-min").value / 100;
@@ -1351,23 +1378,27 @@
       var out = await runInference(new Float32Array([lat, lon, week]), 1);
       var cmp = await computeComparison(lat, lon, week);
       var hasCompare = !!cmp.probs;
-      var isRatio = cmp.ratio === true;   // "Annual max" → show current ÷ peak
+      var kind = cmp.kind;   // "delta" | "ratio" | "focus"
       var results = [];
       for (var i = 0; i < labels.length; i++) {
         if (out[i] >= pmin && out[i] <= pmax && inGroup(i) && !isHidden(labels[i].key)) {
           var cval = 0;
-          if (hasCompare) cval = isRatio ? (cmp.probs[i] > 0 ? out[i] / cmp.probs[i] : 0) : (out[i] - cmp.probs[i]);
+          if (hasCompare) {
+            cval = kind === "ratio" ? (cmp.probs[i] > 0 ? out[i] / cmp.probs[i] : 0)
+                 : kind === "focus" ? cmp.probs[i]
+                 : (out[i] - cmp.probs[i]);
+          }
           results.push({ label: labels[i], prob: out[i], cmpVal: cval });
         }
       }
       results.sort(function (a, b) { return b.prob - a.prob; });
 
       document.getElementById("sp-delta-head").textContent =
-        hasCompare ? t(isRatio ? "th.ratio" : "th.delta", { ref: cmp.refLabel }) : "";
+        !hasCompare ? "" : kind === "focus" ? cmp.refLabel : t(kind === "ratio" ? "th.ratio" : "th.delta", { ref: cmp.refLabel });
       document.getElementById("sp-coords").textContent =
         t("sp.summary", { lat: lat.toFixed(4), lon: lon.toFixed(4), week: week, n: results.length, p: (pmin * 100).toFixed(0) });
       document.getElementById("sp-tbody").innerHTML = results.map(function (r, idx) {
-        var cmpCell = !hasCompare ? "<td></td>" : (isRatio ? ratioCell(r.cmpVal) : deltaCell(r.cmpVal));
+        var cmpCell = !hasCompare ? "<td></td>" : kind === "ratio" ? ratioCell(r.cmpVal) : kind === "focus" ? focusCell(r.cmpVal) : deltaCell(r.cmpVal);
         return '<tr><td>' + (idx + 1) + '</td><td>' + nameLinkHtml(r.label) + '</td><td style="font-style:italic">' +
                escapeHtml(r.label.sci) + '</td><td>' + (r.prob * 100).toFixed(1) + '%</td><td class="prob-bar-cell"><div class="prob-bar" style="width:' +
                Math.round(r.prob * 100) + '%"></div></td>' + cmpCell + '</tr>';
@@ -1378,7 +1409,7 @@
 
       // Build CSV for species list (includes comparison column when active)
       var header = "rank,species_code,common_name,scientific_name,probability";
-      if (hasCompare) header += "," + (isRatio ? "fraction_of_" : "delta_vs_") + cmp.refLabel.replace(/[",\s]+/g, "_");
+      if (hasCompare) header += "," + (kind === "ratio" ? "fraction_of_" : kind === "focus" ? "annual_top_" : "delta_vs_") + cmp.refLabel.replace(/[",\s]+/g, "_");
       var csvLines = [header];
       results.forEach(function (r, idx) {
         var line = (idx + 1) + ',"' + r.label.key + '","' + speciesName(r.label).replace(/"/g, '""') + '","' + r.label.sci.replace(/"/g, '""') + '",' + r.prob.toFixed(6);
@@ -1745,21 +1776,37 @@
       var inputs = new Float32Array(48 * 3);
       for (var w = 0; w < 48; w++) { inputs[w * 3] = lat; inputs[w * 3 + 1] = lon; inputs[w * 3 + 2] = w + 1; }
       var all = await runInference(inputs, 48);   // raw 48 * nSpecies
+      // Optional comparison column mirroring the Species List "Compare to".
+      var cmpMode = document.getElementById("compare-select").value;
+      var scratch = new Float32Array(48);
       var items = [];
       for (var i = 0; i < nSpecies; i++) {
         var cur = all[wkIdx * nSpecies + i];
         if (cur < pmin || cur > pmax || !inGroup(i) || isHidden(labels[i].key)) continue;
         var mx = 0;
-        for (var k = 0; k < 48; k++) { var v = all[k * nSpecies + i]; if (v > mx) mx = v; }
+        for (var k = 0; k < 48; k++) { var v = all[k * nSpecies + i]; scratch[k] = v; if (v > mx) mx = v; }
         var prev = all[((wkIdx + 47) % 48) * nSpecies + i], next = all[((wkIdx + 1) % 48) * nSpecies + i];
         var delta = mx > 1e-6 ? (next - prev) / mx : 0;
-        items.push({ key: labels[i].key, sci: labels[i].sci, name: speciesName(labels[i]), prob: cur, delta: delta, checked: false, locality: "", notes: "" });
+        var cmpVal = null;
+        if (cmpMode === "prev") cmpVal = cur - all[((wkIdx + 47) % 48) * nSpecies + i];
+        else if (cmpMode === "next") cmpVal = cur - all[((wkIdx + 1) % 48) * nSpecies + i];
+        else if (cmpMode === "mean") { var sm = 0; for (var m = 0; m < 48; m++) sm += all[m * nSpecies + i]; cmpVal = cur - sm / 48; }
+        else if (cmpMode === "annualmax") cmpVal = mx > 0 ? cur / mx : 0;
+        else if (cmpMode === "annualtop") cmpVal = window.GeoAnalysis.focusSeries(scratch, mx)[wkIdx];
+        items.push({ key: labels[i].key, sci: labels[i].sci, name: speciesName(labels[i]), prob: cur, delta: delta, cmp: cmpVal, checked: false, locality: "", notes: "" });
       }
       items.sort(function (a, b) { return b.prob - a.prob; });
+      // Column kind/label for the comparison value (if any).
+      var cmpKind = (cmpMode === "annualmax") ? "ratio" : (cmpMode === "annualtop") ? "focus" : (cmpMode === "" ? null : "delta");
+      var cmpLabel = cmpMode === "prev" ? weekText(week - 1 < 1 ? 48 : week - 1)
+        : cmpMode === "next" ? weekText(week + 1 > 48 ? 1 : week + 1)
+        : cmpMode === "mean" ? t("compare.mean")
+        : cmpMode === "annualmax" ? t("compare.max")
+        : cmpMode === "annualtop" ? t("compare.annualtop") : "";
       var place = (await reverseGeocode(lat, lon)) || (lat.toFixed(3) + ", " + lon.toFixed(3));
       var nm = window.prompt(t("chk.namePrompt"), place);
       if (nm === null) { setStatus(""); return; }
-      var cl = { id: "chk-" + Date.now(), name: nm.trim() || place, place: place, lat: lat, lon: lon, week: week, lang: lang, createdAt: new Date().toISOString(), items: items };
+      var cl = { id: "chk-" + Date.now(), name: nm.trim() || place, place: place, lat: lat, lon: lon, week: week, lang: lang, createdAt: new Date().toISOString(), cmpKind: cmpKind, cmpLabel: cmpLabel, items: items };
       var arr = getChecklists(); arr.push(cl); saveChecklists(arr);
       refreshChecklists();
       openChecklist(cl.id);
@@ -1817,14 +1864,19 @@
     var checked = cl.items.filter(function (it) { return it.checked; }).length;
     var html = '<h3 class="chk-title">' + escapeHtml(cl.name) + "</h3>";
     html += '<div class="chk-meta">' + meta + ' · <span id="chk-progress">' + checked + " / " + cl.items.length + "</span></div>";
+    var cmpHead = cl.cmpKind ? "<th>" + escapeHtml(cl.cmpLabel || "") + "</th>" : "";
     html += '<table class="chk-table"><thead><tr><th class="chk-cb"></th><th>' + escapeHtml(t("th.rank")) + "</th><th>" + escapeHtml(t("th.species")) +
       "</th><th>" + escapeHtml(t("th.sci")) + "</th><th>" + escapeHtml(t("th.prob")) + "</th><th>" + escapeHtml(t("th.change")) +
-      "</th><th>" + escapeHtml(t("th.locality")) + "</th><th>" + escapeHtml(t("th.notes")) + "</th></tr></thead><tbody>";
+      "</th>" + cmpHead + "<th>" + escapeHtml(t("th.locality")) + "</th><th>" + escapeHtml(t("th.notes")) + "</th></tr></thead><tbody>";
     cl.items.forEach(function (it, idx) {
       var dcls = it.delta > 0.001 ? "delta-up" : (it.delta < -0.001 ? "delta-down" : "delta-flat");
+      var cmpCell = !cl.cmpKind ? "" : (it.cmp == null ? "<td></td>"
+        : cl.cmpKind === "ratio" ? ratioCell(it.cmp)
+        : cl.cmpKind === "focus" ? focusCell(it.cmp)
+        : deltaCell(it.cmp));
       html += '<tr><td class="chk-cb"><input type="checkbox" class="chk-box" data-idx="' + idx + '"' + (it.checked ? " checked" : "") + "></td>" +
         "<td>" + (idx + 1) + "</td><td>" + escapeHtml(it.name) + '</td><td style="font-style:italic">' + escapeHtml(it.sci) + "</td>" +
-        "<td>" + (it.prob * 100).toFixed(1) + '%</td><td class="' + dcls + '">' + (it.delta * 100).toFixed(1) + "%</td>" +
+        "<td>" + (it.prob * 100).toFixed(1) + '%</td><td class="' + dcls + '">' + (it.delta * 100).toFixed(1) + "%</td>" + cmpCell +
         '<td><input type="text" class="chk-text" data-idx="' + idx + '" data-field="locality" value="' + escapeHtml(it.locality || "") + '"></td>' +
         '<td><input type="text" class="chk-text" data-idx="' + idx + '" data-field="notes" value="' + escapeHtml(it.notes || "") + '"></td></tr>';
     });
@@ -1852,11 +1904,14 @@
 
   function buildChecklistCsv(cl) {
     var esc = function (v) { var s = String(v == null ? "" : v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+    var cmpCol = cl.cmpKind ? "," + (cl.cmpKind === "ratio" ? "fraction_of_" : cl.cmpKind === "focus" ? "annual_top_" : "delta_vs_") + String(cl.cmpLabel || "").replace(/[",\s]+/g, "_") : "";
     var lines = ["# " + cl.name + " | " + (cl.place || "") + " | week " + cl.week + " | " + (cl.createdAt || "").slice(0, 10)];
-    lines.push("checked,rank,common_name,scientific_name,probability,change,locality,notes");
+    lines.push("checked,rank,common_name,scientific_name,probability,change" + cmpCol + ",locality,notes");
     cl.items.forEach(function (it, idx) {
-      lines.push([it.checked ? 1 : 0, idx + 1, esc(it.name), esc(it.sci), it.prob.toFixed(6), it.delta.toFixed(6),
-        esc(it.locality || ""), esc(it.notes || "")].join(","));
+      var row = [it.checked ? 1 : 0, idx + 1, esc(it.name), esc(it.sci), it.prob.toFixed(6), it.delta.toFixed(6)];
+      if (cl.cmpKind) row.push(it.cmp == null ? "" : it.cmp.toFixed(6));
+      row.push(esc(it.locality || ""), esc(it.notes || ""));
+      lines.push(row.join(","));
     });
     return lines.join("\n");
   }
