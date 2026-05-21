@@ -27,14 +27,24 @@
 
   function t(key, vars) { return window.GeoI18N.t(lang, key, vars); }
 
-  // Localized common name for a label, falling back to English then scientific.
+  // Localized common name for a label, falling back to the English common name
+  // then the scientific name. When a non-English language is active but only an
+  // English name is available — either the language column is empty or it just
+  // repeats the English name (the taxonomy often does this for untranslated
+  // species) — it is shown in brackets, e.g. "[Small Gold Grasshopper]".
   function speciesName(label) {
     var row = label && taxByCode[label.key];
     if (row) {
-      var n = row[langTaxCol] || row.com_name;
-      if (n) return n;
+      var en = row.com_name || "";
+      var loc = row[langTaxCol] || "";
+      if (lang === "en") return en || loc || (label && (label.common || label.sci || label.key)) || "";
+      // Real translation: present and not just a copy of the English name.
+      if (loc && (!en || loc.toLowerCase() !== en.toLowerCase())) return loc;
+      if (en) return "[" + en + "]";
+      if (loc) return "[" + loc + "]";
     }
-    return label.common || label.sci || label.key;
+    if (label && label.common) return lang === "en" ? label.common : "[" + label.common + "]";
+    return (label && (label.sci || label.key)) || "";       // scientific: no brackets
   }
 
   // ---- Species-group filter (taxonomic class) ------------------------------
