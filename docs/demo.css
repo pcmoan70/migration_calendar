@@ -910,3 +910,6 @@ table.chk-table .chk-text { min-width: 100px; }
 /* Optional 2nd-language name column in the Species List (toggled by JS) */
 #species-list-table .name2 { display: none; }
 #species-list-table.has-name2 .name2 { display: table-cell; }
+
+/* CSV download button relocated below the map */
+#csv-btn-wrap { margin: 0 0 12px; }

@@ -387,9 +387,6 @@
           '<div class="ctrl-group ctrl-group-btn" id="saveloc-btn-wrap" style="display:none">' +
             '<button id="saveloc-btn" class="demo-btn" data-i18n="btn.saveloc">\u2605 Save</button>' +
           '</div>' +
-          '<div class="ctrl-group ctrl-group-btn" id="csv-btn-wrap" style="display:none">' +
-            '<button id="csv-download-btn" class="demo-btn" data-i18n="btn.csv" title="Download CSV">\u2b07 CSV</button>' +
-          '</div>' +
         '</div>' +
         '<div id="demo-status">&nbsp;</div>' +
         '<div id="demo-map-wrap">' +
@@ -400,6 +397,9 @@
             '<div id="computing-progress-wrap"><div id="computing-progress-bar"></div></div>' +
           '</div>' +
           '<div id="demo-legend"></div>' +
+        '</div>' +
+        '<div id="csv-btn-wrap" style="display:none">' +
+          '<button id="csv-download-btn" class="demo-btn" data-i18n="btn.csv" title="Download CSV">\u2b07 CSV</button>' +
         '</div>' +
         '<div id="species-panel">' +
           '<h3 id="sp-title" data-i18n="panel.spTitle">Species at location</h3>' +
