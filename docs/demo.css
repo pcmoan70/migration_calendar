@@ -492,6 +492,14 @@ body {
 #species-list-table .delta-up   { color: #1a7f37; font-variant-numeric: tabular-nums; white-space: nowrap; }
 #species-list-table .delta-down { color: #b42318; font-variant-numeric: tabular-nums; white-space: nowrap; }
 #species-list-table .delta-flat { color: #98a2b3; font-variant-numeric: tabular-nums; white-space: nowrap; }
+#species-list-table .ratio-cell {
+  color: #fff;
+  font-weight: 600;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  text-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
+}
 
 /* ===== Location-analysis tabbed panel ===== */
 #an-tabs {

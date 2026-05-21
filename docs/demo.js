@@ -250,6 +250,7 @@
               '<option value="prev" selected data-i18n="compare.prev">Previous week</option>' +
               '<option value="next" data-i18n="compare.next">Next week</option>' +
               '<option value="mean" data-i18n="compare.mean">Annual mean</option>' +
+              '<option value="annualmax" data-i18n="compare.max">Annual max</option>' +
             '</select>' +
           '</div>' +
           '<div class="ctrl-group" id="barchart-threshold-wrap" style="display:none">' +
@@ -1000,17 +1001,27 @@
       var out = await runInference(new Float32Array([lat, lon, cw]), 1);
       return { probs: out, refLabel: weekText(cw) };
     }
-    if (mode === "mean") {
+    if (mode === "mean" || mode === "annualmax") {
       var inputs = new Float32Array(48 * 3);
       for (var w = 0; w < 48; w++) { inputs[w * 3] = lat; inputs[w * 3 + 1] = lon; inputs[w * 3 + 2] = w + 1; }
       var all = await runInference(inputs, 48);
-      var mean = new Float32Array(nSpecies);
-      for (var s = 0; s < nSpecies; s++) {
-        var sum = 0;
-        for (var wk = 0; wk < 48; wk++) sum += all[wk * nSpecies + s];
-        mean[s] = sum / 48;
+      var agg = new Float32Array(nSpecies);
+      if (mode === "annualmax") {
+        // Per-species peak probability across the 48 weeks; the list shows
+        // current week ÷ this peak (ratio mode), so 100% = the species' best week.
+        for (var s = 0; s < nSpecies; s++) {
+          var mx = 0;
+          for (var wk = 0; wk < 48; wk++) { var v = all[wk * nSpecies + s]; if (v > mx) mx = v; }
+          agg[s] = mx;
+        }
+        return { probs: agg, refLabel: t("compare.max"), ratio: true };
       }
-      return { probs: mean, refLabel: t("compare.mean") };
+      for (var s2 = 0; s2 < nSpecies; s2++) {
+        var sum = 0;
+        for (var wk2 = 0; wk2 < 48; wk2++) sum += all[wk2 * nSpecies + s2];
+        agg[s2] = sum / 48;
+      }
+      return { probs: agg, refLabel: t("compare.mean") };
     }
     return { probs: null, refLabel: "" };
   }
@@ -1022,6 +1033,14 @@
     return '<td class="' + cls + '">' + arrow + " " + (pct >= 0 ? "+" : "") + pct.toFixed(1) + "%</td>";
   }
 
+  // Cell for "Annual max" comparison: current week as a fraction of the
+  // species' annual peak (0\u2013100%), tinted red(off-peak)\u2192green(at peak).
+  function ratioCell(ratio) {
+    var r = Math.max(0, Math.min(1, ratio));
+    var bg = "hsl(" + (10 + r * 120) + ", 60%, 42%)";
+    return '<td class="ratio-cell" style="background:' + bg + '">' + (r * 100).toFixed(0) + "%</td>";
+  }
+
   async function renderSpeciesList(lat, lon) {
     var week = +document.getElementById("week-select").value;
     var threshold = +document.getElementById("threshold-select").value / 100;
@@ -1029,34 +1048,39 @@
     try {
       var out = await runInference(new Float32Array([lat, lon, week]), 1);
       var cmp = await computeComparison(lat, lon, week);
-      var hasDelta = !!cmp.probs;
+      var hasCompare = !!cmp.probs;
+      var isRatio = cmp.ratio === true;   // "Annual max" → show current ÷ peak
       var results = [];
       for (var i = 0; i < labels.length; i++) {
         if (out[i] >= threshold) {
-          results.push({ label: labels[i], prob: out[i], delta: hasDelta ? out[i] - cmp.probs[i] : 0 });
+          var cval = 0;
+          if (hasCompare) cval = isRatio ? (cmp.probs[i] > 0 ? out[i] / cmp.probs[i] : 0) : (out[i] - cmp.probs[i]);
+          results.push({ label: labels[i], prob: out[i], cmpVal: cval });
         }
       }
       results.sort(function (a, b) { return b.prob - a.prob; });
 
-      document.getElementById("sp-delta-head").textContent = hasDelta ? t("th.delta", { ref: cmp.refLabel }) : "";
+      document.getElementById("sp-delta-head").textContent =
+        hasCompare ? t(isRatio ? "th.ratio" : "th.delta", { ref: cmp.refLabel }) : "";
       document.getElementById("sp-coords").textContent =
         t("sp.summary", { lat: lat.toFixed(4), lon: lon.toFixed(4), week: week, n: results.length, p: (threshold * 100).toFixed(0) });
       document.getElementById("sp-tbody").innerHTML = results.map(function (r, idx) {
+        var cmpCell = !hasCompare ? "<td></td>" : (isRatio ? ratioCell(r.cmpVal) : deltaCell(r.cmpVal));
         return '<tr><td>' + (idx + 1) + '</td><td>' + escapeHtml(speciesName(r.label)) + '</td><td style="font-style:italic">' +
                escapeHtml(r.label.sci) + '</td><td>' + (r.prob * 100).toFixed(1) + '%</td><td class="prob-bar-cell"><div class="prob-bar" style="width:' +
-               Math.round(r.prob * 100) + '%"></div></td>' + (hasDelta ? deltaCell(r.delta) : "<td></td>") + '</tr>';
+               Math.round(r.prob * 100) + '%"></div></td>' + cmpCell + '</tr>';
       }).join("");
       document.getElementById("species-panel").style.display = "block";
       document.getElementById("barchart-panel").style.display = "none";
       setStatus(t("status.spResult", { n: results.length, p: (threshold * 100).toFixed(0), lat: lat.toFixed(2), lon: lon.toFixed(2) }));
 
-      // Build CSV for species list (includes change column when active)
+      // Build CSV for species list (includes comparison column when active)
       var header = "rank,species_code,common_name,scientific_name,probability";
-      if (hasDelta) header += ",delta_vs_" + cmp.refLabel.replace(/[",\s]+/g, "_");
+      if (hasCompare) header += "," + (isRatio ? "fraction_of_" : "delta_vs_") + cmp.refLabel.replace(/[",\s]+/g, "_");
       var csvLines = [header];
       results.forEach(function (r, idx) {
         var line = (idx + 1) + ',"' + r.label.key + '","' + speciesName(r.label).replace(/"/g, '""') + '","' + r.label.sci.replace(/"/g, '""') + '",' + r.prob.toFixed(6);
-        if (hasDelta) line += "," + r.delta.toFixed(6);
+        if (hasCompare) line += "," + r.cmpVal.toFixed(6);
         csvLines.push(line);
       });
       lastCsvData = {
