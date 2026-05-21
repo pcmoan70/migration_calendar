@@ -64,6 +64,12 @@ window.GeoI18N = (function () {
       "app.failed": "Failed to load: {msg}",
       "ctrl.language": "Language",
       "ctrl.mode": "Mode",
+      "ctrl.group": "Species group",
+      "group.all": "All groups",
+      "group.aves": "Birds",
+      "group.mammalia": "Mammals",
+      "group.amphibia": "Amphibians",
+      "group.insecta": "Insects",
       "mode.range": "Species Range",
       "mode.richness": "Species Richness",
       "mode.list": "Species List (click map)",
@@ -127,6 +133,29 @@ window.GeoI18N = (function () {
       "loc.savePrompt": "Name this location:",
       "loc.defaultName": "{lat}, {lon}",
       "footer.attrib": "Model: BirdNET Geomodel (weights CC BY-SA 4.0). App code MIT. Predictions are estimates — not ground truth.",
+      "about.title": "ℹ︎ About the model & how values are computed",
+      "about.html":
+        "<h4>The habitat model</h4>" +
+        "<p>This tool runs the <a href=\"https://github.com/birdnet-team/geomodel\" target=\"_blank\" rel=\"noopener\">BirdNET Geomodel</a> — a spatiotemporal neural network — entirely in your browser via ONNX Runtime Web. From a <b>latitude</b>, <b>longitude</b> and <b>week of year</b> (1–48; the model splits the year into 48 weeks of about 7.6 days), it predicts an <b>occurrence probability</b> (0–100%) for each of 12,012 species across birds, mammals, amphibians and insects. The probability reflects how likely a species is to be present there at that time of year, learned from global occurrence records and environmental variables. It is a modelled estimate — not an observation count or a guarantee.</p>" +
+        "<h4>Map views</h4>" +
+        "<ul>" +
+        "<li><b>Species Range</b> — the probability of one chosen species across the map for the selected week.</li>" +
+        "<li><b>Species Richness</b> — the number of species whose probability is at least 5% in each grid cell, limited to the selected species group. ▶ Play migration animates the map week by week.</li>" +
+        "</ul>" +
+        "<p>The map is evaluated on a grid of cells (3° wide when zoomed out, down to 0.25° when zoomed in) and drawn with bilinear smoothing, so colours blend between cell centres instead of forming hard blocks.</p>" +
+        "<h4>Location analysis (click the map)</h4>" +
+        "<ul>" +
+        "<li><b>Timeline</b> — each species' probability across all 48 weeks.</li>" +
+        "<li><b>Probability</b> — a species × week heatmap (red = low, green = high), stretched across the values currently on screen.</li>" +
+        "<li><b>Arrivals</b> — for each species and week, an arrival score <code>(P[next week] − P[previous week]) ÷ max</code>, where <code>max</code> is that species' highest weekly probability over the year. Green = probability rising (arriving), red = falling (departing); weeks wrap around the year boundary (1 ↔ 48).</li>" +
+        "<li><b>Scatter</b> — the current week's arrival score (x-axis) versus probability (y-axis) for the top species, with a sortable table below.</li>" +
+        "</ul>" +
+        "<h4>Species List — “Compare to” column</h4>" +
+        "<ul>" +
+        "<li><b>Previous / Next week</b> and <b>Annual mean</b> show the change Δ = current probability − the comparison value.</li>" +
+        "<li><b>Annual max</b> shows the current week as a fraction of the species' yearly peak: <code>current ÷ max over the year</code>. 100% means the selected week is that species' best week.</li>" +
+        "</ul>" +
+        "<p class=\"about-note\">Predictions are model estimates, not ground truth. Model weights © the BirdNET team, licensed CC BY-SA 4.0; map tiles © OpenStreetMap contributors, © CARTO.</p>",
     },
     sv: {
       "app.title": "Utforskare för artutbredning & migration",
@@ -134,6 +163,12 @@ window.GeoI18N = (function () {
       "app.failed": "Kunde inte ladda: {msg}",
       "ctrl.language": "Språk",
       "ctrl.mode": "Läge",
+      "ctrl.group": "Artgrupp",
+      "group.all": "Alla grupper",
+      "group.aves": "Fåglar",
+      "group.mammalia": "Däggdjur",
+      "group.amphibia": "Groddjur",
+      "group.insecta": "Insekter",
       "mode.range": "Artutbredning",
       "mode.richness": "Artrikedom",
       "mode.list": "Artlista (klicka på kartan)",
@@ -197,6 +232,29 @@ window.GeoI18N = (function () {
       "loc.savePrompt": "Namnge platsen:",
       "loc.defaultName": "{lat}, {lon}",
       "footer.attrib": "Modell: BirdNET Geomodel (vikter CC BY-SA 4.0). Appkod MIT. Förutsägelser är uppskattningar — inte sanning.",
+      "about.title": "ℹ︎ Om modellen & hur värdena beräknas",
+      "about.html":
+        "<h4>Habitatmodellen</h4>" +
+        "<p>Verktyget kör <a href=\"https://github.com/birdnet-team/geomodel\" target=\"_blank\" rel=\"noopener\">BirdNET Geomodel</a> — ett spatiotemporalt neuralt nätverk — helt i din webbläsare via ONNX Runtime Web. Utifrån <b>latitud</b>, <b>longitud</b> och <b>vecka på året</b> (1–48; modellen delar året i 48 veckor om cirka 7,6 dagar) förutsägs en <b>förekomstsannolikhet</b> (0–100%) för var och en av 12 012 arter bland fåglar, däggdjur, groddjur och insekter. Sannolikheten speglar hur troligt det är att arten förekommer där vid den tiden på året, lärt från globala fynddata och miljövariabler. Det är en modellerad uppskattning — inte ett observationsantal eller en garanti.</p>" +
+        "<h4>Kartvyer</h4>" +
+        "<ul>" +
+        "<li><b>Artutbredning</b> — sannolikheten för en vald art över kartan för vald vecka.</li>" +
+        "<li><b>Artrikedom</b> — antalet arter vars sannolikhet är minst 5% i varje rutnätscell, begränsat till vald artgrupp. ▶ Spela migration animerar kartan vecka för vecka.</li>" +
+        "</ul>" +
+        "<p>Kartan beräknas på ett rutnät (3° brett utzoomat, ner till 0,25° inzoomat) och ritas med bilinjär utjämning, så att färger tonar mellan cellcentrum i stället för att bilda hårda block.</p>" +
+        "<h4>Platsanalys (klicka på kartan)</h4>" +
+        "<ul>" +
+        "<li><b>Tidslinje</b> — varje arts sannolikhet över alla 48 veckor.</li>" +
+        "<li><b>Sannolikhet</b> — en värmekarta art × vecka (rött = lågt, grönt = högt), skalad efter värdena på skärmen.</li>" +
+        "<li><b>Ankomster</b> — för varje art och vecka en ankomstpoäng <code>(P[nästa vecka] − P[föregående vecka]) ÷ max</code>, där <code>max</code> är artens högsta veckosannolikhet under året. Grönt = stigande (ankommer), rött = fallande (lämnar); veckorna går runt årsgränsen (1 ↔ 48).</li>" +
+        "<li><b>Spridning</b> — aktuell veckas ankomstpoäng (x) mot sannolikhet (y) för topparterna, med en sorterbar tabell under.</li>" +
+        "</ul>" +
+        "<h4>Artlista — kolumnen ”Jämför med”</h4>" +
+        "<ul>" +
+        "<li><b>Föregående / Nästa vecka</b> och <b>Årsmedel</b> visar förändringen Δ = aktuell sannolikhet − jämförelsevärdet.</li>" +
+        "<li><b>Årsmax</b> visar aktuell vecka som en andel av artens årstopp: <code>aktuell ÷ max över året</code>. 100% betyder att vald vecka är artens bästa vecka.</li>" +
+        "</ul>" +
+        "<p class=\"about-note\">Förutsägelser är modelluppskattningar, inte sanning. Modellvikter © BirdNET-teamet, licens CC BY-SA 4.0; kartrutor © OpenStreetMap-bidragsgivare, © CARTO.</p>",
     },
   };
 

@@ -14,7 +14,10 @@ insects, amphibians, reptiles) from `(latitude, longitude, week 1–48)`.
   - **Species Range** — probability heatmap for a chosen species, with a
     **▶ Play migration** button that animates the range across all 48 weeks.
   - **Species Richness** — predicted species count per grid cell.
-  - Light / dark base map toggle.
+  - Light / dark base map toggle, deep zoom (to ~0.25° cells), and bilinear
+    smoothing so the heatmap blends instead of looking blocky.
+- **Species-group filter** — restrict every view to birds, mammals, amphibians,
+  insects, or all groups.
 - **Location analysis** (click anywhere on the map) — a tabbed panel from a
   single 48-week prediction:
   - **Timeline** — per-species phenology bars across the year.
@@ -23,8 +26,11 @@ insects, amphibians, reptiles) from `(latitude, longitude, week 1–48)`.
     `(P[next week] − P[prev week]) / max_year`, green = arriving, red = departing.
   - **Scatter** — top-N species plotted as (arrival, probability), plus a
     sortable, colour-tinted table.
-- **Species List** — ranked species at a point, with an optional
-  **Δ probability** column comparing to the previous/next week or the annual mean.
+- **Species List** — ranked species at a point, with an optional comparison
+  column: **Δ probability** vs the previous/next week or the annual mean, or
+  **% of annual max** (current week ÷ the species' yearly peak).
+- **On-page documentation** — a collapsible panel explaining the model and how
+  every derived value (richness, arrivals, comparisons) is computed.
 - **Multilingual** — UI in English & Swedish (extensible), and **species common
   names in ~30 languages** sourced from the model's `taxonomy.csv`.
 - **Persistent** — language, base map, week, threshold, map view, and named

@@ -51,6 +51,7 @@ window.GeoAnalysis = (function () {
     for (var i = 0; i < ctx.nSpecies; i++) {
       var cur = ctx.allProbs[wkIdx * ctx.nSpecies + i];
       if (cur < ctx.thresholdFrac) continue;
+      if (ctx.inGroup && !ctx.inGroup(i)) continue;
       var lbl = ctx.labels[i];
       if (f) {
         var nm = ctx.speciesName(lbl).toLowerCase();
@@ -125,7 +126,8 @@ window.GeoAnalysis = (function () {
         if (isArrival) {
           var av = arrivalAt(row.probs, cc, row.maxYear);
           color = arrivalColor(av);
-          text = Math.abs(av) >= 0.005 ? (av > 0 ? "+" : "") + (av * 100).toFixed(0) : "";
+          // Show only the number; negatives keep their "-", positives have no sign.
+          text = Math.abs(av) >= 0.005 ? (av * 100).toFixed(0) : "";
         } else {
           var pv = row.probs[cc];
           var norm = gRange > 0 ? (pv - gMin) / gRange : 0;

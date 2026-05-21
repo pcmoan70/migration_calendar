@@ -23,7 +23,7 @@
   // ---- i18n / species names ------------------------------------------------
   var lang = "en";            // current UI + species-name language code
   var langTaxCol = "com_name"; // taxonomy.csv column for current language
-  var taxByCode = {};          // species_code -> { com_name, common_name_xx, ... }
+  var taxByCode = {};          // species_code -> { com_name, class_name, common_name_xx, ... }
 
   function t(key, vars) { return window.GeoI18N.t(lang, key, vars); }
 
@@ -37,8 +37,28 @@
     return label.common || label.sci || label.key;
   }
 
-  // Grid resolution per zoom level (degrees per cell)
-  var ZOOM_STEP = { 2: 3, 3: 2, 4: 1 };
+  // ---- Species-group filter (taxonomic class) ------------------------------
+  // Groups present in the model: aves, mammalia, amphibia, insecta.
+  var speciesGroup = "all";   // "all" or a class_name value
+  var labelClass = [];        // class_name per label index (built after load)
+
+  function buildLabelClass() {
+    labelClass = labels.map(function (l) {
+      var row = taxByCode[l.key];
+      return (row && row.class_name) || "";
+    });
+  }
+
+  // Is the species at label index `i` in the active group?
+  function inGroup(i) { return speciesGroup === "all" || labelClass[i] === speciesGroup; }
+
+  // Richness cache key — distinct per group so counts don't collide.
+  function richKey() { return "__richness__@" + speciesGroup; }
+
+  // Grid resolution per zoom level (degrees per cell). Finer cells at deeper
+  // zoom keep the heatmap detailed without exploding the cell count.
+  var ZOOM_STEP = { 2: 3, 3: 2, 4: 1, 5: 0.5, 6: 0.5, 7: 0.25, 8: 0.25 };
+  var MAX_ZOOM = 8;
 
   // Perceptual scaling: gamma < 1 stretches low values for visibility
   var DISPLAY_GAMMA = 0.5;
@@ -155,6 +175,7 @@
   var labelsByKey = {};
   var map = null;
   var overlayCanvas = null;
+  var offscreenCanvas = null;   // small one-texel-per-cell buffer for smoothing
   var cachedRender = null;
   var renderCache = new Map();
   var RENDER_CACHE_MAX = 50;
@@ -219,6 +240,16 @@
               '<option value="richness" data-i18n="mode.richness">Species Richness</option>' +
               '<option value="list" data-i18n="mode.list">Species List (click map)</option>' +
               '<option value="barchart" data-i18n="mode.barchart">Migration Timeline (click map)</option>' +
+            '</select>' +
+          '</div>' +
+          '<div class="ctrl-group">' +
+            '<label for="group-select" data-i18n="ctrl.group">Species group</label>' +
+            '<select id="group-select">' +
+              '<option value="all" data-i18n="group.all">All groups</option>' +
+              '<option value="aves" data-i18n="group.aves">Birds</option>' +
+              '<option value="mammalia" data-i18n="group.mammalia">Mammals</option>' +
+              '<option value="amphibia" data-i18n="group.amphibia">Amphibians</option>' +
+              '<option value="insecta" data-i18n="group.insecta">Insects</option>' +
             '</select>' +
           '</div>' +
           '<div class="ctrl-group" id="species-search-wrap">' +
@@ -308,6 +339,10 @@
           '<div class="sp-coords" id="bc-coords"></div>' +
           '<div id="bc-container"></div>' +
         '</div>' +
+        '<details id="about-panel">' +
+          '<summary data-i18n="about.title">About the model &amp; how values are computed</summary>' +
+          '<div id="about-body"></div>' +
+        '</details>' +
         '<div id="demo-footer" data-i18n="footer.attrib"></div>' +
       '</div>';
 
@@ -316,6 +351,7 @@
 
     try {
       await Promise.all([initWorker(), loadLabels(), loadTaxonomy()]);
+      buildLabelClass();
       document.getElementById("demo-loading").style.display = "none";
       document.getElementById("demo-app").style.display = "block";
       populateLangSelect();
@@ -382,8 +418,8 @@
     var header = rows[0];
     var codeCol = header.indexOf("species_code");
     if (codeCol < 0) return;
-    // Only retain columns we actually use (com_name + offered language columns).
-    var wanted = { com_name: true };
+    // Only retain columns we actually use (com_name + class_name + languages).
+    var wanted = { com_name: true, class_name: true };
     window.GeoI18N.LANGS.forEach(function (L) { wanted[L.taxCol] = true; });
     var keep = [];
     for (var c = 0; c < header.length; c++) if (wanted[header[c]]) keep.push(c);
@@ -466,6 +502,8 @@
       var lbl = labelsByKey[selSp.dataset.selectedKey];
       selSp.setAttribute("placeholder", speciesName(lbl) + " (" + lbl.sci + ")");
     }
+    var about = document.getElementById("about-body");
+    if (about) about.innerHTML = t("about.html");   // raw HTML doc, localized
     updateLegend();
   }
 
@@ -496,7 +534,7 @@
     var view = window.GeoState.get("view", null);
     var center = (view && view.lat != null) ? [view.lat, view.lon] : [30, 0];
     var zoom = (view && view.zoom != null) ? view.zoom : 2;
-    map = L.map("demo-map", { center: center, zoom: zoom, minZoom: 2, maxZoom: 4 });
+    map = L.map("demo-map", { center: center, zoom: zoom, minZoom: 2, maxZoom: MAX_ZOOM });
 
     setBasemap(window.GeoState.get("basemap", "dark"));
 
@@ -524,7 +562,7 @@
   function setBasemap(which) {
     var cfg = BASEMAPS[which] || BASEMAPS.dark;
     if (baseLayer) map.removeLayer(baseLayer);
-    baseLayer = L.tileLayer(cfg.url, { attribution: cfg.attribution, maxZoom: 4, subdomains: cfg.subdomains });
+    baseLayer = L.tileLayer(cfg.url, { attribution: cfg.attribution, maxZoom: MAX_ZOOM, subdomains: cfg.subdomains });
     baseLayer.addTo(map);
     baseLayer.bringToBack();
     document.body.setAttribute("data-basemap", which);
@@ -569,6 +607,18 @@
 
     document.getElementById("basemap-select").addEventListener("change", function () {
       setBasemap(this.value);
+    });
+
+    document.getElementById("group-select").addEventListener("change", function () {
+      speciesGroup = this.value;
+      window.GeoState.save({ group: speciesGroup });
+      // Re-render whatever depends on the species set.
+      if (currentMode === "richness") triggerRender();
+      else if (currentMode === "list" && marker) { var ll = marker.getLatLng(); renderSpeciesList(ll.lat, ll.lng); }
+      else if (currentMode === "barchart" && analysisData) renderActiveTab();
+      // Refresh an open species-search dropdown.
+      var resEl = document.getElementById("species-results");
+      if (resEl && resEl.style.display === "block") showSearch(document.getElementById("species-search"), resEl);
     });
 
     // Analysis tab bar
@@ -639,9 +689,11 @@
     var q = inputEl.value.trim().toLowerCase();
     var matches;
     if (q.length === 0) {
-      matches = FEATURED_SPECIES.map(function (f) { return labelsByKey[f.key]; }).filter(Boolean);
+      matches = FEATURED_SPECIES.map(function (f) { return labelsByKey[f.key]; })
+        .filter(Boolean).filter(function (l) { return inGroup(l.index); });
     } else {
       matches = labels.filter(function (l) {
+        if (!inGroup(l.index)) return false;
         return speciesName(l).toLowerCase().includes(q) ||
                l.common.toLowerCase().includes(q) ||
                l.sci.toLowerCase().includes(q) || l.key.includes(q);
@@ -701,6 +753,10 @@
     if (overlayCanvas) { overlayCanvas.width = 0; overlayCanvas.height = 0; }
   }
 
+  // Renders the cell grid as a smooth heatmap: each cell becomes one texel in
+  // a small offscreen image, which is then drawn scaled to the viewport with
+  // bilinear smoothing so probabilities blend between cell centres instead of
+  // appearing as hard blocks.
   function paintOverlay() {
     if (!cachedRender || !map) return;
     ensureOverlayCanvas();
@@ -710,26 +766,37 @@
     overlayCanvas.width = size.x;
     overlayCanvas.height = size.y;
     L.DomUtil.setPosition(overlayCanvas, map.containerPointToLayerPoint([0, 0]));
-
     var ctx = overlayCanvas.getContext("2d");
-    var pi = 0;
-    for (var iLat = 0; iLat < g.nLat; iLat++) {
-      var latN = g.north - iLat * g.step, latS = latN - g.step;
-      for (var iLon = 0; iLon < g.nLon; iLon++) {
-        var lonW = g.west + iLon * g.step, lonE = lonW + g.step;
-        var p = probs[pi++];
-        if (!(p >= 0.01)) continue;
-        var nw = map.latLngToContainerPoint([latN, lonW]);
-        var se = map.latLngToContainerPoint([latS, lonE]);
-        var x = Math.floor(nw.x), y = Math.floor(nw.y);
-        var w = Math.ceil(se.x) - x, h = Math.ceil(se.y) - y;
-        if (x + w < 0 || y + h < 0 || x > size.x || y > size.y) continue;
-        var c = colormapLookup(p);
-        var alpha = Math.min(1, 0.25 + p * 0.75);
-        ctx.fillStyle = "rgba(" + c[0] + "," + c[1] + "," + c[2] + "," + alpha.toFixed(3) + ")";
-        ctx.fillRect(x, y, w, h);
-      }
+    ctx.clearRect(0, 0, size.x, size.y);
+
+    // Fill a nLon × nLat RGBA buffer, one texel per cell.
+    if (!offscreenCanvas) offscreenCanvas = document.createElement("canvas");
+    offscreenCanvas.width = g.nLon;
+    offscreenCanvas.height = g.nLat;
+    var octx = offscreenCanvas.getContext("2d");
+    var img = octx.createImageData(g.nLon, g.nLat);
+    var data = img.data, pi = 0;
+    for (var i = 0; i < g.nLat * g.nLon; i++) {
+      var p = probs[pi++];
+      var c = colormapLookup(p);
+      var o = i * 4;
+      data[o] = c[0]; data[o + 1] = c[1]; data[o + 2] = c[2];
+      data[o + 3] = p >= 0.01 ? Math.round(Math.min(1, 0.25 + p * 0.75) * 255) : 0;
     }
+    octx.putImageData(img, 0, 0);
+
+    // Project the grid bounds to container pixels and stretch the buffer in,
+    // letting the GPU interpolate between texels (cell centres).
+    var nw = map.latLngToContainerPoint([g.north, g.west]);
+    var se = map.latLngToContainerPoint([g.south, g.east]);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    // Inset the destination by half a texel so texel centres line up with
+    // cell centres (the grid bounds sit at cell edges, not centres).
+    var halfX = (se.x - nw.x) / g.nLon / 2;
+    var halfY = (se.y - nw.y) / g.nLat / 2;
+    ctx.drawImage(offscreenCanvas, nw.x + halfX, nw.y + halfY,
+                  (se.x - nw.x) - 2 * halfX, (se.y - nw.y) - 2 * halfY);
   }
 
   // ---- Viewport grid -------------------------------------------------------
@@ -879,7 +946,7 @@
     var g = viewportGrid();
 
     if (currentMode === "richness") {
-      var cm = getCellMap(cacheKey("__richness__", week), g.step);
+      var cm = getCellMap(cacheKey(richKey(),week), g.step);
       if (viewportMissing(cm, g).length === 0) {
         var raw = buildViewportArray(cm, g);
         var maxVal = 0;
@@ -919,13 +986,13 @@
 
     var weekMissing = [];
     weeks.forEach(function (w) {
-      var cm = getCellMap(cacheKey("__richness__", w), g.step);
+      var cm = getCellMap(cacheKey(richKey(),w), g.step);
       var miss = viewportMissing(cm, g);
       if (miss.length > 0) weekMissing.push({ week: w, missing: miss, cellMap: cm });
     });
 
     if (weekMissing.length === 0) {
-      var raw = buildViewportArray(getCellMap(cacheKey("__richness__", selectedWeek), g.step), g);
+      var raw = buildViewportArray(getCellMap(cacheKey(richKey(),selectedWeek), g.step), g);
       var maxVal = 0;
       for (var i = 0; i < raw.length; i++) if (raw[i] > maxVal) maxVal = raw[i];
       cachedRender = { grid: g, probs: perceptualNorm(raw, maxVal), maxVal: maxVal, product: "richness" };
@@ -955,7 +1022,7 @@
           var out = await runInference(inputs.subarray(start * 3, end * 3), end - start);
           for (var j = 0; j < end - start; j++) {
             var count = 0, base = j * nSpecies;
-            for (var s = 0; s < nSpecies; s++) if (out[base + s] >= RICHNESS_THRESHOLD) count++;
+            for (var s = 0; s < nSpecies; s++) if (out[base + s] >= RICHNESS_THRESHOLD && inGroup(s)) count++;
             counts[start + j] = count;
           }
         }
@@ -969,7 +1036,7 @@
           paintOverlay();
         }
       }
-      var rawF = buildViewportArray(getCellMap(cacheKey("__richness__", selectedWeek), g.step), g);
+      var rawF = buildViewportArray(getCellMap(cacheKey(richKey(),selectedWeek), g.step), g);
       var maxF = 0;
       for (var n = 0; n < rawF.length; n++) if (rawF[n] > maxF) maxF = rawF[n];
       cachedRender = { grid: g, probs: perceptualNorm(rawF, maxF), maxVal: maxF, product: "richness" };
@@ -1052,7 +1119,7 @@
       var isRatio = cmp.ratio === true;   // "Annual max" → show current ÷ peak
       var results = [];
       for (var i = 0; i < labels.length; i++) {
-        if (out[i] >= threshold) {
+        if (out[i] >= threshold && inGroup(i)) {
           var cval = 0;
           if (hasCompare) cval = isRatio ? (cmp.probs[i] > 0 ? out[i] / cmp.probs[i] : 0) : (out[i] - cmp.probs[i]);
           results.push({ label: labels[i], prob: out[i], cmpVal: cval });
@@ -1177,7 +1244,7 @@
   function buildRichnessCsv() {
     var week = +document.getElementById("week-select").value;
     var g = viewportGrid();
-    var cm = getCellMap(cacheKey("__richness__", week), g.step);
+    var cm = getCellMap(cacheKey(richKey(),week), g.step);
     var lines = ["latitude,longitude,species_count"];
     for (var iLat = 0; iLat < g.nLat; iLat++) {
       var lat = g.north - (iLat + 0.5) * g.step;
@@ -1227,6 +1294,7 @@
       filterText: document.getElementById("an-filter").value.trim(),
       topN: +document.getElementById("an-topn").value,
       scatterSort: scatterSort,
+      inGroup: inGroup,
       speciesName: speciesName,
       escapeHtml: escapeHtml,
       months: window.GeoI18N.months(lang),
@@ -1415,6 +1483,9 @@
     if (cmp !== null) document.getElementById("compare-select").value = cmp;
 
     analysisTab = window.GeoState.get("analysisTab", "timeline");
+
+    speciesGroup = window.GeoState.get("group", "all");
+    document.getElementById("group-select").value = speciesGroup;
 
     var sp = window.GeoState.get("species", null);
     if (sp && labelsByKey[sp]) {
