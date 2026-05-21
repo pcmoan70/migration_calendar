@@ -209,7 +209,7 @@
 
   // Species the user has chosen to hide ("Do not show"). species_code -> true.
   var hiddenSpecies = {};
-  var menuKey = null, menuName = "";   // species the context menu currently targets
+  var menuKey = null, menuName = "", menuSci = "";  // species the menu targets
 
   function isHidden(key) { return !!hiddenSpecies[key]; }
   function loadHidden() {
@@ -227,10 +227,29 @@
     persistHidden(); refreshHiddenUI(); refreshCurrentView();
   }
 
-  // Clickable species-name span (opens the Filter / Do-not-show menu).
+  // Clickable species-name span (opens the species menu).
   function nameLinkHtml(label) {
     var n = escapeHtml(speciesName(label));
-    return '<span class="sp-link" data-key="' + escapeHtml(label.key) + '" data-name="' + n + '">' + n + "</span>";
+    return '<span class="sp-link" data-key="' + escapeHtml(label.key) + '" data-name="' + n +
+           '" data-sci="' + escapeHtml(label.sci || "") + '">' + n + "</span>";
+  }
+
+  function openExternal(url) { window.open(url, "_blank", "noopener"); }
+
+  // Wikipedia article (chosen language) for a species; scientific name is the
+  // most reliable search term and resolves to the localized article.
+  function wikipediaUrl(sci) {
+    var wl = lang === "zh-CN" ? "zh" : lang;
+    return "https://" + wl + ".wikipedia.org/wiki/Special:Search?search=" + encodeURIComponent(sci);
+  }
+
+  // Macaulay Library media catalog: eBird taxon code for birds (label keys are
+  // eBird codes), else a free-text search by scientific name.
+  function macaulayUrl(key, sci) {
+    if (/^[a-z]/i.test(key) && !/^\d+$/.test(key)) {
+      return "https://search.macaulaylibrary.org/catalog?taxonCode=" + encodeURIComponent(key);
+    }
+    return "https://search.macaulaylibrary.org/catalog?q=" + encodeURIComponent(sci);
   }
 
   // "Filter" action: drop the name into the analysis filter box and apply it.
@@ -397,6 +416,8 @@
           '<div id="bc-container"></div>' +
         '</div>' +
         '<div id="sp-menu" style="display:none">' +
+          '<button type="button" class="sp-menu-item" data-act="wiki" data-i18n="menu.wiki">Wikipedia</button>' +
+          '<button type="button" class="sp-menu-item" data-act="macaulay" data-i18n="menu.macaulay">Macaulay Library</button>' +
           '<button type="button" class="sp-menu-item" data-act="filter" data-i18n="menu.filter">Filter</button>' +
           '<button type="button" class="sp-menu-item" data-act="hide" data-i18n="menu.hide">Do not show</button>' +
         '</div>' +
@@ -765,6 +786,7 @@
         e.preventDefault();
         menuKey = link.getAttribute("data-key");
         menuName = link.getAttribute("data-name");
+        menuSci = link.getAttribute("data-sci") || "";
         spMenu.style.left = e.pageX + "px";
         spMenu.style.top = e.pageY + "px";
         spMenu.style.display = "block";
@@ -779,6 +801,8 @@
         var act = this.getAttribute("data-act");
         if (act === "hide") hideSpecies(menuKey);
         else if (act === "filter") applyNameFilter(menuName);
+        else if (act === "wiki") openExternal(wikipediaUrl(menuSci || menuName));
+        else if (act === "macaulay") openExternal(macaulayUrl(menuKey, menuSci || menuName));
         spMenu.style.display = "none";
       });
     });

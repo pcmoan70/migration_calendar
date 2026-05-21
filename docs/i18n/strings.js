@@ -23,6 +23,9 @@ window.GeoI18N = (function () {
     { code: "es",    name: "Español",     taxCol: "common_name_es" },
     { code: "fr",    name: "Français",    taxCol: "common_name_fr" },
     { code: "nl",    name: "Nederlands",  taxCol: "common_name_nl" },
+    // Italian has no common-name column in taxonomy.csv, so species names fall
+    // back to (bracketed) English; the UI documentation is translated below.
+    { code: "it",    name: "Italiano",    taxCol: "common_name_it" },
     { code: "pt",    name: "Português",   taxCol: "common_name_pt" },
     { code: "pl",    name: "Polski",      taxCol: "common_name_pl" },
     { code: "cs",    name: "Čeština",     taxCol: "common_name_cs" },
@@ -92,6 +95,8 @@ window.GeoI18N = (function () {
       "loc.unhide": "Show again",
       "menu.filter": "Filter",
       "menu.hide": "Do not show",
+      "menu.wiki": "Wikipedia",
+      "menu.macaulay": "Macaulay Library",
       "btn.saveloc": "★ Save",
       "btn.csv": "⬇ CSV",
       "btn.play": "▶ Play migration",
@@ -173,7 +178,7 @@ window.GeoI18N = (function () {
         "<li><b>Plain HTML, CSS and JavaScript</b> — no framework and no build step; served as a static site (GitHub Pages).</li>" +
         "</ul>" +
         "<h4>Project &amp; feedback</h4>" +
-        "<p>This tool is free to use, and feedback is welcome at <a href=\"mailto:vesmir09@gmail.com\">vesmir09@gmail.com</a>. A Norway-specific habitat model is under development, aiming to use richer Norwegian data than the Google Earth Engine data used in the current model — for example, using explicit altitude as an input parameter. The goal of the habitat model is an improved birdsong detection app (A!Birder), which is also under development.</p>" +
+        "<p>This tool is free to use, and feedback is welcome at <a href=\"mailto:vesmir09@gmail.com\">vesmir09@gmail.com</a>. A Norway-specific habitat model is under development, aiming to use richer Norwegian data than the Google Earth Engine data used in the current model. The goal of the habitat model is an improved birdsong detection app (A!Birder) (under development). This page is made to easily visualize that model eventually.</p>" +
         "<p class=\"about-note\">Predictions are model estimates, not ground truth. Model weights © the BirdNET team, licensed CC BY-SA 4.0; map tiles © OpenStreetMap contributors, © CARTO.</p>",
     },
     sv: {
@@ -210,6 +215,8 @@ window.GeoI18N = (function () {
       "loc.unhide": "Visa igen",
       "menu.filter": "Filtrera",
       "menu.hide": "Dölj",
+      "menu.wiki": "Wikipedia",
+      "menu.macaulay": "Macaulay Library",
       "btn.saveloc": "★ Spara",
       "btn.csv": "⬇ CSV",
       "btn.play": "▶ Spela migration",
@@ -291,7 +298,7 @@ window.GeoI18N = (function () {
         "<li><b>Ren HTML, CSS och JavaScript</b> — inget ramverk och inget byggsteg; serveras som en statisk sida (GitHub Pages).</li>" +
         "</ul>" +
         "<h4>Projekt &amp; återkoppling</h4>" +
-        "<p>Det här verktyget är gratis att använda, och återkoppling välkomnas till <a href=\"mailto:vesmir09@gmail.com\">vesmir09@gmail.com</a>. En Norge-specifik habitatmodell är under utveckling och syftar till att använda rikare norska data än de Google Earth Engine-data som används i den nuvarande modellen — till exempel genom att använda explicit höjddata som en indataparameter. Målet med habitatmodellen är en förbättrad app för fågelsångsigenkänning (A!Birder), som också är under utveckling.</p>" +
+        "<p>Det här verktyget är gratis att använda, och återkoppling välkomnas till <a href=\"mailto:vesmir09@gmail.com\">vesmir09@gmail.com</a>. En Norge-specifik habitatmodell är under utveckling och syftar till att använda rikare norska data än de Google Earth Engine-data som används i den nuvarande modellen. Målet med habitatmodellen är en förbättrad app för fågelsångsigenkänning (A!Birder) (under utveckling). Den här sidan är gjord för att så småningom enkelt visualisera den modellen.</p>" +
         "<p class=\"about-note\">Förutsägelser är modelluppskattningar, inte sanning. Modellvikter © BirdNET-teamet, licens CC BY-SA 4.0; kartrutor © OpenStreetMap-bidragsgivare, © CARTO.</p>",
     },
     no: {
@@ -329,8 +336,152 @@ window.GeoI18N = (function () {
         "<li><b>Ren HTML, CSS og JavaScript</b> — ingen rammeverk og ingen byggesteg; servert som en statisk side (GitHub Pages).</li>" +
         "</ul>" +
         "<h4>Prosjekt &amp; tilbakemelding</h4>" +
-        "<p>Dette verktøyet er gratis å bruke, og tilbakemeldinger er velkomne til <a href=\"mailto:vesmir09@gmail.com\">vesmir09@gmail.com</a>. En Norge-spesifikk habitatmodell er under utvikling, med mål om å bruke rikere norske data enn Google Earth Engine-dataene som brukes i den nåværende modellen — for eksempel ved å bruke eksplisitte høydedata som en inngangsparameter. Målet med habitatmodellen er en forbedret app for fuglesanggjenkjenning (A!Birder), som også er under utvikling.</p>" +
+        "<p>Dette verktøyet er gratis å bruke, og tilbakemeldinger er velkomne til <a href=\"mailto:vesmir09@gmail.com\">vesmir09@gmail.com</a>. En Norge-spesifikk habitatmodell er under utvikling, med mål om å bruke rikere norske data enn Google Earth Engine-dataene som brukes i den nåværende modellen. Målet med habitatmodellen er en forbedret app for fuglesanggjenkjenning (A!Birder) (under utvikling). Denne siden er laget for å etter hvert enkelt visualisere den modellen.</p>" +
         "<p class=\"about-note\">Forutsigelser er modellestimater, ikke fasit. Modellvekter © BirdNET-teamet, lisensiert CC BY-SA 4.0; kartfliser © OpenStreetMap-bidragsytere, © CARTO.</p>",
+    },
+    fr: {
+      "about.title": "ℹ︎ À propos du modèle et du calcul des valeurs",
+      "about.html":
+        "<h4>Le modèle d'habitat</h4>" +
+        "<p>Cet outil exécute le <a href=\"https://github.com/birdnet-team/geomodel\" target=\"_blank\" rel=\"noopener\">BirdNET Geomodel</a> — un réseau de neurones spatio-temporel — entièrement dans votre navigateur via ONNX Runtime Web. À partir d'une <b>latitude</b>, d'une <b>longitude</b> et d'une <b>semaine de l'année</b> (1–48 ; le modèle divise l'année en 48 semaines d'environ 7,6 jours), il prédit une <b>probabilité de présence</b> (0–100 %) pour chacune des 12 012 espèces parmi les oiseaux, mammifères, amphibiens et insectes. La probabilité reflète la probabilité qu'une espèce soit présente à cet endroit à cette période de l'année, apprise à partir de données mondiales d'observation et de variables environnementales. C'est une estimation modélisée — pas un comptage d'observations ni une garantie.</p>" +
+        "<h4>Vues cartographiques</h4>" +
+        "<ul>" +
+        "<li><b>Aire de répartition</b> — la probabilité d'une espèce choisie sur la carte pour la semaine sélectionnée.</li>" +
+        "<li><b>Richesse spécifique</b> — le nombre d'espèces dont la probabilité atteint au moins 5 % dans chaque cellule, limité au groupe d'espèces sélectionné. ▶ Lire la migration anime la carte semaine par semaine.</li>" +
+        "</ul>" +
+        "<p>La carte est calculée sur une grille de cellules (3° en vue éloignée, jusqu'à 0,25° en vue rapprochée) et dessinée avec un lissage bilinéaire, afin que les couleurs se fondent entre les centres des cellules au lieu de former des blocs nets.</p>" +
+        "<h4>Analyse de localisation (cliquez sur la carte)</h4>" +
+        "<ul>" +
+        "<li><b>Chronologie</b> — la probabilité de chaque espèce sur les 48 semaines.</li>" +
+        "<li><b>Probabilité</b> — une carte de chaleur espèce × semaine (rouge = faible, vert = élevé), étirée selon les valeurs affichées.</li>" +
+        "<li><b>Arrivées</b> — pour chaque espèce et semaine, un score d'arrivée <code>(P[semaine suivante] − P[semaine précédente]) ÷ max</code>, où <code>max</code> est la probabilité hebdomadaire la plus élevée de l'espèce sur l'année. Vert = en hausse (arrivée), rouge = en baisse (départ) ; les semaines bouclent à la limite de l'année (1 ↔ 48).</li>" +
+        "<li><b>Nuage de points</b> — le score d'arrivée de la semaine en cours (axe x) en fonction de la probabilité (axe y) pour les principales espèces, avec un tableau triable en dessous.</li>" +
+        "</ul>" +
+        "<h4>Liste d'espèces — colonne « Comparer à »</h4>" +
+        "<ul>" +
+        "<li><b>Semaine précédente / suivante</b> et <b>Moyenne annuelle</b> indiquent la variation Δ = probabilité actuelle − la valeur de comparaison.</li>" +
+        "<li><b>Maximum annuel</b> indique la semaine en cours en proportion du pic annuel de l'espèce : <code>actuel ÷ max sur l'année</code>. 100 % signifie que la semaine sélectionnée est la meilleure semaine de l'espèce.</li>" +
+        "</ul>" +
+        "<h4>Technologie</h4>" +
+        "<p>Le modèle d'IA s'exécute <b>entièrement dans votre navigateur</b> — il n'y a aucun serveur et votre position n'est jamais envoyée nulle part. Le réseau de neurones est téléchargé une seule fois (~7 Mo) et toutes les prédictions sont calculées sur votre propre appareil. Construit avec :</p>" +
+        "<ul>" +
+        "<li><b>ONNX Runtime Web</b> (WebAssembly) — exécute le réseau de neurones dans le navigateur.</li>" +
+        "<li><b>Web Workers</b> — le calcul s'exécute hors du thread principal pour garder l'interface réactive.</li>" +
+        "<li><b>BirdNET Geomodel</b> — le modèle entraîné, exporté en ONNX (FP16, ~7 Mo).</li>" +
+        "<li><b>Leaflet</b> avec des tuiles OpenStreetMap / CARTO — la carte interactive.</li>" +
+        "<li><b>HTML, CSS et JavaScript purs</b> — aucun framework ni étape de compilation ; servi comme site statique (GitHub Pages).</li>" +
+        "</ul>" +
+        "<h4>Projet et retours</h4>" +
+        "<p>Cet outil est gratuit, et vos retours sont les bienvenus à <a href=\"mailto:vesmir09@gmail.com\">vesmir09@gmail.com</a>. Un modèle d'habitat spécifique à la Norvège est en cours de développement, visant à utiliser des données norvégiennes plus riches que les données Google Earth Engine du modèle actuel. L'objectif du modèle d'habitat est une meilleure application de détection du chant des oiseaux (A!Birder) (en cours de développement). Cette page est conçue pour visualiser facilement ce modèle à terme.</p>" +
+        "<p class=\"about-note\">Les prédictions sont des estimations du modèle, pas la réalité. Poids du modèle © l'équipe BirdNET, sous licence CC BY-SA 4.0 ; tuiles cartographiques © contributeurs OpenStreetMap, © CARTO.</p>",
+    },
+    de: {
+      "about.title": "ℹ︎ Über das Modell & wie die Werte berechnet werden",
+      "about.html":
+        "<h4>Das Habitatmodell</h4>" +
+        "<p>Dieses Werkzeug führt das <a href=\"https://github.com/birdnet-team/geomodel\" target=\"_blank\" rel=\"noopener\">BirdNET Geomodel</a> — ein raumzeitliches neuronales Netz — vollständig in Ihrem Browser über ONNX Runtime Web aus. Aus <b>Breitengrad</b>, <b>Längengrad</b> und <b>Woche des Jahres</b> (1–48; das Modell teilt das Jahr in 48 Wochen von etwa 7,6 Tagen) sagt es eine <b>Vorkommenswahrscheinlichkeit</b> (0–100 %) für jede der 12.012 Arten unter Vögeln, Säugetieren, Amphibien und Insekten voraus. Die Wahrscheinlichkeit spiegelt wider, wie wahrscheinlich eine Art dort zu dieser Jahreszeit vorkommt, gelernt aus globalen Fundmeldungen und Umweltvariablen. Es ist eine modellierte Schätzung — keine Beobachtungszählung und keine Garantie.</p>" +
+        "<h4>Kartenansichten</h4>" +
+        "<ul>" +
+        "<li><b>Artverbreitung</b> — die Wahrscheinlichkeit einer ausgewählten Art auf der Karte für die gewählte Woche.</li>" +
+        "<li><b>Artenreichtum</b> — die Anzahl der Arten mit einer Wahrscheinlichkeit von mindestens 5 % in jeder Rasterzelle, begrenzt auf die gewählte Artengruppe. ▶ Migration abspielen animiert die Karte Woche für Woche.</li>" +
+        "</ul>" +
+        "<p>Die Karte wird auf einem Zellraster berechnet (3° herausgezoomt, bis 0,25° herangezoomt) und mit bilinearer Glättung gezeichnet, sodass die Farben zwischen den Zellzentren ineinander übergehen, statt harte Blöcke zu bilden.</p>" +
+        "<h4>Standortanalyse (auf die Karte klicken)</h4>" +
+        "<ul>" +
+        "<li><b>Zeitverlauf</b> — die Wahrscheinlichkeit jeder Art über alle 48 Wochen.</li>" +
+        "<li><b>Wahrscheinlichkeit</b> — eine Heatmap Art × Woche (rot = niedrig, grün = hoch), gestreckt über die angezeigten Werte.</li>" +
+        "<li><b>Ankünfte</b> — für jede Art und Woche ein Ankunftswert <code>(P[nächste Woche] − P[vorherige Woche]) ÷ max</code>, wobei <code>max</code> die höchste Wochenwahrscheinlichkeit der Art im Jahr ist. Grün = steigend (Ankunft), rot = fallend (Abzug); die Wochen laufen über die Jahresgrenze um (1 ↔ 48).</li>" +
+        "<li><b>Streudiagramm</b> — der Ankunftswert der aktuellen Woche (x-Achse) gegen die Wahrscheinlichkeit (y-Achse) für die wichtigsten Arten, mit einer sortierbaren Tabelle darunter.</li>" +
+        "</ul>" +
+        "<h4>Artenliste — Spalte „Vergleichen mit“</h4>" +
+        "<ul>" +
+        "<li><b>Vorherige / Nächste Woche</b> und <b>Jahresmittel</b> zeigen die Änderung Δ = aktuelle Wahrscheinlichkeit − Vergleichswert.</li>" +
+        "<li><b>Jahresmaximum</b> zeigt die aktuelle Woche als Anteil am Jahreshöchstwert der Art: <code>aktuell ÷ Maximum im Jahr</code>. 100 % bedeutet, dass die gewählte Woche die beste Woche der Art ist.</li>" +
+        "</ul>" +
+        "<h4>Technologie</h4>" +
+        "<p>Das KI-Modell läuft <b>vollständig in Ihrem Browser</b> — es gibt keinen Server und Ihr Standort wird nirgendwohin gesendet. Das neuronale Netz wird einmal heruntergeladen (~7 MB) und alle Vorhersagen werden auf Ihrem eigenen Gerät berechnet. Erstellt mit:</p>" +
+        "<ul>" +
+        "<li><b>ONNX Runtime Web</b> (WebAssembly) — führt das neuronale Netz im Browser aus.</li>" +
+        "<li><b>Web Workers</b> — die Berechnung läuft außerhalb des Haupt-Threads, damit die Oberfläche reaktionsfähig bleibt.</li>" +
+        "<li><b>BirdNET Geomodel</b> — das trainierte Modell, als ONNX exportiert (FP16, ~7 MB).</li>" +
+        "<li><b>Leaflet</b> mit OpenStreetMap-/CARTO-Kacheln — die interaktive Karte.</li>" +
+        "<li><b>Reines HTML, CSS und JavaScript</b> — kein Framework und kein Build-Schritt; als statische Seite bereitgestellt (GitHub Pages).</li>" +
+        "</ul>" +
+        "<h4>Projekt &amp; Feedback</h4>" +
+        "<p>Dieses Werkzeug ist kostenlos nutzbar, und Feedback ist willkommen unter <a href=\"mailto:vesmir09@gmail.com\">vesmir09@gmail.com</a>. Ein Norwegen-spezifisches Habitatmodell befindet sich in Entwicklung und soll reichhaltigere norwegische Daten nutzen als die Google-Earth-Engine-Daten des aktuellen Modells. Ziel des Habitatmodells ist eine verbesserte App zur Vogelstimmenerkennung (A!Birder) (in Entwicklung). Diese Seite soll dieses Modell letztlich einfach visualisieren.</p>" +
+        "<p class=\"about-note\">Vorhersagen sind Modellschätzungen, nicht die Wahrheit. Modellgewichte © das BirdNET-Team, lizenziert unter CC BY-SA 4.0; Kartenkacheln © OpenStreetMap-Mitwirkende, © CARTO.</p>",
+    },
+    nl: {
+      "about.title": "ℹ︎ Over het model & hoe waarden worden berekend",
+      "about.html":
+        "<h4>Het habitatmodel</h4>" +
+        "<p>Deze tool draait het <a href=\"https://github.com/birdnet-team/geomodel\" target=\"_blank\" rel=\"noopener\">BirdNET Geomodel</a> — een ruimtelijk-temporeel neuraal netwerk — volledig in je browser via ONNX Runtime Web. Op basis van <b>breedtegraad</b>, <b>lengtegraad</b> en <b>week van het jaar</b> (1–48; het model verdeelt het jaar in 48 weken van ongeveer 7,6 dagen) voorspelt het een <b>voorkomenswaarschijnlijkheid</b> (0–100%) voor elk van de 12.012 soorten onder vogels, zoogdieren, amfibieën en insecten. De waarschijnlijkheid geeft weer hoe waarschijnlijk een soort daar in die tijd van het jaar aanwezig is, geleerd uit wereldwijde waarnemingsgegevens en omgevingsvariabelen. Het is een gemodelleerde schatting — geen waarnemingstelling of garantie.</p>" +
+        "<h4>Kaartweergaven</h4>" +
+        "<ul>" +
+        "<li><b>Verspreiding</b> — de waarschijnlijkheid van één gekozen soort over de kaart voor de geselecteerde week.</li>" +
+        "<li><b>Soortenrijkdom</b> — het aantal soorten met een waarschijnlijkheid van minstens 5% in elke rastercel, beperkt tot de geselecteerde soortgroep. ▶ Migratie afspelen animeert de kaart week voor week.</li>" +
+        "</ul>" +
+        "<p>De kaart wordt berekend op een raster van cellen (3° uitgezoomd, tot 0,25° ingezoomd) en getekend met bilineaire vloeiing, zodat kleuren tussen celcentra in elkaar overvloeien in plaats van harde blokken te vormen.</p>" +
+        "<h4>Locatieanalyse (klik op de kaart)</h4>" +
+        "<ul>" +
+        "<li><b>Tijdlijn</b> — de waarschijnlijkheid van elke soort over alle 48 weken.</li>" +
+        "<li><b>Waarschijnlijkheid</b> — een heatmap soort × week (rood = laag, groen = hoog), uitgerekt over de waarden op het scherm.</li>" +
+        "<li><b>Aankomsten</b> — voor elke soort en week een aankomstscore <code>(P[volgende week] − P[vorige week]) ÷ max</code>, waarbij <code>max</code> de hoogste wekelijkse waarschijnlijkheid van de soort in het jaar is. Groen = stijgend (aankomst), rood = dalend (vertrek); de weken lopen rond bij de jaargrens (1 ↔ 48).</li>" +
+        "<li><b>Spreidingsdiagram</b> — de aankomstscore van de huidige week (x-as) tegen de waarschijnlijkheid (y-as) voor de topsoorten, met een sorteerbare tabel eronder.</li>" +
+        "</ul>" +
+        "<h4>Soortenlijst — kolom ‘Vergelijken met’</h4>" +
+        "<ul>" +
+        "<li><b>Vorige / Volgende week</b> en <b>Jaargemiddelde</b> tonen de verandering Δ = huidige waarschijnlijkheid − de vergelijkingswaarde.</li>" +
+        "<li><b>Jaarmaximum</b> toont de huidige week als fractie van de jaarpiek van de soort: <code>huidig ÷ max over het jaar</code>. 100% betekent dat de geselecteerde week de beste week van de soort is.</li>" +
+        "</ul>" +
+        "<h4>Technologie</h4>" +
+        "<p>Het AI-model draait <b>volledig in je browser</b> — er is geen server en je locatie wordt nergens naartoe gestuurd. Het neurale netwerk wordt één keer gedownload (~7 MB) en alle voorspellingen worden op je eigen apparaat berekend. Gebouwd met:</p>" +
+        "<ul>" +
+        "<li><b>ONNX Runtime Web</b> (WebAssembly) — draait het neurale netwerk in de browser.</li>" +
+        "<li><b>Web Workers</b> — de berekening draait buiten de hoofdthread zodat de interface responsief blijft.</li>" +
+        "<li><b>BirdNET Geomodel</b> — het getrainde model, geëxporteerd naar ONNX (FP16, ~7 MB).</li>" +
+        "<li><b>Leaflet</b> met OpenStreetMap-/CARTO-tegels — de interactieve kaart.</li>" +
+        "<li><b>Pure HTML, CSS en JavaScript</b> — geen framework en geen bouwstap; geserveerd als statische site (GitHub Pages).</li>" +
+        "</ul>" +
+        "<h4>Project &amp; feedback</h4>" +
+        "<p>Deze tool is gratis te gebruiken en feedback is welkom op <a href=\"mailto:vesmir09@gmail.com\">vesmir09@gmail.com</a>. Een Noorwegen-specifiek habitatmodel is in ontwikkeling, met als doel rijkere Noorse data te gebruiken dan de Google Earth Engine-data van het huidige model. Het doel van het habitatmodel is een verbeterde app voor vogelzangherkenning (A!Birder) (in ontwikkeling). Deze pagina is gemaakt om dat model uiteindelijk eenvoudig te visualiseren.</p>" +
+        "<p class=\"about-note\">Voorspellingen zijn modelschattingen, geen grondwaarheid. Modelgewichten © het BirdNET-team, gelicentieerd onder CC BY-SA 4.0; kaarttegels © OpenStreetMap-bijdragers, © CARTO.</p>",
+    },
+    it: {
+      "about.title": "ℹ︎ Informazioni sul modello e su come si calcolano i valori",
+      "about.html":
+        "<h4>Il modello di habitat</h4>" +
+        "<p>Questo strumento esegue il <a href=\"https://github.com/birdnet-team/geomodel\" target=\"_blank\" rel=\"noopener\">BirdNET Geomodel</a> — una rete neurale spazio-temporale — interamente nel tuo browser tramite ONNX Runtime Web. A partire da <b>latitudine</b>, <b>longitudine</b> e <b>settimana dell'anno</b> (1–48; il modello divide l'anno in 48 settimane di circa 7,6 giorni), prevede una <b>probabilità di presenza</b> (0–100%) per ciascuna delle 12.012 specie tra uccelli, mammiferi, anfibi e insetti. La probabilità riflette quanto sia probabile che una specie sia presente in quel luogo in quel periodo dell'anno, appresa da dati globali di osservazione e variabili ambientali. È una stima del modello — non un conteggio di osservazioni né una garanzia.</p>" +
+        "<h4>Viste della mappa</h4>" +
+        "<ul>" +
+        "<li><b>Areale della specie</b> — la probabilità di una specie scelta sulla mappa per la settimana selezionata.</li>" +
+        "<li><b>Ricchezza di specie</b> — il numero di specie con probabilità di almeno il 5% in ogni cella della griglia, limitato al gruppo di specie selezionato. ▶ Riproduci migrazione anima la mappa settimana per settimana.</li>" +
+        "</ul>" +
+        "<p>La mappa è calcolata su una griglia di celle (3° con vista ampia, fino a 0,25° con zoom ravvicinato) e disegnata con interpolazione bilineare, così che i colori sfumino tra i centri delle celle invece di formare blocchi netti.</p>" +
+        "<h4>Analisi della località (clicca sulla mappa)</h4>" +
+        "<ul>" +
+        "<li><b>Cronologia</b> — la probabilità di ogni specie su tutte le 48 settimane.</li>" +
+        "<li><b>Probabilità</b> — una mappa di calore specie × settimana (rosso = basso, verde = alto), estesa sui valori a schermo.</li>" +
+        "<li><b>Arrivi</b> — per ogni specie e settimana, un punteggio di arrivo <code>(P[settimana successiva] − P[settimana precedente]) ÷ max</code>, dove <code>max</code> è la probabilità settimanale più alta della specie nell'anno. Verde = in aumento (arrivo), rosso = in calo (partenza); le settimane si chiudono al confine dell'anno (1 ↔ 48).</li>" +
+        "<li><b>Grafico a dispersione</b> — il punteggio di arrivo della settimana corrente (asse x) rispetto alla probabilità (asse y) per le specie principali, con una tabella ordinabile sotto.</li>" +
+        "</ul>" +
+        "<h4>Elenco specie — colonna « Confronta con »</h4>" +
+        "<ul>" +
+        "<li><b>Settimana precedente / successiva</b> e <b>Media annuale</b> mostrano la variazione Δ = probabilità attuale − il valore di confronto.</li>" +
+        "<li><b>Massimo annuale</b> mostra la settimana corrente come frazione del picco annuale della specie: <code>attuale ÷ max nell'anno</code>. 100% significa che la settimana selezionata è la settimana migliore della specie.</li>" +
+        "</ul>" +
+        "<h4>Tecnologia</h4>" +
+        "<p>Il modello di IA viene eseguito <b>interamente nel tuo browser</b> — non c'è alcun server e la tua posizione non viene mai inviata da nessuna parte. La rete neurale viene scaricata una sola volta (~7 MB) e tutte le previsioni sono calcolate sul tuo dispositivo. Realizzato con:</p>" +
+        "<ul>" +
+        "<li><b>ONNX Runtime Web</b> (WebAssembly) — esegue la rete neurale nel browser.</li>" +
+        "<li><b>Web Worker</b> — il calcolo viene eseguito fuori dal thread principale per mantenere l'interfaccia reattiva.</li>" +
+        "<li><b>BirdNET Geomodel</b> — il modello addestrato, esportato in ONNX (FP16, ~7 MB).</li>" +
+        "<li><b>Leaflet</b> con tessere OpenStreetMap / CARTO — la mappa interattiva.</li>" +
+        "<li><b>HTML, CSS e JavaScript puri</b> — nessun framework e nessun passaggio di build; servito come sito statico (GitHub Pages).</li>" +
+        "</ul>" +
+        "<h4>Progetto e feedback</h4>" +
+        "<p>Questo strumento è gratuito e i feedback sono benvenuti all'indirizzo <a href=\"mailto:vesmir09@gmail.com\">vesmir09@gmail.com</a>. È in fase di sviluppo un modello di habitat specifico per la Norvegia, che mira a usare dati norvegesi più ricchi rispetto ai dati di Google Earth Engine usati nel modello attuale. L'obiettivo del modello di habitat è un'app migliorata per il riconoscimento del canto degli uccelli (A!Birder) (in sviluppo). Questa pagina è pensata per visualizzare facilmente quel modello col tempo.</p>" +
+        "<p class=\"about-note\">Le previsioni sono stime del modello, non verità assoluta. Pesi del modello © il team BirdNET, con licenza CC BY-SA 4.0; tessere della mappa © contributori OpenStreetMap, © CARTO.</p>",
     },
   };
 
