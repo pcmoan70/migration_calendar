@@ -1,0 +1,1404 @@
+/**
+ * BirdNET Geomodel – Interactive Web Demo
+ *
+ * Runs the ONNX FP16 model entirely client-side via ONNX Runtime Web.
+ * Four modes:
+ *   1. Range Map    – species probability heatmap on a Leaflet map
+ *   2. Richness Map – predicted species count per cell
+ *   3. Species List – click a location to see predicted species
+ *   4. Bar Charts   – click a location to see 48-week phenology bars
+ *
+ * The model input is (batch, 3) = [lat, lon, week] and output is
+ * (batch, n_species) sigmoid probabilities.
+ */
+
+(function () {
+  "use strict";
+
+  // ---- Configuration -------------------------------------------------------
+  var MODEL_URL = "geomodel_fp16.onnx";
+  var LABELS_URL = "labels.txt";
+  var TAX_URL = "taxonomy.csv";
+
+  // ---- i18n / species names ------------------------------------------------
+  var lang = "en";            // current UI + species-name language code
+  var langTaxCol = "com_name"; // taxonomy.csv column for current language
+  var taxByCode = {};          // species_code -> { com_name, common_name_xx, ... }
+
+  function t(key, vars) { return window.GeoI18N.t(lang, key, vars); }
+
+  // Localized common name for a label, falling back to English then scientific.
+  function speciesName(label) {
+    var row = label && taxByCode[label.key];
+    if (row) {
+      var n = row[langTaxCol] || row.com_name;
+      if (n) return n;
+    }
+    return label.common || label.sci || label.key;
+  }
+
+  // Grid resolution per zoom level (degrees per cell)
+  var ZOOM_STEP = { 2: 3, 3: 2, 4: 1 };
+
+  // Perceptual scaling: gamma < 1 stretches low values for visibility
+  var DISPLAY_GAMMA = 0.5;
+
+  // Preselected species (species code for quick access)
+  // Curated to showcase: long-distance migrants, year-round residents,
+  // pelagic seabirds, island endemics, raptors, and non-bird taxa.
+  var FEATURED_SPECIES = [
+    // Long-distance migrants
+    { key: "barswa",  sci: "Hirundo rustica",        common: "Barn Swallow" },
+    { key: "arcter",  sci: "Sterna paradisaea",      common: "Arctic Tern" },
+    { key: "comcuc",  sci: "Cuculus canorus",         common: "Common Cuckoo" },
+    { key: "rthhum",  sci: "Archilochus colubris",   common: "Ruby-throated Hummingbird" },
+    { key: "eubeat1", sci: "Merops apiaster",         common: "European Bee-eater" },
+    // Year-round residents
+    { key: "gretit1", sci: "Parus major",             common: "Great Tit" },
+    { key: "norcar",  sci: "Cardinalis cardinalis",   common: "Northern Cardinal" },
+    { key: "supfai1", sci: "Malurus cyaneus",         common: "Superb Fairywren" },
+    { key: "greroa",  sci: "Geococcyx californianus", common: "Greater Roadrunner" },
+    // Pelagic seabirds
+    { key: "bripet",  sci: "Hydrobates pelagicus",    common: "European Storm-Petrel" },
+    { key: "wispet",  sci: "Oceanites oceanicus",     common: "Wilson\u2019s Storm-Petrel" },
+    { key: "atlpuf",  sci: "Fratercula arctica",      common: "Atlantic Puffin" },
+    { key: "bkbalb",  sci: "Thalassarche melanophris",common: "Black-browed Albatross" },
+    // Island endemics
+    { key: "hawgoo",  sci: "Branta sandvicensis",     common: "Hawaiian Goose (N\u0113n\u0113)" },
+    { key: "kea1",    sci: "Nestor notabilis",        common: "Kea" },
+    { key: "galhaw1", sci: "Buteo galapagoensis",     common: "Gal\u00e1pagos Hawk" },
+    { key: "galpen1", sci: "Spheniscus mendiculus",   common: "Gal\u00e1pagos Penguin" },
+    { key: "kagu1",   sci: "Rhynochetos jubatus",     common: "Kagu" },
+    // Nocturnal species
+    { key: "tawowl1", sci: "Strix aluco",             common: "Tawny Owl" },
+    { key: "grhowl",  sci: "Bubo virginianus",        common: "Great Horned Owl" },
+    { key: "eurnig1", sci: "Caprimulgus europaeus",   common: "Eurasian Nightjar" },
+    { key: "compot1", sci: "Nyctibius griseus",       common: "Common Potoo" },
+    // Non-bird taxa
+    { key: "42069",   sci: "Vulpes vulpes",           common: "Red Fox" },
+    { key: "41663",   sci: "Procyon lotor",           common: "Common Raccoon" },
+    { key: "46001",   sci: "Sciurus vulgaris",        common: "Eurasian Red Squirrel" },
+  ];
+
+  // ---- Colormap ------------------------------------------------------------
+  var COLORMAP = (function () {
+    var stops = [
+      [0.0,   0,   0,   4],
+      [0.14, 31,  12,  72],
+      [0.28, 85,  15, 109],
+      [0.42, 136,  8,  79],
+      [0.56, 186, 54,  36],
+      [0.70, 227, 105,  5],
+      [0.84, 249, 174,  10],
+      [1.0,  252, 255, 164],
+    ];
+    var ramp = new Array(256);
+    for (var i = 0; i < 256; i++) {
+      var t = i / 255;
+      var lo = stops[0], hi = stops[stops.length - 1];
+      for (var s = 0; s < stops.length - 1; s++) {
+        if (t >= stops[s][0] && t <= stops[s + 1][0]) {
+          lo = stops[s]; hi = stops[s + 1]; break;
+        }
+      }
+      var f = (t - lo[0]) / (hi[0] - lo[0] || 1);
+      ramp[i] = [
+        Math.round(lo[1] + f * (hi[1] - lo[1])),
+        Math.round(lo[2] + f * (hi[2] - lo[2])),
+        Math.round(lo[3] + f * (hi[3] - lo[3])),
+      ];
+    }
+    return ramp;
+  })();
+
+  function colormapLookup(p) {
+    var idx = Math.max(0, Math.min(255, Math.round(p * 255)));
+    return COLORMAP[idx] || [0, 0, 0];
+  }
+
+  // ---- Utilities -----------------------------------------------------------
+  function perceptualNorm(raw, maxVal) {
+    var out = new Float32Array(raw.length);
+    if (maxVal > 0) {
+      for (var i = 0; i < raw.length; i++)
+        out[i] = Math.pow(raw[i] / maxVal, DISPLAY_GAMMA);
+    }
+    return out;
+  }
+
+  function wrapLon(v) { return ((((v + 180) % 360) + 360) % 360) - 180; }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  }
+
+  function setStatus(msg) {
+    var el = document.getElementById("demo-status");
+    if (el) el.textContent = msg;
+  }
+
+  function weekText(w) {
+    var months = window.GeoI18N.months(lang);
+    var period = window.GeoI18N.periods(lang);
+    var mi = Math.floor((w - 1) / 4);
+    var pi = (w - 1) % 4;
+    return t("week.fmt", { w: w, period: period[pi], month: months[mi] || months[11] });
+  }
+
+  // ---- State ---------------------------------------------------------------
+  var worker = null;
+  var inferenceId = 0;
+  var pendingInferences = new Map();
+  var labels = [];
+  var labelsByKey = {};
+  var map = null;
+  var overlayCanvas = null;
+  var cachedRender = null;
+  var renderCache = new Map();
+  var RENDER_CACHE_MAX = 50;
+  var marker = null;
+  var currentMode = "range";
+  var rendering = false;
+  var renderGeneration = 0;
+  var moveEndTimer = null;
+  var lastCsvData = null;   // { filename, content } for current data product
+
+  // Migration animation state
+  var animateAll = false;   // when true, range/richness precompute all 48 weeks
+  var animating = false;    // animation playback in progress
+  var animTimer = null;
+  var ANIM_INTERVAL = 350;  // ms between animation frames
+
+  // Location-analysis state (Timeline / Probability / Arrivals / Scatter)
+  var analysisData = null;  // { lat, lon, allProbs:Float32Array, nSpecies }
+  var analysisTab = "timeline";
+  var scatterSort = { column: "arrival", dir: "desc" };
+
+  // Base map tile layers
+  var baseLayer = null;
+  var BASEMAPS = {
+    dark: { url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
+            subdomains: "abcd" },
+    light: { url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
+             subdomains: "abcd" } };
+
+  // Capture script location at parse time (before DOMContentLoaded fires)
+  var SCRIPT_BASE = (document.currentScript && document.currentScript.src)
+    ? document.currentScript.src : window.location.href;
+
+  // ---- Bootstrap -----------------------------------------------------------
+  document.addEventListener("DOMContentLoaded", init);
+
+  async function init() {
+    var root = document.getElementById("demo-root");
+    if (!root) return;
+
+    root.innerHTML =
+      '<div id="demo-loading"><div class="spinner"></div><span data-i18n="app.loading">Loading\u2026</span></div>' +
+      '<div id="demo-app" style="display:none">' +
+        '<div id="demo-controls">' +
+          '<div class="ctrl-group">' +
+            '<label for="lang-select" data-i18n="ctrl.language">Language</label>' +
+            '<select id="lang-select"></select>' +
+          '</div>' +
+          '<div class="ctrl-group">' +
+            '<label for="basemap-select" data-i18n="ctrl.basemap">Base map</label>' +
+            '<select id="basemap-select">' +
+              '<option value="dark" data-i18n="basemap.dark">Dark</option>' +
+              '<option value="light" data-i18n="basemap.light">Light</option>' +
+            '</select>' +
+          '</div>' +
+          '<div class="ctrl-group">' +
+            '<label for="mode-select" data-i18n="ctrl.mode">Mode</label>' +
+            '<select id="mode-select">' +
+              '<option value="range" data-i18n="mode.range">Species Range</option>' +
+              '<option value="richness" data-i18n="mode.richness">Species Richness</option>' +
+              '<option value="list" data-i18n="mode.list">Species List (click map)</option>' +
+              '<option value="barchart" data-i18n="mode.barchart">Migration Timeline (click map)</option>' +
+            '</select>' +
+          '</div>' +
+          '<div class="ctrl-group" id="species-search-wrap">' +
+            '<label for="species-search" data-i18n="ctrl.species">Species</label>' +
+            '<input id="species-search" type="text" autocomplete="off" data-i18n-ph="ph.species" placeholder="Search species\u2026" />' +
+            '<div id="species-results"></div>' +
+          '</div>' +
+          '<div class="ctrl-group" id="week-select-wrap">' +
+            '<label for="week-select" data-i18n="ctrl.week">Week</label>' +
+            '<select id="week-select"></select>' +
+          '</div>' +
+          '<div class="ctrl-group ctrl-group-btn" id="play-btn-wrap">' +
+            '<button id="play-btn" class="demo-btn" data-i18n="btn.play">\u25b6 Play migration</button>' +
+          '</div>' +
+          '<div class="ctrl-group" id="threshold-wrap" style="display:none">' +
+            '<label for="threshold-select" data-i18n="ctrl.threshold">Min probability</label>' +
+            '<select id="threshold-select">' +
+              '<option value="1">1%</option>' +
+              '<option value="5" selected>5%</option>' +
+              '<option value="10">10%</option>' +
+              '<option value="25">25%</option>' +
+              '<option value="50">50%</option>' +
+            '</select>' +
+          '</div>' +
+          '<div class="ctrl-group" id="compare-wrap" style="display:none">' +
+            '<label for="compare-select" data-i18n="ctrl.compare">Compare to</label>' +
+            '<select id="compare-select">' +
+              '<option value="" data-i18n="compare.none">\u2014 none \u2014</option>' +
+              '<option value="prev" selected data-i18n="compare.prev">Previous week</option>' +
+              '<option value="next" data-i18n="compare.next">Next week</option>' +
+              '<option value="mean" data-i18n="compare.mean">Annual mean</option>' +
+            '</select>' +
+          '</div>' +
+          '<div class="ctrl-group" id="barchart-threshold-wrap" style="display:none">' +
+            '<label for="barchart-threshold" data-i18n="ctrl.bcthreshold">Min avg probability</label>' +
+            '<select id="barchart-threshold">' +
+              '<option value="1">1%</option>' +
+              '<option value="5" selected>5%</option>' +
+              '<option value="10">10%</option>' +
+              '<option value="25">25%</option>' +
+              '<option value="50">50%</option>' +
+            '</select>' +
+          '</div>' +
+          '<div class="ctrl-group" id="savedloc-wrap">' +
+            '<label for="savedloc-select" data-i18n="ctrl.savedloc">Saved locations</label>' +
+            '<select id="savedloc-select"></select>' +
+          '</div>' +
+          '<div class="ctrl-group ctrl-group-btn" id="saveloc-btn-wrap" style="display:none">' +
+            '<button id="saveloc-btn" class="demo-btn" data-i18n="btn.saveloc">\u2605 Save</button>' +
+          '</div>' +
+          '<div class="ctrl-group ctrl-group-btn" id="csv-btn-wrap" style="display:none">' +
+            '<button id="csv-download-btn" class="demo-btn" data-i18n="btn.csv" title="Download CSV">\u2b07 CSV</button>' +
+          '</div>' +
+        '</div>' +
+        '<div id="demo-status">&nbsp;</div>' +
+        '<div id="demo-map-wrap">' +
+          '<div id="demo-map"></div>' +
+          '<div id="demo-computing" style="display:none">' +
+            '<div class="spinner"></div>' +
+            '<div id="computing-text">Computing\u2026</div>' +
+            '<div id="computing-progress-wrap"><div id="computing-progress-bar"></div></div>' +
+          '</div>' +
+          '<div id="demo-legend"></div>' +
+        '</div>' +
+        '<div id="species-panel">' +
+          '<h3 id="sp-title" data-i18n="panel.spTitle">Species at location</h3>' +
+          '<div class="sp-coords" id="sp-coords"></div>' +
+          '<table id="species-list-table">' +
+            '<thead><tr><th data-i18n="th.rank">#</th><th data-i18n="th.species">Species</th><th data-i18n="th.sci">Scientific name</th><th data-i18n="th.prob">Probability</th><th></th><th id="sp-delta-head"></th></tr></thead>' +
+            '<tbody id="sp-tbody"></tbody>' +
+          '</table>' +
+        '</div>' +
+        '<div id="barchart-panel">' +
+          '<h3 id="bc-title" data-i18n="panel.bcTitle">Location analysis</h3>' +
+          '<div id="an-tabs">' +
+            '<button class="an-tab" data-tab="timeline" data-i18n="tab.timeline">Timeline</button>' +
+            '<button class="an-tab" data-tab="prob" data-i18n="tab.prob">Probability</button>' +
+            '<button class="an-tab" data-tab="arrival" data-i18n="tab.arrival">Arrivals</button>' +
+            '<button class="an-tab" data-tab="scatter" data-i18n="tab.scatter">Scatter</button>' +
+          '</div>' +
+          '<div id="an-controls">' +
+            '<input id="an-filter" type="text" autocomplete="off" data-i18n-ph="ph.filter" placeholder="Filter species…" />' +
+            '<label id="an-topn-wrap"><span data-i18n="ctrl.topN">Top N</span> ' +
+              '<input id="an-topn" type="number" min="1" max="500" value="55" /></label>' +
+          '</div>' +
+          '<div class="sp-coords" id="bc-coords"></div>' +
+          '<div id="bc-container"></div>' +
+        '</div>' +
+        '<div id="demo-footer" data-i18n="footer.attrib"></div>' +
+      '</div>';
+
+    // Restore saved language before building the UI text.
+    setLang(window.GeoState.get("lang", defaultLang()), true);
+
+    try {
+      await Promise.all([initWorker(), loadLabels(), loadTaxonomy()]);
+      document.getElementById("demo-loading").style.display = "none";
+      document.getElementById("demo-app").style.display = "block";
+      populateLangSelect();
+      populateWeekSelect();
+      restoreControls();
+      updateAnalysisControls();
+      applyI18n();
+      initMap();
+      bindControls();
+      refreshSavedLocations();
+      setStatus(t("status.selectSpecies"));
+    } catch (e) {
+      document.getElementById("demo-loading").innerHTML =
+        '<span style="color:red">' + t("app.failed", { msg: e.message }) + '</span>';
+      console.error(e);
+    }
+  }
+
+  // ---- Model & labels ------------------------------------------------------
+  async function initWorker() {
+    setStatus("Loading ONNX model\u2026");
+    worker = new Worker(new URL("inference-worker.js", SCRIPT_BASE).href);
+    worker.onerror = function (err) { console.error("Worker error:", err); };
+
+    await new Promise(function (resolve, reject) {
+      worker.onmessage = function (e) {
+        if (e.data.type === "init") {
+          if (e.data.ok) resolve();
+          else reject(new Error(e.data.error || "Worker init failed"));
+        }
+      };
+      worker.postMessage({ type: "init", modelUrl: new URL(MODEL_URL, SCRIPT_BASE).href });
+    });
+
+    worker.onmessage = function (e) {
+      var msg = e.data;
+      if (msg.type !== "infer") return;
+      var p = pendingInferences.get(msg.id);
+      if (!p) return;
+      pendingInferences.delete(msg.id);
+      if (msg.error) p.reject(new Error(msg.error));
+      else p.resolve(new Float32Array(msg.data));
+    };
+  }
+
+  async function loadLabels() {
+    var resp = await fetch(new URL(LABELS_URL, SCRIPT_BASE).href);
+    var text = await resp.text();
+    labels = text.trim().split("\n").map(function (line, i) {
+      var parts = line.split("\t");
+      return { key: parts[0], sci: parts[1] || "", common: parts[2] || parts[1] || "", index: i };
+    });
+    labelsByKey = {};
+    labels.forEach(function (l) { labelsByKey[l.key] = l; });
+  }
+
+  // ---- Taxonomy (multilingual common names) --------------------------------
+  // Parses taxonomy.csv into taxByCode keyed by species_code (== labels key).
+  async function loadTaxonomy() {
+    var resp = await fetch(new URL(TAX_URL, SCRIPT_BASE).href);
+    var text = await resp.text();
+    var rows = parseCsv(text);
+    if (!rows.length) return;
+    var header = rows[0];
+    var codeCol = header.indexOf("species_code");
+    if (codeCol < 0) return;
+    // Only retain columns we actually use (com_name + offered language columns).
+    var wanted = { com_name: true };
+    window.GeoI18N.LANGS.forEach(function (L) { wanted[L.taxCol] = true; });
+    var keep = [];
+    for (var c = 0; c < header.length; c++) if (wanted[header[c]]) keep.push(c);
+    for (var r = 1; r < rows.length; r++) {
+      var row = rows[r];
+      var code = row[codeCol];
+      if (!code) continue;
+      var obj = {};
+      for (var k = 0; k < keep.length; k++) {
+        var ci = keep[k];
+        if (row[ci]) obj[header[ci]] = row[ci];
+      }
+      taxByCode[code] = obj;
+    }
+  }
+
+  // Minimal RFC-4180-ish CSV parser (handles quoted fields, commas, newlines).
+  function parseCsv(text) {
+    var rows = [], row = [], field = "", inQuotes = false;
+    for (var i = 0; i < text.length; i++) {
+      var ch = text[i];
+      if (inQuotes) {
+        if (ch === '"') {
+          if (text[i + 1] === '"') { field += '"'; i++; }
+          else inQuotes = false;
+        } else field += ch;
+      } else if (ch === '"') {
+        inQuotes = true;
+      } else if (ch === ",") {
+        row.push(field); field = "";
+      } else if (ch === "\n") {
+        row.push(field); field = ""; rows.push(row); row = [];
+      } else if (ch === "\r") {
+        /* ignore */
+      } else {
+        field += ch;
+      }
+    }
+    if (field.length > 0 || row.length > 0) { row.push(field); rows.push(row); }
+    return rows;
+  }
+
+  // ---- Language & i18n -----------------------------------------------------
+  function defaultLang() {
+    var nav = (navigator.language || "en");
+    var codes = window.GeoI18N.LANGS.map(function (L) { return L.code; });
+    if (codes.indexOf(nav) >= 0) return nav;
+    var base = nav.split("-")[0];
+    return codes.indexOf(base) >= 0 ? base : "en";
+  }
+
+  function setLang(code, skipRefresh) {
+    var L = window.GeoI18N.langByCode(code);
+    lang = L.code;
+    langTaxCol = L.taxCol;
+    document.documentElement.setAttribute("lang", lang);
+    if (skipRefresh) return;
+    window.GeoState.save({ lang: lang });
+    applyI18n();
+    populateWeekSelect();   // re-label weeks in the new language
+    refreshSavedLocations();
+    refreshCurrentView();   // re-render species names in the active panel
+  }
+
+  function populateLangSelect() {
+    var sel = document.getElementById("lang-select");
+    sel.innerHTML = window.GeoI18N.LANGS.map(function (L) {
+      return '<option value="' + L.code + '"' + (L.code === lang ? " selected" : "") + ">" + L.name + "</option>";
+    }).join("");
+  }
+
+  // Apply translations to every [data-i18n] / [data-i18n-ph] element.
+  function applyI18n() {
+    var els = document.querySelectorAll("[data-i18n]");
+    for (var i = 0; i < els.length; i++) els[i].textContent = t(els[i].getAttribute("data-i18n"));
+    var phs = document.querySelectorAll("[data-i18n-ph]");
+    for (var j = 0; j < phs.length; j++) phs[j].setAttribute("placeholder", t(phs[j].getAttribute("data-i18n-ph")));
+    var selSp = document.getElementById("species-search");
+    if (selSp && selSp.dataset.selectedKey && labelsByKey[selSp.dataset.selectedKey]) {
+      var lbl = labelsByKey[selSp.dataset.selectedKey];
+      selSp.setAttribute("placeholder", speciesName(lbl) + " (" + lbl.sci + ")");
+    }
+    updateLegend();
+  }
+
+  // Build the 48-week dropdown with localized labels.
+  function populateWeekSelect() {
+    var sel = document.getElementById("week-select");
+    var cur = +sel.value || 1;
+    var html = "";
+    for (var w = 1; w <= 48; w++) html += '<option value="' + w + '">' + weekText(w) + "</option>";
+    sel.innerHTML = html;
+    sel.value = cur;
+  }
+
+  // Re-render whatever panel/overlay is currently shown (after a language change).
+  function refreshCurrentView() {
+    if (currentMode === "list" && marker) {
+      var ll = marker.getLatLng();
+      renderSpeciesList(ll.lat, ll.lng);
+    } else if (currentMode === "barchart" && analysisData) {
+      renderActiveTab();
+    } else if ((currentMode === "range" || currentMode === "richness") && cachedRender) {
+      showCachedWeek();
+    }
+  }
+
+  // ---- Map setup -----------------------------------------------------------
+  function initMap() {
+    var view = window.GeoState.get("view", null);
+    var center = (view && view.lat != null) ? [view.lat, view.lon] : [30, 0];
+    var zoom = (view && view.zoom != null) ? view.zoom : 2;
+    map = L.map("demo-map", { center: center, zoom: zoom, minZoom: 2, maxZoom: 4 });
+
+    setBasemap(window.GeoState.get("basemap", "dark"));
+
+    map.on("click", onMapClick);
+    map.on("moveend", function () {
+      var c = map.getCenter();
+      window.GeoState.save({ view: { lat: c.lat, lon: c.lng, zoom: map.getZoom() } });
+      if (currentMode !== "range" && currentMode !== "richness") return;
+      if (animating) return;   // don't re-render mid-animation
+      paintOverlay();
+      clearTimeout(moveEndTimer);
+      moveEndTimer = setTimeout(triggerRender, 300);
+    });
+
+    // Initial render for map modes (renders richness, or range if a species
+    // was restored; range without a species is a no-op).
+    if (currentMode === "range" || currentMode === "richness") triggerRender();
+  }
+
+  function triggerRender() {
+    if (currentMode === "richness") renderRichness();
+    else if (currentMode === "range") renderRangeMap();
+  }
+
+  function setBasemap(which) {
+    var cfg = BASEMAPS[which] || BASEMAPS.dark;
+    if (baseLayer) map.removeLayer(baseLayer);
+    baseLayer = L.tileLayer(cfg.url, { attribution: cfg.attribution, maxZoom: 4, subdomains: cfg.subdomains });
+    baseLayer.addTo(map);
+    baseLayer.bringToBack();
+    document.body.setAttribute("data-basemap", which);
+    var sel = document.getElementById("basemap-select");
+    if (sel) sel.value = which;
+    window.GeoState.save({ basemap: which });
+  }
+
+  // ---- Controls ------------------------------------------------------------
+  // Show/hide controls and panels appropriate to the active mode.
+  function updateModeVisibility() {
+    var isRange = currentMode === "range";
+    var isMap = currentMode === "range" || currentMode === "richness";
+    document.getElementById("species-search-wrap").style.display = isRange ? "" : "none";
+    document.getElementById("threshold-wrap").style.display = currentMode === "list" ? "" : "none";
+    document.getElementById("compare-wrap").style.display = currentMode === "list" ? "" : "none";
+    document.getElementById("barchart-threshold-wrap").style.display = currentMode === "barchart" ? "" : "none";
+    document.getElementById("week-select-wrap").style.display = currentMode === "barchart" ? "none" : "";
+    document.getElementById("play-btn-wrap").style.display = isMap ? "" : "none";
+  }
+
+  function bindControls() {
+    var modeEl = document.getElementById("mode-select");
+    modeEl.addEventListener("change", function () {
+      stopAnimation();
+      currentMode = modeEl.value;
+      window.GeoState.save({ mode: currentMode });
+      updateModeVisibility();
+      document.getElementById("species-panel").style.display = "none";
+      document.getElementById("barchart-panel").style.display = "none";
+      hideCsvBtn();
+      hideSaveLocBtn();
+      if (cachedRender) clearOverlay();
+      if (marker) { map.removeLayer(marker); marker = null; }
+      updateLegend();
+      if (currentMode === "range" || currentMode === "richness") triggerRender();
+    });
+
+    document.getElementById("lang-select").addEventListener("change", function () {
+      setLang(this.value);
+    });
+
+    document.getElementById("basemap-select").addEventListener("change", function () {
+      setBasemap(this.value);
+    });
+
+    // Analysis tab bar
+    var tabs = document.querySelectorAll("#an-tabs .an-tab");
+    for (var ti = 0; ti < tabs.length; ti++) {
+      tabs[ti].addEventListener("click", function () {
+        analysisTab = this.getAttribute("data-tab");
+        window.GeoState.save({ analysisTab: analysisTab });
+        updateAnalysisControls();
+        renderActiveTab();
+      });
+    }
+    document.getElementById("an-filter").addEventListener("input", function () { renderActiveTab(); });
+    document.getElementById("an-topn").addEventListener("input", function () {
+      if (analysisTab === "scatter") renderActiveTab();
+    });
+
+    document.getElementById("week-select").addEventListener("change", function () {
+      window.GeoState.save({ week: +this.value });
+      if (currentMode === "range" || currentMode === "richness") showCachedWeek();
+      else if (currentMode === "list" && marker) { var ll = marker.getLatLng(); renderSpeciesList(ll.lat, ll.lng); }
+      else if (currentMode === "barchart" && analysisData) renderActiveTab();
+      updateLegend();
+    });
+
+    document.getElementById("threshold-select").addEventListener("change", function () {
+      window.GeoState.save({ threshold: +this.value });
+      if (currentMode === "list" && marker) { var ll = marker.getLatLng(); renderSpeciesList(ll.lat, ll.lng); }
+    });
+
+    document.getElementById("compare-select").addEventListener("change", function () {
+      window.GeoState.save({ compare: this.value });
+      if (currentMode === "list" && marker) { var ll = marker.getLatLng(); renderSpeciesList(ll.lat, ll.lng); }
+    });
+
+    document.getElementById("barchart-threshold").addEventListener("change", function () {
+      if (currentMode === "barchart" && analysisData) renderActiveTab();
+    });
+
+    document.getElementById("play-btn").addEventListener("click", toggleAnimation);
+
+    document.getElementById("saveloc-btn").addEventListener("click", saveCurrentLocation);
+    document.getElementById("savedloc-select").addEventListener("change", goToSavedLocation);
+
+    document.getElementById("csv-download-btn").addEventListener("click", function () {
+      if (lastCsvData) downloadCsv(lastCsvData.filename, lastCsvData.content);
+    });
+
+    var searchEl = document.getElementById("species-search");
+    var resultsEl = document.getElementById("species-results");
+    var selIdx = -1;
+
+    searchEl.addEventListener("focus", function () { showSearch(searchEl, resultsEl); });
+    searchEl.addEventListener("input", function () { selIdx = -1; showSearch(searchEl, resultsEl); });
+    searchEl.addEventListener("keydown", function (e) {
+      var items = resultsEl.querySelectorAll(".sr-item");
+      if (e.key === "ArrowDown") { e.preventDefault(); selIdx = Math.min(selIdx + 1, items.length - 1); highlightItem(items, selIdx); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); selIdx = Math.max(selIdx - 1, 0); highlightItem(items, selIdx); }
+      else if (e.key === "Enter" && selIdx >= 0 && items[selIdx]) { e.preventDefault(); items[selIdx].click(); }
+      else if (e.key === "Escape") { resultsEl.style.display = "none"; }
+    });
+    document.addEventListener("click", function (e) {
+      if (!resultsEl.contains(e.target) && e.target !== searchEl) resultsEl.style.display = "none";
+    });
+  }
+
+  function showSearch(inputEl, resultsEl) {
+    var q = inputEl.value.trim().toLowerCase();
+    var matches;
+    if (q.length === 0) {
+      matches = FEATURED_SPECIES.map(function (f) { return labelsByKey[f.key]; }).filter(Boolean);
+    } else {
+      matches = labels.filter(function (l) {
+        return speciesName(l).toLowerCase().includes(q) ||
+               l.common.toLowerCase().includes(q) ||
+               l.sci.toLowerCase().includes(q) || l.key.includes(q);
+      }).slice(0, 30);
+    }
+    resultsEl.innerHTML = matches.map(function (l) {
+      return '<div class="sr-item" data-key="' + l.key + '">' + escapeHtml(speciesName(l)) + ' <span class="sr-sci">' + escapeHtml(l.sci) + '</span></div>';
+    }).join("");
+    resultsEl.style.display = matches.length ? "block" : "none";
+    resultsEl.querySelectorAll(".sr-item").forEach(function (el) {
+      el.addEventListener("click", function () {
+        selectSpecies(el.dataset.key);
+        inputEl.value = "";
+        resultsEl.style.display = "none";
+      });
+    });
+  }
+
+  function highlightItem(items, idx) {
+    items.forEach(function (el, i) { el.classList.toggle("active", i === idx); });
+    if (items[idx]) items[idx].scrollIntoView({ block: "nearest" });
+  }
+
+  function selectSpecies(key) {
+    var lbl = labelsByKey[key];
+    if (!lbl) return;
+    var el = document.getElementById("species-search");
+    el.placeholder = speciesName(lbl) + " (" + lbl.sci + ")";
+    el.dataset.selectedKey = key;
+    window.GeoState.save({ species: key });
+    stopAnimation();
+    if (currentMode === "range") renderRangeMap();
+  }
+
+  // ---- Inference -----------------------------------------------------------
+  async function runInference(flatInputs, batchSize) {
+    var id = ++inferenceId;
+    return new Promise(function (resolve, reject) {
+      pendingInferences.set(id, { resolve: resolve, reject: reject });
+      var buf = new Float32Array(flatInputs).buffer;
+      worker.postMessage({ type: "infer", id: id, flatInputs: buf, batchSize: batchSize }, [buf]);
+    });
+  }
+
+  // ---- Overlay -------------------------------------------------------------
+  function ensureOverlayCanvas() {
+    if (overlayCanvas) return;
+    overlayCanvas = document.createElement("canvas");
+    overlayCanvas.className = "heatmap-overlay";
+    overlayCanvas.style.position = "absolute";
+    overlayCanvas.style.pointerEvents = "none";
+    map.getPane("overlayPane").appendChild(overlayCanvas);
+  }
+
+  function clearOverlay() {
+    cachedRender = null;
+    if (overlayCanvas) { overlayCanvas.width = 0; overlayCanvas.height = 0; }
+  }
+
+  function paintOverlay() {
+    if (!cachedRender || !map) return;
+    ensureOverlayCanvas();
+
+    var g = cachedRender.grid, probs = cachedRender.probs;
+    var size = map.getSize();
+    overlayCanvas.width = size.x;
+    overlayCanvas.height = size.y;
+    L.DomUtil.setPosition(overlayCanvas, map.containerPointToLayerPoint([0, 0]));
+
+    var ctx = overlayCanvas.getContext("2d");
+    var pi = 0;
+    for (var iLat = 0; iLat < g.nLat; iLat++) {
+      var latN = g.north - iLat * g.step, latS = latN - g.step;
+      for (var iLon = 0; iLon < g.nLon; iLon++) {
+        var lonW = g.west + iLon * g.step, lonE = lonW + g.step;
+        var p = probs[pi++];
+        if (!(p >= 0.01)) continue;
+        var nw = map.latLngToContainerPoint([latN, lonW]);
+        var se = map.latLngToContainerPoint([latS, lonE]);
+        var x = Math.floor(nw.x), y = Math.floor(nw.y);
+        var w = Math.ceil(se.x) - x, h = Math.ceil(se.y) - y;
+        if (x + w < 0 || y + h < 0 || x > size.x || y > size.y) continue;
+        var c = colormapLookup(p);
+        var alpha = Math.min(1, 0.25 + p * 0.75);
+        ctx.fillStyle = "rgba(" + c[0] + "," + c[1] + "," + c[2] + "," + alpha.toFixed(3) + ")";
+        ctx.fillRect(x, y, w, h);
+      }
+    }
+  }
+
+  // ---- Viewport grid -------------------------------------------------------
+  function viewportGrid() {
+    var b = map.getBounds();
+    var south = Math.max(b.getSouth(), -90), north = Math.min(b.getNorth(), 90);
+    var west = b.getWest(), east = b.getEast();
+    if (east - west >= 360) { west = -180; east = 180; }
+    else { west = wrapLon(west); east = wrapLon(east); if (east <= west) east += 360; }
+    if (north - south < 0.1) north = south + 0.1;
+    if (east - west < 0.1) east = west + 0.1;
+    var step = ZOOM_STEP[map.getZoom()] || 3;
+    south = Math.max(Math.floor(south / step) * step, -90);
+    north = Math.min(Math.ceil(north / step) * step, 90);
+    west = Math.floor(west / step) * step;
+    east = Math.ceil(east / step) * step;
+    return { south: south, north: north, west: west, east: east, step: step,
+             nLat: Math.round((north - south) / step), nLon: Math.round((east - west) / step) };
+  }
+
+  // ---- Cell cache ----------------------------------------------------------
+  function cacheKey(speciesKey, week) { return speciesKey + ":" + week; }
+  function cellId(lat, lon) { return Math.round(lat * 100) + "," + Math.round(lon * 100); }
+
+  function getCellMap(key, step) {
+    var entry = renderCache.get(key);
+    if (!entry || entry.step !== step) {
+      entry = { step: step, cells: new Map() };
+      renderCache.set(key, entry);
+      if (renderCache.size > RENDER_CACHE_MAX) renderCache.delete(renderCache.keys().next().value);
+    }
+    return entry.cells;
+  }
+
+  function viewportMissing(cellMap, grid) {
+    var pts = [];
+    for (var iLat = 0; iLat < grid.nLat; iLat++) {
+      var lat = grid.north - (iLat + 0.5) * grid.step;
+      for (var iLon = 0; iLon < grid.nLon; iLon++) {
+        var lon = wrapLon(grid.west + (iLon + 0.5) * grid.step);
+        if (!cellMap.has(cellId(lat, lon))) pts.push({ lat: lat, lon: lon });
+      }
+    }
+    return pts;
+  }
+
+  function buildViewportArray(cellMap, grid) {
+    var arr = new Float32Array(grid.nLat * grid.nLon);
+    var i = 0;
+    for (var iLat = 0; iLat < grid.nLat; iLat++) {
+      var lat = grid.north - (iLat + 0.5) * grid.step;
+      for (var iLon = 0; iLon < grid.nLon; iLon++) {
+        var lon = wrapLon(grid.west + (iLon + 0.5) * grid.step);
+        arr[i++] = cellMap.get(cellId(lat, lon)) || 0;
+      }
+    }
+    return arr;
+  }
+
+  function normalizeProbs(raw) {
+    var maxProb = 0;
+    for (var i = 0; i < raw.length; i++) if (raw[i] > maxProb) maxProb = raw[i];
+    return { probs: perceptualNorm(raw, maxProb), maxProb: maxProb };
+  }
+
+  // Weeks to compute for a range/richness render: just the selected week
+  // normally, or all 48 when precomputing for migration animation.
+  function weeksToCompute() {
+    if (animateAll) {
+      var a = [];
+      for (var w = 1; w <= 48; w++) a.push(w);
+      return a;
+    }
+    return [+document.getElementById("week-select").value];
+  }
+
+  // ---- Range map -----------------------------------------------------------
+  async function renderRangeMap() {
+    var key = document.getElementById("species-search").dataset.selectedKey;
+    if (!key || !labelsByKey[key]) return;
+    if (rendering) { renderGeneration++; return; }
+    var gen = ++renderGeneration;
+    var lbl = labelsByKey[key], speciesIdx = lbl.index, name = speciesName(lbl);
+    var selectedWeek = +document.getElementById("week-select").value;
+    var weeks = weeksToCompute(), nSpecies = labels.length, CHUNK = 4096;
+    var g = viewportGrid(), totalPoints = g.nLat * g.nLon;
+
+    // Find weeks with missing cells
+    var weekMissing = [];
+    weeks.forEach(function (w) {
+      var cm = getCellMap(cacheKey(key, w), g.step);
+      var miss = viewportMissing(cm, g);
+      if (miss.length > 0) weekMissing.push({ week: w, missing: miss, cellMap: cm });
+    });
+
+    // Fast path: all cached
+    if (weekMissing.length === 0) {
+      var nr = normalizeProbs(buildViewportArray(getCellMap(cacheKey(key, selectedWeek), g.step), g));
+      cachedRender = { grid: g, probs: nr.probs, maxProb: nr.maxProb };
+      paintOverlay();
+      setStatus(t("status.rangeCached", { name: name, week: weekText(selectedWeek), n: totalPoints.toLocaleString(), step: g.step }));
+      updateLegend();
+      updateMapCsv();
+      return;
+    }
+
+    rendering = true;
+    showComputingOverlay(true, name);
+    try {
+      for (var wi = 0; wi < weekMissing.length; wi++) {
+        var wm = weekMissing[wi];
+        setStatus(t("status.computing", { name: name, week: weekText(wm.week), n: wm.missing.length, i: wi + 1, total: weekMissing.length }));
+        var inputs = new Float32Array(wm.missing.length * 3);
+        for (var i = 0; i < wm.missing.length; i++) {
+          inputs[i * 3] = wm.missing[i].lat;
+          inputs[i * 3 + 1] = wm.missing[i].lon;
+          inputs[i * 3 + 2] = wm.week;
+        }
+        var rawProbs = new Float32Array(wm.missing.length);
+        for (var start = 0; start < wm.missing.length; start += CHUNK) {
+          if (gen !== renderGeneration) return;
+          var end = Math.min(start + CHUNK, wm.missing.length);
+          var out = await runInference(inputs.subarray(start * 3, end * 3), end - start);
+          for (var j = 0; j < end - start; j++) rawProbs[start + j] = out[j * nSpecies + speciesIdx];
+        }
+        if (gen !== renderGeneration) return;
+        for (var k = 0; k < wm.missing.length; k++) wm.cellMap.set(cellId(wm.missing[k].lat, wm.missing[k].lon), rawProbs[k]);
+        if (wm.week === selectedWeek) {
+          var nr2 = normalizeProbs(buildViewportArray(wm.cellMap, g));
+          cachedRender = { grid: g, probs: nr2.probs, maxProb: nr2.maxProb };
+          paintOverlay();
+        }
+      }
+      var nrF = normalizeProbs(buildViewportArray(getCellMap(cacheKey(key, selectedWeek), g.step), g));
+      cachedRender = { grid: g, probs: nrF.probs, maxProb: nrF.maxProb };
+      paintOverlay();
+      setStatus(t("status.rangeDone", { name: name, week: weekText(selectedWeek), n: totalPoints.toLocaleString(), step: g.step }));
+      updateLegend();
+      updateMapCsv();
+    } catch (e) { setStatus(t("status.error", { msg: e.message })); console.error(e); }
+    finally { rendering = false; showComputingOverlay(false); if (gen !== renderGeneration) triggerRender(); }
+  }
+
+  // ---- Cached week switch --------------------------------------------------
+  function showCachedWeek() {
+    var week = +document.getElementById("week-select").value;
+    var g = viewportGrid();
+
+    if (currentMode === "richness") {
+      var cm = getCellMap(cacheKey("__richness__", week), g.step);
+      if (viewportMissing(cm, g).length === 0) {
+        var raw = buildViewportArray(cm, g);
+        var maxVal = 0;
+        for (var i = 0; i < raw.length; i++) if (raw[i] > maxVal) maxVal = raw[i];
+        cachedRender = { grid: g, probs: perceptualNorm(raw, maxVal), maxVal: maxVal, product: "richness" };
+        paintOverlay();
+        setStatus(t("status.richnessCached", { week: weekText(week), n: g.nLat * g.nLon, step: g.step }));
+        updateLegend();
+        updateMapCsv();
+      } else { renderRichness(); }
+      return;
+    }
+
+    var key = document.getElementById("species-search").dataset.selectedKey;
+    if (!key || !labelsByKey[key]) return;
+    var cm2 = getCellMap(cacheKey(key, week), g.step);
+    if (viewportMissing(cm2, g).length === 0) {
+      var nr = normalizeProbs(buildViewportArray(cm2, g));
+      cachedRender = { grid: g, probs: nr.probs, maxProb: nr.maxProb };
+      paintOverlay();
+      setStatus(t("status.rangeCached", { name: speciesName(labelsByKey[key]), week: weekText(week), n: g.nLat * g.nLon, step: g.step }));
+      updateLegend();
+      updateMapCsv();
+    } else { renderRangeMap(); }
+  }
+
+  // ---- Species richness ----------------------------------------------------
+  var RICHNESS_THRESHOLD = 0.05;
+
+  async function renderRichness() {
+    if (rendering) { renderGeneration++; return; }
+    var gen = ++renderGeneration;
+    var selectedWeek = +document.getElementById("week-select").value;
+    var weeks = weeksToCompute(), nSpecies = labels.length, CHUNK = 4096;
+    var g = viewportGrid(), totalPoints = g.nLat * g.nLon;
+    var richName = t("legend.count");
+
+    var weekMissing = [];
+    weeks.forEach(function (w) {
+      var cm = getCellMap(cacheKey("__richness__", w), g.step);
+      var miss = viewportMissing(cm, g);
+      if (miss.length > 0) weekMissing.push({ week: w, missing: miss, cellMap: cm });
+    });
+
+    if (weekMissing.length === 0) {
+      var raw = buildViewportArray(getCellMap(cacheKey("__richness__", selectedWeek), g.step), g);
+      var maxVal = 0;
+      for (var i = 0; i < raw.length; i++) if (raw[i] > maxVal) maxVal = raw[i];
+      cachedRender = { grid: g, probs: perceptualNorm(raw, maxVal), maxVal: maxVal, product: "richness" };
+      paintOverlay();
+      setStatus(t("status.richnessCached", { week: weekText(selectedWeek), n: totalPoints.toLocaleString(), step: g.step }));
+      updateLegend();
+      updateMapCsv();
+      return;
+    }
+
+    rendering = true;
+    showComputingOverlay(true, richName);
+    try {
+      for (var wi = 0; wi < weekMissing.length; wi++) {
+        var wm = weekMissing[wi];
+        setStatus(t("status.computing", { name: richName, week: weekText(wm.week), n: wm.missing.length, i: wi + 1, total: weekMissing.length }));
+        var inputs = new Float32Array(wm.missing.length * 3);
+        for (var ii = 0; ii < wm.missing.length; ii++) {
+          inputs[ii * 3] = wm.missing[ii].lat;
+          inputs[ii * 3 + 1] = wm.missing[ii].lon;
+          inputs[ii * 3 + 2] = wm.week;
+        }
+        var counts = new Float32Array(wm.missing.length);
+        for (var start = 0; start < wm.missing.length; start += CHUNK) {
+          if (gen !== renderGeneration) return;
+          var end = Math.min(start + CHUNK, wm.missing.length);
+          var out = await runInference(inputs.subarray(start * 3, end * 3), end - start);
+          for (var j = 0; j < end - start; j++) {
+            var count = 0, base = j * nSpecies;
+            for (var s = 0; s < nSpecies; s++) if (out[base + s] >= RICHNESS_THRESHOLD) count++;
+            counts[start + j] = count;
+          }
+        }
+        if (gen !== renderGeneration) return;
+        for (var k = 0; k < wm.missing.length; k++) wm.cellMap.set(cellId(wm.missing[k].lat, wm.missing[k].lon), counts[k]);
+        if (wm.week === selectedWeek) {
+          var rawW = buildViewportArray(wm.cellMap, g);
+          var maxV = 0;
+          for (var m = 0; m < rawW.length; m++) if (rawW[m] > maxV) maxV = rawW[m];
+          cachedRender = { grid: g, probs: perceptualNorm(rawW, maxV), maxVal: maxV, product: "richness" };
+          paintOverlay();
+        }
+      }
+      var rawF = buildViewportArray(getCellMap(cacheKey("__richness__", selectedWeek), g.step), g);
+      var maxF = 0;
+      for (var n = 0; n < rawF.length; n++) if (rawF[n] > maxF) maxF = rawF[n];
+      cachedRender = { grid: g, probs: perceptualNorm(rawF, maxF), maxVal: maxF, product: "richness" };
+      paintOverlay();
+      setStatus(t("status.richnessDone", { week: weekText(selectedWeek), n: totalPoints.toLocaleString(), step: g.step }));
+      updateLegend();
+      updateMapCsv();
+    } catch (e) { setStatus(t("status.error", { msg: e.message })); console.error(e); }
+    finally { rendering = false; showComputingOverlay(false); if (gen !== renderGeneration) triggerRender(); }
+  }
+
+  // ---- Species list --------------------------------------------------------
+  function onMapClick(e) {
+    if (currentMode !== "list" && currentMode !== "barchart") return;
+    if (marker) map.removeLayer(marker);
+    marker = L.marker([e.latlng.lat, e.latlng.lng]).addTo(map);
+    if (currentMode === "list") renderSpeciesList(e.latlng.lat, e.latlng.lng);
+    else renderAnalysis(e.latlng.lat, e.latlng.lng);
+  }
+
+  // Compute the per-species comparison probabilities for the "change" column.
+  // Returns { probs: Float32Array|null, refLabel: string } where probs is
+  // aligned to the label index, or null when no comparison is selected.
+  async function computeComparison(lat, lon, week) {
+    var mode = document.getElementById("compare-select").value;
+    var nSpecies = labels.length;
+    if (mode === "prev" || mode === "next") {
+      var cw = mode === "prev" ? (week - 1 < 1 ? 48 : week - 1) : (week + 1 > 48 ? 1 : week + 1);
+      var out = await runInference(new Float32Array([lat, lon, cw]), 1);
+      return { probs: out, refLabel: weekText(cw) };
+    }
+    if (mode === "mean") {
+      var inputs = new Float32Array(48 * 3);
+      for (var w = 0; w < 48; w++) { inputs[w * 3] = lat; inputs[w * 3 + 1] = lon; inputs[w * 3 + 2] = w + 1; }
+      var all = await runInference(inputs, 48);
+      var mean = new Float32Array(nSpecies);
+      for (var s = 0; s < nSpecies; s++) {
+        var sum = 0;
+        for (var wk = 0; wk < 48; wk++) sum += all[wk * nSpecies + s];
+        mean[s] = sum / 48;
+      }
+      return { probs: mean, refLabel: t("compare.mean") };
+    }
+    return { probs: null, refLabel: "" };
+  }
+
+  function deltaCell(delta) {
+    var pct = (delta * 100);
+    var cls = delta > 0.001 ? "delta-up" : (delta < -0.001 ? "delta-down" : "delta-flat");
+    var arrow = delta > 0.001 ? "\u25b2" : (delta < -0.001 ? "\u25bc" : "\u00b7");
+    return '<td class="' + cls + '">' + arrow + " " + (pct >= 0 ? "+" : "") + pct.toFixed(1) + "%</td>";
+  }
+
+  async function renderSpeciesList(lat, lon) {
+    var week = +document.getElementById("week-select").value;
+    var threshold = +document.getElementById("threshold-select").value / 100;
+    setStatus(t("status.predicting", { lat: lat.toFixed(2), lon: lon.toFixed(2), week: week }));
+    try {
+      var out = await runInference(new Float32Array([lat, lon, week]), 1);
+      var cmp = await computeComparison(lat, lon, week);
+      var hasDelta = !!cmp.probs;
+      var results = [];
+      for (var i = 0; i < labels.length; i++) {
+        if (out[i] >= threshold) {
+          results.push({ label: labels[i], prob: out[i], delta: hasDelta ? out[i] - cmp.probs[i] : 0 });
+        }
+      }
+      results.sort(function (a, b) { return b.prob - a.prob; });
+
+      document.getElementById("sp-delta-head").textContent = hasDelta ? t("th.delta", { ref: cmp.refLabel }) : "";
+      document.getElementById("sp-coords").textContent =
+        t("sp.summary", { lat: lat.toFixed(4), lon: lon.toFixed(4), week: week, n: results.length, p: (threshold * 100).toFixed(0) });
+      document.getElementById("sp-tbody").innerHTML = results.map(function (r, idx) {
+        return '<tr><td>' + (idx + 1) + '</td><td>' + escapeHtml(speciesName(r.label)) + '</td><td style="font-style:italic">' +
+               escapeHtml(r.label.sci) + '</td><td>' + (r.prob * 100).toFixed(1) + '%</td><td class="prob-bar-cell"><div class="prob-bar" style="width:' +
+               Math.round(r.prob * 100) + '%"></div></td>' + (hasDelta ? deltaCell(r.delta) : "<td></td>") + '</tr>';
+      }).join("");
+      document.getElementById("species-panel").style.display = "block";
+      document.getElementById("barchart-panel").style.display = "none";
+      setStatus(t("status.spResult", { n: results.length, p: (threshold * 100).toFixed(0), lat: lat.toFixed(2), lon: lon.toFixed(2) }));
+
+      // Build CSV for species list (includes change column when active)
+      var header = "rank,species_code,common_name,scientific_name,probability";
+      if (hasDelta) header += ",delta_vs_" + cmp.refLabel.replace(/[",\s]+/g, "_");
+      var csvLines = [header];
+      results.forEach(function (r, idx) {
+        var line = (idx + 1) + ',"' + r.label.key + '","' + speciesName(r.label).replace(/"/g, '""') + '","' + r.label.sci.replace(/"/g, '""') + '",' + r.prob.toFixed(6);
+        if (hasDelta) line += "," + r.delta.toFixed(6);
+        csvLines.push(line);
+      });
+      lastCsvData = {
+        filename: "Geomodel_species_list_" + lat.toFixed(2) + "_" + lon.toFixed(2) + "_week" + week + ".csv",
+        content: csvLines.join("\n")
+      };
+      showCsvBtn();
+      showSaveLocBtn();
+    } catch (e) { setStatus(t("status.error", { msg: e.message })); console.error(e); }
+  }
+
+  // ---- Computing overlay ---------------------------------------------------
+  function showComputingOverlay(show, name) {
+    var el = document.getElementById("demo-computing");
+    if (!el) return;
+    el.style.display = show ? "flex" : "none";
+    if (show) {
+      document.getElementById("computing-text").textContent = name || "";
+      document.getElementById("computing-progress-bar").style.width = "0%";
+    }
+  }
+
+  // ---- Legend ---------------------------------------------------------------
+  function updateLegend() {
+    var el = document.getElementById("demo-legend");
+    if (!el) return;
+    if ((currentMode !== "range" && currentMode !== "richness") || !cachedRender) { el.style.display = "none"; return; }
+
+    var isRichness = currentMode === "richness";
+    var maxVal = isRichness && cachedRender.maxVal ? Math.round(cachedRender.maxVal) : 0;
+    var maxProb = !isRichness && cachedRender.maxProb ? cachedRender.maxProb : 1;
+
+    var html = '<div class="legend-title">' + (isRichness ? t("legend.count") : t("legend.prob")) + '</div><div class="legend-bar">';
+    var stops = [];
+    for (var i = 0; i <= 10; i++) {
+      var lt = i / 10, c = colormapLookup(lt);
+      stops.push("rgb(" + c[0] + "," + c[1] + "," + c[2] + ") " + Math.round(lt * 100) + "%");
+    }
+    html += '<div class="legend-gradient" style="background:linear-gradient(to right,' + stops.join(",") + ')"></div>';
+    html += '<div class="legend-ticks">';
+    [0, 0.5, 1].forEach(function (tick) {
+      var rawT = Math.pow(tick, 1 / DISPLAY_GAMMA);
+      html += "<span>" + (isRichness ? Math.round(rawT * maxVal) : Math.round(rawT * maxProb * 100) + "%") + "</span>";
+    });
+    html += "</div></div>";
+    el.innerHTML = html;
+    el.style.display = "block";
+  }
+
+  // ---- CSV helpers ---------------------------------------------------------
+  function downloadCsv(filename, content) {
+    var blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function showCsvBtn() {
+    document.getElementById("csv-btn-wrap").style.display = "";
+  }
+
+  function hideCsvBtn() {
+    document.getElementById("csv-btn-wrap").style.display = "none";
+    lastCsvData = null;
+  }
+
+  function buildRangeMapCsv() {
+    var key = document.getElementById("species-search").dataset.selectedKey;
+    if (!key || !labelsByKey[key]) return null;
+    var week = +document.getElementById("week-select").value;
+    var g = viewportGrid();
+    var cm = getCellMap(cacheKey(key, week), g.step);
+    var lines = ["latitude,longitude,probability"];
+    for (var iLat = 0; iLat < g.nLat; iLat++) {
+      var lat = g.north - (iLat + 0.5) * g.step;
+      for (var iLon = 0; iLon < g.nLon; iLon++) {
+        var lon = wrapLon(g.west + (iLon + 0.5) * g.step);
+        var val = cm.get(cellId(lat, lon)) || 0;
+        if (val > 0.001) lines.push(lat.toFixed(4) + "," + lon.toFixed(4) + "," + val.toFixed(6));
+      }
+    }
+    var lbl = labelsByKey[key];
+    return {
+      filename: "Geomodel_range_" + speciesName(lbl).replace(/\s+/g, "_") + "_week" + week + ".csv",
+      content: lines.join("\n")
+    };
+  }
+
+  function buildRichnessCsv() {
+    var week = +document.getElementById("week-select").value;
+    var g = viewportGrid();
+    var cm = getCellMap(cacheKey("__richness__", week), g.step);
+    var lines = ["latitude,longitude,species_count"];
+    for (var iLat = 0; iLat < g.nLat; iLat++) {
+      var lat = g.north - (iLat + 0.5) * g.step;
+      for (var iLon = 0; iLon < g.nLon; iLon++) {
+        var lon = wrapLon(g.west + (iLon + 0.5) * g.step);
+        var val = cm.get(cellId(lat, lon)) || 0;
+        lines.push(lat.toFixed(4) + "," + lon.toFixed(4) + "," + Math.round(val));
+      }
+    }
+    return {
+      filename: "BirdNET_Geomodel_richness_week" + week + ".csv",
+      content: lines.join("\n")
+    };
+  }
+
+  // ---- Location analysis (Timeline / Probability / Arrivals / Scatter) -----
+  // Runs ONE 48-week prediction at the clicked point; all four tabs derive
+  // from the cached result. Re-clicking recomputes; tab/filter/sort changes
+  // re-render from cache without new inference.
+  async function renderAnalysis(lat, lon) {
+    var nSpecies = labels.length;
+    document.getElementById("species-panel").style.display = "none";
+    document.getElementById("barchart-panel").style.display = "none";
+    showComputingOverlay(true, t("panel.bcTitle"));
+    setStatus(t("status.predicting48", { lat: lat.toFixed(2), lon: lon.toFixed(2) }));
+    try {
+      var inputs = new Float32Array(48 * 3);
+      for (var w = 0; w < 48; w++) { inputs[w * 3] = lat; inputs[w * 3 + 1] = lon; inputs[w * 3 + 2] = w + 1; }
+      var allProbs = await runInference(inputs, 48); // 48 * nSpecies, week-major
+      analysisData = { lat: lat, lon: lon, allProbs: allProbs, nSpecies: nSpecies };
+      document.getElementById("barchart-panel").style.display = "block";
+      updateAnalysisControls();
+      renderActiveTab();
+      showSaveLocBtn();
+    } catch (e) { setStatus(t("status.error", { msg: e.message })); console.error(e); }
+    finally { showComputingOverlay(false); }
+  }
+
+  // Build the context object the analysis renderers consume.
+  function analysisCtx() {
+    return {
+      allProbs: analysisData.allProbs,
+      nSpecies: analysisData.nSpecies,
+      labels: labels,
+      week: +document.getElementById("week-select").value,
+      thresholdFrac: +document.getElementById("barchart-threshold").value / 100,
+      filterText: document.getElementById("an-filter").value.trim(),
+      topN: +document.getElementById("an-topn").value,
+      scatterSort: scatterSort,
+      speciesName: speciesName,
+      escapeHtml: escapeHtml,
+      months: window.GeoI18N.months(lang),
+      t: t,
+      onSortChange: function (s) { scatterSort = s; renderActiveTab(); },
+    };
+  }
+
+  // Show the active tab as selected and toggle the Top-N control (scatter only).
+  function updateAnalysisControls() {
+    var tabs = document.querySelectorAll("#an-tabs .an-tab");
+    for (var i = 0; i < tabs.length; i++) {
+      tabs[i].classList.toggle("is-active", tabs[i].getAttribute("data-tab") === analysisTab);
+    }
+    document.getElementById("an-topn-wrap").style.display = analysisTab === "scatter" ? "" : "none";
+  }
+
+  function renderActiveTab() {
+    if (!analysisData) return;
+    var container = document.getElementById("bc-container");
+    var ctx = analysisCtx();
+    var lat = analysisData.lat, lon = analysisData.lon;
+    var nVisible = window.GeoAnalysis.visibleSpecies(ctx).length;
+
+    document.getElementById("bc-coords").textContent =
+      t("sp.summary", { lat: lat.toFixed(4), lon: lon.toFixed(4), week: ctx.week, n: nVisible, p: (ctx.thresholdFrac * 100).toFixed(0) });
+    setStatus(t("status.spResult", { n: nVisible, p: (ctx.thresholdFrac * 100).toFixed(0), lat: lat.toFixed(2), lon: lon.toFixed(2) }));
+
+    if (analysisTab === "timeline") renderTimelineTab(container, ctx);
+    else if (analysisTab === "scatter") window.GeoAnalysis.renderScatter(container, ctx);
+    else window.GeoAnalysis.renderHeatmap(container, ctx, analysisTab === "arrival");
+
+    // CSV reflects the active tab.
+    var built = window.GeoAnalysis.buildCsv(ctx, analysisTab);
+    lastCsvData = { filename: "Geomodel_" + analysisTab + "_" + lat.toFixed(2) + "_" + lon.toFixed(2) + ".csv", content: built.content };
+    showCsvBtn();
+  }
+
+  // Timeline tab: per-species 48-week phenology bars (sorted by annual mean).
+  function renderTimelineTab(container, ctx) {
+    var rows = window.GeoAnalysis.visibleSpecies(ctx);
+    rows.forEach(function (r) {
+      var sum = 0; for (var w = 0; w < 48; w++) sum += r.probs[w];
+      r.avg = sum / 48;
+    });
+    rows.sort(function (a, b) { return b.avg - a.avg; });
+
+    var globalMax = 0;
+    rows.forEach(function (r) { for (var w = 0; w < 48; w++) if (r.probs[w] > globalMax) globalMax = r.probs[w]; });
+    if (globalMax < 0.01) globalMax = 0.01;
+
+    if (rows.length === 0) { container.innerHTML = '<p class="an-empty">' + escapeHtml(t("analysis.empty")) + "</p>"; return; }
+
+    var MONTH_LABELS = ctx.months;
+    var html = "";
+    for (var ri = 0; ri < rows.length; ri++) {
+      var r = rows[ri];
+      html += '<div class="bc-species"><div class="bc-header">' +
+        '<span class="bc-rank">' + (ri + 1) + '</span>' +
+        '<span class="bc-name">' + escapeHtml(speciesName(r.label)) + '</span>' +
+        '<span class="bc-sci">' + escapeHtml(r.label.sci) + '</span>' +
+        '<span class="bc-avg">' + t("bc.avg", { p: (r.avg * 100).toFixed(1) }) + '</span>' +
+        '</div><div class="bc-bars">';
+      for (var w3 = 0; w3 < 48; w3++) {
+        var prob = r.probs[w3];
+        var pct = (prob / globalMax) * 100;
+        var opacity = Math.max(0.15, prob / globalMax);
+        var monthClass = (w3 % 4 === 0) ? " bc-month-start" : "";
+        html += '<div class="bc-bar' + monthClass + '" style="height:' + pct.toFixed(1) + '%;opacity:' + opacity.toFixed(2) + '" title="' + (w3 + 1) + ": " + (prob * 100).toFixed(1) + '%"></div>';
+      }
+      html += '</div><div class="bc-months">';
+      for (var m = 0; m < 12; m++) html += "<span>" + escapeHtml(MONTH_LABELS[m]) + "</span>";
+      html += "</div></div>";
+    }
+    container.innerHTML = html;
+  }
+
+  // ---- Update CSV for range/richness after render --------------------------
+  function updateMapCsv() {
+    if (currentMode === "range") {
+      lastCsvData = buildRangeMapCsv();
+      if (lastCsvData) showCsvBtn(); else hideCsvBtn();
+    } else if (currentMode === "richness") {
+      lastCsvData = buildRichnessCsv();
+      if (lastCsvData) showCsvBtn(); else hideCsvBtn();
+    }
+  }
+
+  // ---- Migration animation -------------------------------------------------
+  // Precomputes all 48 weeks for the current viewport, then steps through them
+  // so the user watches the predicted range/richness shift across the year.
+  function setPlayBtn(playing) {
+    var b = document.getElementById("play-btn");
+    if (b) b.textContent = playing ? t("btn.pause") : t("btn.play");
+  }
+
+  function stopAnimation() {
+    animating = false;
+    animateAll = false;
+    if (animTimer) { clearTimeout(animTimer); animTimer = null; }
+    setPlayBtn(false);
+  }
+
+  async function toggleAnimation() {
+    if (animating) { stopAnimation(); return; }
+    if (currentMode === "range" && !document.getElementById("species-search").dataset.selectedKey) {
+      setStatus(t("status.selectSpecies"));
+      return;
+    }
+    animating = true;
+    setPlayBtn(true);
+
+    // Precompute every week for the current viewport.
+    animateAll = true;
+    if (currentMode === "richness") await renderRichness();
+    else await renderRangeMap();
+    animateAll = false;
+    if (!animating) return;
+
+    // Step through cached weeks.
+    var wsel = document.getElementById("week-select");
+    var w = +wsel.value || 1;
+    (function step() {
+      if (!animating) return;
+      wsel.value = w;
+      showCachedWeek();
+      w = (w % 48) + 1;
+      animTimer = setTimeout(step, ANIM_INTERVAL);
+    })();
+  }
+
+  // ---- Saved locations -----------------------------------------------------
+  function showSaveLocBtn() { document.getElementById("saveloc-btn-wrap").style.display = ""; }
+  function hideSaveLocBtn() { document.getElementById("saveloc-btn-wrap").style.display = "none"; }
+
+  function refreshSavedLocations() {
+    var sel = document.getElementById("savedloc-select");
+    if (!sel) return;
+    var locs = window.GeoState.locations();
+    var html = '<option value="">' + escapeHtml(t("ph.savedloc")) + "</option>";
+    html += locs.map(function (l) {
+      return '<option value="' + l.id + '">' + escapeHtml(l.name) + "</option>";
+    }).join("");
+    sel.innerHTML = html;
+  }
+
+  function saveCurrentLocation() {
+    if (!marker) return;
+    var ll = marker.getLatLng();
+    var def = t("loc.defaultName", { lat: ll.lat.toFixed(3), lon: ll.lng.toFixed(3) });
+    var name = window.prompt(t("loc.savePrompt"), def);
+    if (name === null) return;
+    window.GeoState.addLocation(name.trim() || def, ll.lat, ll.lng);
+    refreshSavedLocations();
+  }
+
+  function goToSavedLocation() {
+    var id = document.getElementById("savedloc-select").value;
+    if (!id) return;
+    var loc = window.GeoState.locations().filter(function (l) { return l.id === id; })[0];
+    if (!loc) return;
+    if (currentMode !== "list" && currentMode !== "barchart") {
+      currentMode = "list";
+      document.getElementById("mode-select").value = "list";
+      updateModeVisibility();
+    }
+    map.setView([loc.lat, loc.lon], Math.max(map.getZoom(), 3));
+    if (marker) map.removeLayer(marker);
+    marker = L.marker([loc.lat, loc.lon]).addTo(map);
+    if (currentMode === "barchart") renderAnalysis(loc.lat, loc.lon);
+    else renderSpeciesList(loc.lat, loc.lon);
+  }
+
+  // ---- Restore persisted control values ------------------------------------
+  function restoreControls() {
+    currentMode = window.GeoState.get("mode", "range");
+    document.getElementById("mode-select").value = currentMode;
+
+    var week = window.GeoState.get("week", null);
+    if (week) document.getElementById("week-select").value = week;
+
+    var thr = window.GeoState.get("threshold", null);
+    if (thr) document.getElementById("threshold-select").value = thr;
+
+    var cmp = window.GeoState.get("compare", null);
+    if (cmp !== null) document.getElementById("compare-select").value = cmp;
+
+    analysisTab = window.GeoState.get("analysisTab", "timeline");
+
+    var sp = window.GeoState.get("species", null);
+    if (sp && labelsByKey[sp]) {
+      var el = document.getElementById("species-search");
+      el.dataset.selectedKey = sp;
+      el.placeholder = speciesName(labelsByKey[sp]) + " (" + labelsByKey[sp].sci + ")";
+    }
+    updateModeVisibility();
+  }
+
+})();
