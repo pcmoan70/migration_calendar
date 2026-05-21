@@ -347,11 +347,13 @@
           '</div>' +
           '<div class="ctrl-group" id="savedloc-wrap">' +
             '<label data-i18n="ctrl.savedloc">Saved locations</label>' +
-            '<div id="savedloc-list"></div>' +
+            '<button type="button" id="savedloc-toggle" class="dd-toggle"><span id="savedloc-btn-text"></span><span class="dd-caret" aria-hidden="true">▾</span></button>' +
+            '<div id="savedloc-panel" class="dd-panel" style="display:none"></div>' +
           '</div>' +
           '<div class="ctrl-group" id="hidden-wrap" style="display:none">' +
             '<label data-i18n="ctrl.hidden">Hidden species</label>' +
-            '<div id="hidden-list"></div>' +
+            '<button type="button" id="hidden-btn" class="dd-toggle"><span id="hidden-btn-text"></span><span class="dd-caret" aria-hidden="true">▾</span></button>' +
+            '<div id="hidden-panel" class="dd-panel" style="display:none"></div>' +
           '</div>' +
           '<div class="ctrl-group ctrl-group-btn" id="saveloc-btn-wrap" style="display:none">' +
             '<button id="saveloc-btn" class="demo-btn" data-i18n="btn.saveloc">\u2605 Save</button>' +
@@ -737,6 +739,19 @@
 
     document.getElementById("saveloc-btn").addEventListener("click", saveCurrentLocation);
 
+    // Dropdown popovers (Hidden species, Saved locations).
+    function wireDropdown(btnId, panelId) {
+      document.getElementById(btnId).addEventListener("click", function (e) {
+        e.stopPropagation();
+        var p = document.getElementById(panelId);
+        var willOpen = p.style.display === "none";
+        closeDropdowns();
+        p.style.display = willOpen ? "block" : "none";
+      });
+    }
+    wireDropdown("hidden-btn", "hidden-panel");
+    wireDropdown("savedloc-toggle", "savedloc-panel");
+
     document.getElementById("csv-download-btn").addEventListener("click", function () {
       if (lastCsvData) downloadCsv(lastCsvData.filename, lastCsvData.content);
     });
@@ -756,6 +771,8 @@
         return;
       }
       if (!spMenu.contains(e.target)) spMenu.style.display = "none";
+      // Close the dropdown popovers when clicking outside a panel/toggle.
+      if (!e.target.closest(".dd-panel") && !e.target.closest(".dd-toggle")) closeDropdowns();
     });
     spMenu.querySelectorAll(".sp-menu-item").forEach(function (btn) {
       btn.addEventListener("click", function () {
@@ -1572,26 +1589,29 @@
   function showSaveLocBtn() { document.getElementById("saveloc-btn-wrap").style.display = ""; }
   function hideSaveLocBtn() { document.getElementById("saveloc-btn-wrap").style.display = "none"; }
 
+  // Saved locations in a dropdown popover: each row navigates on click and
+  // has an × to delete it.
   function refreshSavedLocations() {
-    var box = document.getElementById("savedloc-list");
-    if (!box) return;
+    var btnText = document.getElementById("savedloc-btn-text");
+    var panel = document.getElementById("savedloc-panel");
+    if (!btnText || !panel) return;
     var locs = window.GeoState.locations();
+    btnText.textContent = t("ctrl.savedloc") + " (" + locs.length + ")";
     if (!locs.length) {
-      box.innerHTML = '<span class="savedloc-empty">' + escapeHtml(t("ph.savedloc")) + "</span>";
+      panel.innerHTML = '<div class="dd-empty">' + escapeHtml(t("ph.savedloc")) + "</div>";
       return;
     }
-    // Each location is a chip: name (click to go) + × (click to delete).
-    box.innerHTML = locs.map(function (l) {
+    panel.innerHTML = locs.map(function (l) {
       var n = escapeHtml(l.name);
-      return '<span class="savedloc-chip">' +
-        '<button type="button" class="savedloc-go" data-id="' + l.id + '" title="' + n + '">' + n + "</button>" +
-        '<button type="button" class="savedloc-del" data-id="' + l.id + '" title="' + escapeHtml(t("loc.delete")) + '" aria-label="' + escapeHtml(t("loc.delete")) + '">×</button>' +
-        "</span>";
+      return '<div class="dd-row">' +
+        '<button type="button" class="dd-name dd-go" data-id="' + l.id + '" title="' + n + '">' + n + "</button>" +
+        '<button type="button" class="dd-del" data-id="' + l.id + '" title="' + escapeHtml(t("loc.delete")) + '" aria-label="' + escapeHtml(t("loc.delete")) + '">×</button>' +
+        "</div>";
     }).join("");
-    box.querySelectorAll(".savedloc-go").forEach(function (b) {
-      b.addEventListener("click", function () { goToSavedLocation(this.getAttribute("data-id")); });
+    panel.querySelectorAll(".dd-go").forEach(function (b) {
+      b.addEventListener("click", function () { closeDropdowns(); goToSavedLocation(this.getAttribute("data-id")); });
     });
-    box.querySelectorAll(".savedloc-del").forEach(function (b) {
+    panel.querySelectorAll(".dd-del").forEach(function (b) {
       b.addEventListener("click", function (e) {
         e.stopPropagation();
         window.GeoState.removeLocation(this.getAttribute("data-id"));
@@ -1600,21 +1620,32 @@
     });
   }
 
-  // Editable "Hidden species" chips (× restores a species).
+  function closeDropdowns() {
+    ["hidden-panel", "savedloc-panel"].forEach(function (idp) {
+      var p = document.getElementById(idp);
+      if (p) p.style.display = "none";
+    });
+  }
+
+  // Editable "Hidden species" list shown in a dropdown popover; each row has
+  // an × to remove the species from the hidden ("sanction") list.
   function refreshHiddenUI() {
-    var box = document.getElementById("hidden-list");
     var wrap = document.getElementById("hidden-wrap");
-    if (!box || !wrap) return;
+    var btnText = document.getElementById("hidden-btn-text");
+    var panel = document.getElementById("hidden-panel");
+    if (!wrap || !btnText || !panel) return;
     var keys = Object.keys(hiddenSpecies);
     wrap.style.display = keys.length ? "" : "none";
-    box.innerHTML = keys.map(function (k) {
+    if (!keys.length) panel.style.display = "none";
+    btnText.textContent = t("ctrl.hidden") + " (" + keys.length + ")";
+    panel.innerHTML = keys.map(function (k) {
       var lbl = labelsByKey[k];
       var n = escapeHtml(lbl ? speciesName(lbl) : k);
-      return '<span class="savedloc-chip"><span class="savedloc-go" style="cursor:default">' + n + "</span>" +
-        '<button type="button" class="hidden-del" data-key="' + escapeHtml(k) + '" title="' + escapeHtml(t("loc.unhide")) + '" aria-label="' + escapeHtml(t("loc.unhide")) + '">×</button></span>';
+      return '<div class="dd-row"><span class="dd-name" title="' + n + '">' + n + "</span>" +
+        '<button type="button" class="dd-del" data-key="' + escapeHtml(k) + '" title="' + escapeHtml(t("loc.unhide")) + '" aria-label="' + escapeHtml(t("loc.unhide")) + '">×</button></div>';
     }).join("");
-    box.querySelectorAll(".hidden-del").forEach(function (b) {
-      b.addEventListener("click", function () { unhideSpecies(this.getAttribute("data-key")); });
+    panel.querySelectorAll(".dd-del").forEach(function (b) {
+      b.addEventListener("click", function (e) { e.stopPropagation(); unhideSpecies(this.getAttribute("data-key")); });
     });
   }
 

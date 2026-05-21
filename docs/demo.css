@@ -678,49 +678,76 @@ table.an-scatter-table td.an-tint { color: #fff; font-weight: 600; text-shadow: 
 #demo-controls select { padding: 0 8px; }
 #demo-controls .demo-btn { display: inline-flex; align-items: center; }
 
-/* ===== Saved-location chips (name + delete cross) ===== */
-#savedloc-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  align-items: center;
-  max-width: 360px;
-  min-height: 34px;
-}
-.savedloc-empty { color: #8b97a8; font-size: 0.82rem; }
-.savedloc-chip {
+/* ===== Dropdown popovers (Saved locations, Hidden species) ===== */
+#savedloc-wrap, #hidden-wrap { position: relative; }
+.dd-toggle {
+  height: 34px;
+  box-sizing: border-box;
+  padding: 0 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #fff;
+  color: #1c2526;
+  font: inherit;
+  font-size: 0.88rem;
+  cursor: pointer;
   display: inline-flex;
   align-items: center;
-  height: 28px;
-  background: #eef1f3;
-  border: 1px solid #dde3e6;
-  border-radius: 14px;
-  overflow: hidden;
+  gap: 8px;
+  white-space: nowrap;
 }
-.savedloc-go {
+.dd-toggle:hover { border-color: #9aa6ab; }
+.dd-caret { color: #8b97a8; font-size: 0.7rem; }
+.dd-panel {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 3000;
+  margin-top: 3px;
+  min-width: 220px;
+  max-width: 320px;
+  max-height: 300px;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #cfd6da;
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.18);
+  padding: 4px;
+}
+.dd-empty { color: #8b97a8; font-size: 0.82rem; padding: 8px 10px; }
+.dd-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-radius: 4px;
+}
+.dd-row:hover { background: #eef1f3; }
+.dd-name {
+  flex: 1 1 auto;
   border: none;
   background: transparent;
-  padding: 0 4px 0 11px;
+  text-align: left;
   font: inherit;
-  font-size: 0.82rem;
-  color: #0f1b24;
-  cursor: pointer;
-  max-width: 150px;
+  font-size: 0.86rem;
+  color: #1c2526;
+  padding: 7px 4px 7px 10px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.savedloc-go:hover { text-decoration: underline; }
-.savedloc-del {
+button.dd-name { cursor: pointer; }
+button.dd-name:hover { text-decoration: underline; }
+.dd-del {
   border: none;
   background: transparent;
-  padding: 0 9px 0 3px;
-  font-size: 1rem;
+  font-size: 1.1rem;
   line-height: 1;
   color: #b42318;
   cursor: pointer;
+  padding: 4px 10px;
 }
-.savedloc-del:hover { color: #7a1610; }
+.dd-del:hover { color: #7a1610; }
 
 /* ===== Clickable species names + context menu (Filter / Do not show) ===== */
 .sp-link {
