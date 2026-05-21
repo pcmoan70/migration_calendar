@@ -978,34 +978,47 @@
     var ctx = overlayCanvas.getContext("2d");
     ctx.clearRect(0, 0, size.x, size.y);
 
-    // Fill a nLon × nLat RGBA buffer, one texel per cell.
+    // Project the grid's geographic bounds to container pixels. Longitude maps
+    // linearly to x, but latitude is non-linear in Web Mercator, so a single
+    // linear stretch misaligns the overlay (worse when zoomed out). Build the
+    // buffer with rows sampled uniformly in SCREEN-Y: for each output row we
+    // map back to latitude and bilinearly interpolate between the two nearest
+    // cell-row centres — keeping the heatmap smooth AND map-aligned.
+    var nw = map.latLngToContainerPoint([g.north, g.west]);
+    var se = map.latLngToContainerPoint([g.south, g.east]);
+    var destX = nw.x, destW = se.x - nw.x, destY = nw.y, destH = se.y - nw.y;
+    if (destW <= 0 || destH <= 0) return;
+
+    var H = Math.max(2, Math.min(Math.round(destH), 600));   // vertical sample rows
     if (!offscreenCanvas) offscreenCanvas = document.createElement("canvas");
     offscreenCanvas.width = g.nLon;
-    offscreenCanvas.height = g.nLat;
+    offscreenCanvas.height = H;
     var octx = offscreenCanvas.getContext("2d");
-    var img = octx.createImageData(g.nLon, g.nLat);
-    var data = img.data, pi = 0;
-    for (var i = 0; i < g.nLat * g.nLon; i++) {
-      var p = probs[pi++];
-      var c = colormapLookup(p);
-      var o = i * 4;
-      data[o] = c[0]; data[o + 1] = c[1]; data[o + 2] = c[2];
-      data[o + 3] = p >= 0.01 ? Math.round(Math.min(1, 0.25 + p * 0.75) * 255) : 0;
+    var img = octx.createImageData(g.nLon, H);
+    var data = img.data;
+    for (var oy = 0; oy < H; oy++) {
+      var sy = destY + (oy + 0.5) / H * destH;                 // screen y of this row
+      var lat = map.containerPointToLatLng([destX, sy]).lat;   // → latitude (Mercator-correct)
+      var rf = (g.north - lat) / g.step - 0.5;                 // fractional cell-row index
+      var r0 = Math.floor(rf), fr = Math.max(0, Math.min(1, rf - r0));
+      r0 = Math.max(0, Math.min(g.nLat - 1, r0));
+      var r1 = Math.max(0, Math.min(g.nLat - 1, r0 + 1));
+      var base0 = r0 * g.nLon, base1 = r1 * g.nLon, rowOff = oy * g.nLon * 4;
+      for (var ox = 0; ox < g.nLon; ox++) {
+        var p = probs[base0 + ox] + (probs[base1 + ox] - probs[base0 + ox]) * fr;
+        var c = colormapLookup(p);
+        var o = rowOff + ox * 4;
+        data[o] = c[0]; data[o + 1] = c[1]; data[o + 2] = c[2];
+        data[o + 3] = p >= 0.01 ? Math.round(Math.min(1, 0.25 + p * 0.75) * 255) : 0;
+      }
     }
     octx.putImageData(img, 0, 0);
 
-    // Project the grid bounds to container pixels and stretch the buffer in,
-    // letting the GPU interpolate between texels (cell centres).
-    var nw = map.latLngToContainerPoint([g.north, g.west]);
-    var se = map.latLngToContainerPoint([g.south, g.east]);
+    // Texel centres align with cell centres: column ox centre (ox+0.5)/nLon maps
+    // to nw.x + (ox+0.5)/nLon·destW (lon linear); rows are already screen-uniform.
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
-    // Inset the destination by half a texel so texel centres line up with
-    // cell centres (the grid bounds sit at cell edges, not centres).
-    var halfX = (se.x - nw.x) / g.nLon / 2;
-    var halfY = (se.y - nw.y) / g.nLat / 2;
-    ctx.drawImage(offscreenCanvas, nw.x + halfX, nw.y + halfY,
-                  (se.x - nw.x) - 2 * halfX, (se.y - nw.y) - 2 * halfY);
+    ctx.drawImage(offscreenCanvas, destX, destY, destW, destH);
   }
 
   // ---- Viewport grid -------------------------------------------------------
