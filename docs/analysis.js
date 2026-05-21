@@ -65,6 +65,9 @@ window.GeoAnalysis = (function () {
         probs[w] = v;
         if (v > mx) mx = v;
       }
+      // Drop species that are effectively absent all year (zero probability
+      // across every week) so they never clutter any analysis view.
+      if (mx < 1e-4) continue;
       out.push({ idx: i, label: lbl, probs: probs, maxYear: mx, curProb: cur });
     }
     return out;
@@ -158,7 +161,18 @@ window.GeoAnalysis = (function () {
     });
 
     var N = Math.max(1, Math.min(500, ctx.topN || 55));
-    var top = rows.slice().sort(function (a, b) { return b.arrival - a.arrival; }).slice(0, N);
+    // Which species become plotted points: top-N by arrival, by probability,
+    // or the union of both.
+    var rankBy = ctx.scatterRankBy || "arrival";
+    var topArr = rows.slice().sort(function (a, b) { return b.arrival - a.arrival; }).slice(0, N);
+    var topProb = rows.slice().sort(function (a, b) { return b.probability - a.probability; }).slice(0, N);
+    var top;
+    if (rankBy === "prob") top = topProb;
+    else if (rankBy === "both") {
+      var seen = {};
+      top = [];
+      topArr.concat(topProb).forEach(function (it) { if (!seen[it.idx]) { seen[it.idx] = 1; top.push(it); } });
+    } else top = topArr;
 
     var svg = "";
     if (top.length === 0) {

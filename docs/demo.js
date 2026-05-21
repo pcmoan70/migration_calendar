@@ -416,7 +416,13 @@
           '<div id="an-controls">' +
             '<input id="an-filter" type="text" autocomplete="off" data-i18n-ph="ph.filter" placeholder="Filter species…" />' +
             '<label id="an-topn-wrap"><span data-i18n="ctrl.topN">Top N</span> ' +
-              '<input id="an-topn" type="number" min="1" max="500" value="55" /></label>' +
+              '<input id="an-topn" type="number" min="1" max="500" value="55" /> ' +
+              '<span data-i18n="ctrl.rankby">Rank by</span> ' +
+              '<select id="an-rankby">' +
+                '<option value="arrival" data-i18n="rank.arrival">Arrivals</option>' +
+                '<option value="prob" data-i18n="rank.prob">Probability</option>' +
+                '<option value="both" data-i18n="rank.both">Both</option>' +
+              '</select></label>' +
           '</div>' +
           '<div class="sp-coords" id="bc-coords"></div>' +
           '<div id="bc-container"></div>' +
@@ -739,6 +745,10 @@
     document.getElementById("an-topn").addEventListener("input", function () {
       if (analysisTab === "scatter") renderActiveTab();
     });
+    document.getElementById("an-rankby").addEventListener("change", function () {
+      window.GeoState.save({ scatterRankBy: this.value });
+      if (analysisTab === "scatter") renderActiveTab();
+    });
 
     document.getElementById("week-select").addEventListener("change", function () {
       window.GeoState.save({ week: +this.value });
@@ -773,6 +783,12 @@
     document.getElementById("prob-max").addEventListener("input", onProbRange);
 
     document.getElementById("play-btn").addEventListener("click", toggleAnimation);
+
+    // Stop the migration animation when the tab is hidden so it never runs
+    // unattended in a backgrounded window.
+    document.addEventListener("visibilitychange", function () {
+      if (document.hidden && animating) stopAnimation();
+    });
 
     document.getElementById("saveloc-btn").addEventListener("click", saveCurrentLocation);
 
@@ -963,8 +979,12 @@
 
     var g = cachedRender.grid, probs = cachedRender.probs;
     var size = map.getSize();
-    overlayCanvas.width = size.x;
-    overlayCanvas.height = size.y;
+    // Only resize when the map size actually changed — reallocating the canvas
+    // backing buffer every animation frame churns GPU/render memory needlessly.
+    if (overlayCanvas.width !== size.x || overlayCanvas.height !== size.y) {
+      overlayCanvas.width = size.x;
+      overlayCanvas.height = size.y;
+    }
     L.DomUtil.setPosition(overlayCanvas, map.containerPointToLayerPoint([0, 0]));
     var ctx = overlayCanvas.getContext("2d");
     ctx.clearRect(0, 0, size.x, size.y);
@@ -1506,6 +1526,7 @@
       thresholdMax: +document.getElementById("prob-max").value / 100,
       filterText: document.getElementById("an-filter").value.trim(),
       topN: +document.getElementById("an-topn").value,
+      scatterRankBy: document.getElementById("an-rankby").value,
       scatterSort: scatterSort,
       inGroup: inGroup,
       isHidden: function (key) { return isHidden(key); },
@@ -1589,6 +1610,9 @@
 
   // ---- Update CSV for range/richness after render --------------------------
   function updateMapCsv() {
+    // Rebuilding the CSV string scans every viewport cell; skip it during
+    // animation playback (it refreshes when the animation stops).
+    if (animating) return;
     if (currentMode === "range") {
       lastCsvData = buildRangeMapCsv();
       if (lastCsvData) showCsvBtn(); else hideCsvBtn();
@@ -1884,6 +1908,7 @@
     if (cmp !== null) document.getElementById("compare-select").value = cmp;
 
     analysisTab = window.GeoState.get("analysisTab", "timeline");
+    document.getElementById("an-rankby").value = window.GeoState.get("scatterRankBy", "arrival");
 
     speciesGroup = window.GeoState.get("group", "all");
     document.getElementById("group-select").value = speciesGroup;
