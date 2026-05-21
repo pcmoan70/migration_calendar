@@ -169,6 +169,8 @@ window.GeoI18N = (function () {
         "<li><b>Leaflet</b> with OpenStreetMap / CARTO tiles — the interactive map.</li>" +
         "<li><b>Plain HTML, CSS and JavaScript</b> — no framework and no build step; served as a static site (GitHub Pages).</li>" +
         "</ul>" +
+        "<h4>Project &amp; feedback</h4>" +
+        "<p>This tool is free to use, and feedback is welcome at <a href=\"mailto:vesmir09@gmail.com\">vesmir09@gmail.com</a>. A Norway-specific habitat model is under development, aiming to use richer Norwegian data than the Google Earth Engine data used in the current model — for example, using explicit altitude as an input parameter. The goal of the habitat model is an improved birdsong detection app (A!Birder), which is also under development.</p>" +
         "<p class=\"about-note\">Predictions are model estimates, not ground truth. Model weights © the BirdNET team, licensed CC BY-SA 4.0; map tiles © OpenStreetMap contributors, © CARTO.</p>",
     },
     sv: {
@@ -282,6 +284,8 @@ window.GeoI18N = (function () {
         "<li><b>Leaflet</b> med OpenStreetMap-/CARTO-rutor — den interaktiva kartan.</li>" +
         "<li><b>Ren HTML, CSS och JavaScript</b> — inget ramverk och inget byggsteg; serveras som en statisk sida (GitHub Pages).</li>" +
         "</ul>" +
+        "<h4>Projekt &amp; återkoppling</h4>" +
+        "<p>Det här verktyget är gratis att använda, och återkoppling välkomnas till <a href=\"mailto:vesmir09@gmail.com\">vesmir09@gmail.com</a>. En Norge-specifik habitatmodell är under utveckling och syftar till att använda rikare norska data än de Google Earth Engine-data som används i den nuvarande modellen — till exempel genom att använda explicit höjddata som en indataparameter. Målet med habitatmodellen är en förbättrad app för fågelsångsigenkänning (A!Birder), som också är under utveckling.</p>" +
         "<p class=\"about-note\">Förutsägelser är modelluppskattningar, inte sanning. Modellvikter © BirdNET-teamet, licens CC BY-SA 4.0; kartrutor © OpenStreetMap-bidragsgivare, © CARTO.</p>",
     },
     no: {
@@ -318,6 +322,8 @@ window.GeoI18N = (function () {
         "<li><b>Leaflet</b> med OpenStreetMap-/CARTO-fliser — det interaktive kartet.</li>" +
         "<li><b>Ren HTML, CSS og JavaScript</b> — ingen rammeverk og ingen byggesteg; servert som en statisk side (GitHub Pages).</li>" +
         "</ul>" +
+        "<h4>Prosjekt &amp; tilbakemelding</h4>" +
+        "<p>Dette verktøyet er gratis å bruke, og tilbakemeldinger er velkomne til <a href=\"mailto:vesmir09@gmail.com\">vesmir09@gmail.com</a>. En Norge-spesifikk habitatmodell er under utvikling, med mål om å bruke rikere norske data enn Google Earth Engine-dataene som brukes i den nåværende modellen — for eksempel ved å bruke eksplisitte høydedata som en inngangsparameter. Målet med habitatmodellen er en forbedret app for fuglesanggjenkjenning (A!Birder), som også er under utvikling.</p>" +
         "<p class=\"about-note\">Forutsigelser er modellestimater, ikke fasit. Modellvekter © BirdNET-teamet, lisensiert CC BY-SA 4.0; kartfliser © OpenStreetMap-bidragsytere, © CARTO.</p>",
     },
   };
