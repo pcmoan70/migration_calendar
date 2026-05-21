@@ -616,11 +616,15 @@ table.an-heatmap th.an-wk {
   text-align: center;
   padding: 1px 0;
 }
+/* Current-week column: one rectangle around the whole column (week-number
+   header down to the last species), not a box around every cell. */
 table.an-heatmap th.an-cur,
 table.an-heatmap td.an-cell.an-cur {
-  outline: 2px solid #0f1b24;
-  outline-offset: -2px;
+  border-left: 2px solid #0f1b24;
+  border-right: 2px solid #0f1b24;
 }
+table.an-heatmap thead th.an-cur { border-top: 2px solid #0f1b24; }
+table.an-heatmap tbody tr:last-child td.an-cell.an-cur { border-bottom: 2px solid #0f1b24; }
 table.an-heatmap td.an-cell {
   width: 16px;
   height: 16px;

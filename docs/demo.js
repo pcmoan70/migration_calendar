@@ -242,13 +242,19 @@
 
   // Base map tile layers
   var baseLayer = null;
+  var CARTO_ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>';
   var BASEMAPS = {
-    dark: { url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
-            subdomains: "abcd" },
-    light: { url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
-             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
-             subdomains: "abcd" } };
+    dark:  { url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",  attribution: CARTO_ATTR, subdomains: "abcd" },
+    light: { url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", attribution: CARTO_ATTR, subdomains: "abcd" },
+    // Street/political (standard OpenStreetMap)
+    streets: { url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+               attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors', subdomains: "abc" },
+    // Topographic / terrain (contours + relief)
+    topo:  { url: "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
+             attribution: 'Map data: &copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>, SRTM | &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (CC-BY-SA)', subdomains: "abc" },
+    // Satellite imagery
+    satellite: { url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+                 attribution: 'Imagery &copy; <a href="https://www.esri.com">Esri</a>, Maxar, Earthstar Geographics' } };
 
   // Capture script location at parse time (before DOMContentLoaded fires)
   var SCRIPT_BASE = (document.currentScript && document.currentScript.src)
@@ -274,6 +280,9 @@
             '<select id="basemap-select">' +
               '<option value="dark" data-i18n="basemap.dark">Dark</option>' +
               '<option value="light" data-i18n="basemap.light">Light</option>' +
+              '<option value="streets" data-i18n="basemap.streets">Streets</option>' +
+              '<option value="topo" data-i18n="basemap.topo">Topographic</option>' +
+              '<option value="satellite" data-i18n="basemap.satellite">Satellite</option>' +
             '</select>' +
           '</div>' +
           '<div class="ctrl-group">' +
@@ -614,7 +623,9 @@
   function setBasemap(which) {
     var cfg = BASEMAPS[which] || BASEMAPS.dark;
     if (baseLayer) map.removeLayer(baseLayer);
-    baseLayer = L.tileLayer(cfg.url, { attribution: cfg.attribution, maxZoom: MAX_ZOOM, subdomains: cfg.subdomains });
+    // subdomains must not be undefined — Leaflet reads .length even when the
+    // URL has no {s} placeholder (e.g. the Esri satellite layer).
+    baseLayer = L.tileLayer(cfg.url, { attribution: cfg.attribution, maxZoom: MAX_ZOOM, subdomains: cfg.subdomains || "abc" });
     baseLayer.addTo(map);
     baseLayer.bringToBack();
     document.body.setAttribute("data-basemap", which);
