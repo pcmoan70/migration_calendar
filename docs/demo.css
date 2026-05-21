@@ -748,6 +748,16 @@ button.dd-name:hover { text-decoration: underline; }
   padding: 4px 10px;
 }
 .dd-del:hover { color: #7a1610; }
+.dd-csv {
+  border: none;
+  background: transparent;
+  font-size: 0.95rem;
+  line-height: 1;
+  color: #2f6f4f;
+  cursor: pointer;
+  padding: 4px 6px;
+}
+.dd-csv:hover { color: #1c4a33; }
 
 /* ===== Clickable species names + context menu (Filter / Do not show) ===== */
 .sp-link {
@@ -840,7 +850,8 @@ button.dd-name:hover { text-decoration: underline; }
 }
 
 /* ===== Checklist ===== */
-.sp-actions { margin: 6px 0 10px; }
+.sp-actions { margin: 6px 0 10px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.sp-actions #csv-btn-wrap { margin: 0; }
 .demo-btn-light {
   background: #fff;
   color: #0f1b24;

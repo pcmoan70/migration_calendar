@@ -713,6 +713,23 @@
     // "current week" used by the Probability / Arrivals / Scatter tabs).
     document.getElementById("week-select-wrap").style.display = "";
     document.getElementById("play-btn-wrap").style.display = isMap ? "" : "none";
+    relocateCsvButton();
+  }
+
+  // In Species List mode the CSV button sits next to the "＋ Checklist" button;
+  // in every other mode it lives directly below the map.
+  function relocateCsvButton() {
+    var wrap = document.getElementById("csv-btn-wrap");
+    if (!wrap) return;
+    if (currentMode === "list") {
+      var sa = document.querySelector("#species-panel .sp-actions");
+      if (sa && wrap.parentNode !== sa) sa.appendChild(wrap);
+    } else {
+      var mapWrap = document.getElementById("demo-map-wrap");
+      if (mapWrap && wrap.previousElementSibling !== mapWrap) {
+        mapWrap.parentNode.insertBefore(wrap, mapWrap.nextSibling);
+      }
+    }
   }
 
   function bindControls() {
@@ -1889,10 +1906,18 @@
     panel.innerHTML = cls.map(function (c) {
       var n = escapeHtml(c.name);
       return '<div class="dd-row"><button type="button" class="dd-name dd-open-chk" data-id="' + c.id + '" title="' + n + '">' + n + "</button>" +
+        '<button type="button" class="dd-csv dd-csv-chk" data-id="' + c.id + '" title="' + escapeHtml(t("btn.csv")) + '">⬇</button>' +
         '<button type="button" class="dd-del dd-del-chk" data-id="' + c.id + '" title="' + escapeHtml(t("btn.delete")) + '">×</button></div>';
     }).join("");
     panel.querySelectorAll(".dd-open-chk").forEach(function (b) {
       b.addEventListener("click", function () { closeDropdowns(); openChecklist(this.getAttribute("data-id")); });
+    });
+    panel.querySelectorAll(".dd-csv-chk").forEach(function (b) {
+      b.addEventListener("click", function (e) {
+        e.stopPropagation();
+        var c = getChecklist(this.getAttribute("data-id"));
+        if (c) downloadCsv("checklist_" + c.name.replace(/[^\w-]+/g, "_") + ".csv", buildChecklistCsv(c));
+      });
     });
     panel.querySelectorAll(".dd-del-chk").forEach(function (b) {
       b.addEventListener("click", function (e) {
