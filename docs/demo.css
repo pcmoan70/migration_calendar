@@ -838,3 +838,51 @@ button.dd-name:hover { text-decoration: underline; }
   margin-top: 2px;
   font-variant-numeric: tabular-nums;
 }
+
+/* ===== Checklist ===== */
+.sp-actions { margin: 6px 0 10px; }
+.demo-btn-light {
+  background: #fff;
+  color: #0f1b24;
+  border-color: #ccc;
+}
+.demo-btn-light:hover { background: #eef1f3; }
+.demo-btn-danger {
+  background: #b42318;
+  border-color: #b42318;
+}
+.demo-btn-danger:hover { background: #7a1610; }
+
+#checklist-panel { margin-top: 16px; }
+.chk-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.chk-title { margin: 0 0 4px; font-size: 1.15rem; }
+.chk-meta { font-size: 0.82rem; color: #5a6b72; margin-bottom: 10px; }
+table.chk-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+table.chk-table th {
+  text-align: left;
+  padding: 5px 8px;
+  border-bottom: 2px solid #dde3e6;
+}
+table.chk-table td {
+  padding: 5px 8px;
+  border-bottom: 1px solid #eef1f3;
+}
+table.chk-table .chk-cb { width: 28px; text-align: center; }
+.chk-box { width: 16px; height: 16px; cursor: pointer; }
+
+/* ===== Print: show only the open checklist ===== */
+@media print {
+  #site-header, #demo-controls, #demo-status, #demo-map-wrap,
+  #species-panel, #barchart-panel, #about-panel, #demo-footer, #sp-menu {
+    display: none !important;
+  }
+  #checklist-panel { display: block !important; margin: 0; }
+  .chk-actions { display: none !important; }
+  #demo-app { max-width: none; padding: 0; }
+  body { background: #fff; }
+  table.chk-table th, table.chk-table td { border-color: #999; }
+}

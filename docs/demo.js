@@ -374,6 +374,11 @@
             '<button type="button" id="hidden-btn" class="dd-toggle"><span id="hidden-btn-text"></span><span class="dd-caret" aria-hidden="true">▾</span></button>' +
             '<div id="hidden-panel" class="dd-panel" style="display:none"></div>' +
           '</div>' +
+          '<div class="ctrl-group" id="checklists-wrap" style="display:none">' +
+            '<label data-i18n="ctrl.checklists">Checklists</label>' +
+            '<button type="button" id="checklists-toggle" class="dd-toggle"><span id="checklists-btn-text"></span><span class="dd-caret" aria-hidden="true">▾</span></button>' +
+            '<div id="checklists-panel" class="dd-panel" style="display:none"></div>' +
+          '</div>' +
           '<div class="ctrl-group ctrl-group-btn" id="saveloc-btn-wrap" style="display:none">' +
             '<button id="saveloc-btn" class="demo-btn" data-i18n="btn.saveloc">\u2605 Save</button>' +
           '</div>' +
@@ -394,6 +399,7 @@
         '<div id="species-panel">' +
           '<h3 id="sp-title" data-i18n="panel.spTitle">Species at location</h3>' +
           '<div class="sp-coords" id="sp-coords"></div>' +
+          '<div class="sp-actions"><button id="new-checklist-btn" class="demo-btn" data-i18n="btn.newchecklist">＋ Checklist</button></div>' +
           '<table id="species-list-table">' +
             '<thead><tr><th data-i18n="th.rank">#</th><th data-i18n="th.species">Species</th><th data-i18n="th.sci">Scientific name</th><th data-i18n="th.prob">Probability</th><th></th><th id="sp-delta-head"></th></tr></thead>' +
             '<tbody id="sp-tbody"></tbody>' +
@@ -414,6 +420,15 @@
           '</div>' +
           '<div class="sp-coords" id="bc-coords"></div>' +
           '<div id="bc-container"></div>' +
+        '</div>' +
+        '<div id="checklist-panel" style="display:none">' +
+          '<div class="chk-actions">' +
+            '<button id="chk-print" class="demo-btn" data-i18n="btn.print">Print</button>' +
+            '<button id="chk-csv" class="demo-btn" data-i18n="btn.csv">⬇ CSV</button>' +
+            '<button id="chk-delete" class="demo-btn demo-btn-danger" data-i18n="btn.delete">Delete</button>' +
+            '<button id="chk-close" class="demo-btn demo-btn-light" data-i18n="btn.close">Close</button>' +
+          '</div>' +
+          '<div id="chk-body"></div>' +
         '</div>' +
         '<div id="sp-menu" style="display:none">' +
           '<button type="button" class="sp-menu-item" data-act="wiki" data-i18n="menu.wiki">Wikipedia</button>' +
@@ -445,6 +460,7 @@
       bindControls();
       refreshSavedLocations();
       refreshHiddenUI();
+      refreshChecklists();
       setStatus(t("status.selectSpecies"));
     } catch (e) {
       document.getElementById("demo-loading").innerHTML =
@@ -772,6 +788,22 @@
     }
     wireDropdown("hidden-btn", "hidden-panel");
     wireDropdown("savedloc-toggle", "savedloc-panel");
+    wireDropdown("checklists-toggle", "checklists-panel");
+
+    // Checklist actions
+    document.getElementById("new-checklist-btn").addEventListener("click", makeChecklistFromList);
+    document.getElementById("chk-print").addEventListener("click", function () { window.print(); });
+    document.getElementById("chk-csv").addEventListener("click", function () {
+      var c = getChecklist(currentChecklistId);
+      if (c) downloadCsv("checklist_" + c.name.replace(/[^\w-]+/g, "_") + ".csv", buildChecklistCsv(c));
+    });
+    document.getElementById("chk-delete").addEventListener("click", function () {
+      if (!currentChecklistId) return;
+      var id = currentChecklistId;
+      saveChecklists(getChecklists().filter(function (c) { return c.id !== id; }));
+      closeChecklist(); refreshChecklists(); refreshCurrentView();
+    });
+    document.getElementById("chk-close").addEventListener("click", function () { closeChecklist(); refreshCurrentView(); });
 
     document.getElementById("csv-download-btn").addEventListener("click", function () {
       if (lastCsvData) downloadCsv(lastCsvData.filename, lastCsvData.content);
@@ -1645,10 +1677,148 @@
   }
 
   function closeDropdowns() {
-    ["hidden-panel", "savedloc-panel"].forEach(function (idp) {
+    ["hidden-panel", "savedloc-panel", "checklists-panel"].forEach(function (idp) {
       var p = document.getElementById(idp);
       if (p) p.style.display = "none";
     });
+  }
+
+  // ---- Checklists ----------------------------------------------------------
+  // A checklist is a snapshot of the Species List at a location: localized +
+  // scientific names, probability, and Δ = arrival score (next-prev)/max_year.
+  // Stored in localStorage; multiple named lists; rows are checkable + printable.
+  var currentChecklistId = null;
+
+  function getChecklists() { return window.GeoState.get("checklists", []) || []; }
+  function saveChecklists(arr) { window.GeoState.save({ checklists: arr }); }
+  function getChecklist(id) { return getChecklists().filter(function (c) { return c.id === id; })[0]; }
+  function updateChecklist(cl) {
+    saveChecklists(getChecklists().map(function (c) { return c.id === cl.id ? cl : c; }));
+  }
+
+  // Reverse-geocode to a place name for the header (falls back to coordinates).
+  async function reverseGeocode(lat, lon) {
+    try {
+      var r = await fetch("https://nominatim.openstreetmap.org/reverse?format=json&zoom=10&lat=" + lat + "&lon=" + lon, { headers: { Accept: "application/json" } });
+      if (r.ok) { var j = await r.json(); return j.display_name || j.name || null; }
+    } catch (e) { /* offline / blocked — use coordinates */ }
+    return null;
+  }
+
+  async function makeChecklistFromList() {
+    if (!marker) return;
+    var ll = marker.getLatLng(), lat = ll.lat, lon = ll.lng;
+    var week = +document.getElementById("week-select").value;
+    var threshold = +document.getElementById("threshold-select").value / 100;
+    var nSpecies = labels.length, wkIdx = week - 1;
+    setStatus(t("status.buildingChecklist"));
+    try {
+      // 48-week prediction so each species gets a Δ (arrival) value.
+      var inputs = new Float32Array(48 * 3);
+      for (var w = 0; w < 48; w++) { inputs[w * 3] = lat; inputs[w * 3 + 1] = lon; inputs[w * 3 + 2] = w + 1; }
+      var all = await runInference(inputs, 48);   // raw 48 * nSpecies
+      var items = [];
+      for (var i = 0; i < nSpecies; i++) {
+        var cur = all[wkIdx * nSpecies + i];
+        if (cur < threshold || !inGroup(i) || isHidden(labels[i].key)) continue;
+        var mx = 0;
+        for (var k = 0; k < 48; k++) { var v = all[k * nSpecies + i]; if (v > mx) mx = v; }
+        var prev = all[((wkIdx + 47) % 48) * nSpecies + i], next = all[((wkIdx + 1) % 48) * nSpecies + i];
+        var delta = mx > 1e-6 ? (next - prev) / mx : 0;
+        items.push({ key: labels[i].key, sci: labels[i].sci, name: speciesName(labels[i]), prob: cur, delta: delta, checked: false });
+      }
+      items.sort(function (a, b) { return b.prob - a.prob; });
+      var place = (await reverseGeocode(lat, lon)) || (lat.toFixed(3) + ", " + lon.toFixed(3));
+      var nm = window.prompt(t("chk.namePrompt"), place);
+      if (nm === null) { setStatus(""); return; }
+      var cl = { id: "chk-" + Date.now(), name: nm.trim() || place, place: place, lat: lat, lon: lon, week: week, lang: lang, createdAt: new Date().toISOString(), items: items };
+      var arr = getChecklists(); arr.push(cl); saveChecklists(arr);
+      refreshChecklists();
+      openChecklist(cl.id);
+    } catch (e) { setStatus(t("status.error", { msg: e.message })); console.error(e); }
+  }
+
+  // Dropdown listing saved checklists (open / delete).
+  function refreshChecklists() {
+    var wrap = document.getElementById("checklists-wrap");
+    var btnText = document.getElementById("checklists-btn-text");
+    var panel = document.getElementById("checklists-panel");
+    if (!wrap || !btnText || !panel) return;
+    var cls = getChecklists();
+    wrap.style.display = cls.length ? "" : "none";
+    if (!cls.length) panel.style.display = "none";
+    btnText.textContent = t("ctrl.checklists") + " (" + cls.length + ")";
+    panel.innerHTML = cls.map(function (c) {
+      var n = escapeHtml(c.name);
+      return '<div class="dd-row"><button type="button" class="dd-name dd-open-chk" data-id="' + c.id + '" title="' + n + '">' + n + "</button>" +
+        '<button type="button" class="dd-del dd-del-chk" data-id="' + c.id + '" title="' + escapeHtml(t("btn.delete")) + '">×</button></div>';
+    }).join("");
+    panel.querySelectorAll(".dd-open-chk").forEach(function (b) {
+      b.addEventListener("click", function () { closeDropdowns(); openChecklist(this.getAttribute("data-id")); });
+    });
+    panel.querySelectorAll(".dd-del-chk").forEach(function (b) {
+      b.addEventListener("click", function (e) {
+        e.stopPropagation();
+        var id = this.getAttribute("data-id");
+        saveChecklists(getChecklists().filter(function (c) { return c.id !== id; }));
+        if (currentChecklistId === id) closeChecklist();
+        refreshChecklists();
+      });
+    });
+  }
+
+  function openChecklist(id) {
+    var cl = getChecklist(id);
+    if (!cl) return;
+    currentChecklistId = id;
+    document.getElementById("species-panel").style.display = "none";
+    document.getElementById("barchart-panel").style.display = "none";
+    renderChecklistBody(cl);
+    document.getElementById("checklist-panel").style.display = "block";
+  }
+
+  function closeChecklist() {
+    currentChecklistId = null;
+    document.getElementById("checklist-panel").style.display = "none";
+  }
+
+  function renderChecklistBody(cl) {
+    var body = document.getElementById("chk-body");
+    var date = (cl.createdAt || "").slice(0, 10);
+    var meta = escapeHtml(cl.place || (cl.lat.toFixed(3) + ", " + cl.lon.toFixed(3))) + " · " + escapeHtml(weekText(cl.week)) + " · " + escapeHtml(date);
+    var checked = cl.items.filter(function (it) { return it.checked; }).length;
+    var html = '<h3 class="chk-title">' + escapeHtml(cl.name) + "</h3>";
+    html += '<div class="chk-meta">' + meta + ' · <span id="chk-progress">' + checked + " / " + cl.items.length + "</span></div>";
+    html += '<table class="chk-table"><thead><tr><th class="chk-cb"></th><th>' + escapeHtml(t("th.rank")) + "</th><th>" + escapeHtml(t("th.species")) +
+      "</th><th>" + escapeHtml(t("th.sci")) + "</th><th>" + escapeHtml(t("th.prob")) + "</th><th>" + escapeHtml(t("th.change")) + "</th></tr></thead><tbody>";
+    cl.items.forEach(function (it, idx) {
+      var dcls = it.delta > 0.001 ? "delta-up" : (it.delta < -0.001 ? "delta-down" : "delta-flat");
+      html += '<tr><td class="chk-cb"><input type="checkbox" class="chk-box" data-idx="' + idx + '"' + (it.checked ? " checked" : "") + "></td>" +
+        "<td>" + (idx + 1) + "</td><td>" + escapeHtml(it.name) + '</td><td style="font-style:italic">' + escapeHtml(it.sci) + "</td>" +
+        "<td>" + (it.prob * 100).toFixed(1) + '%</td><td class="' + dcls + '">' + (it.delta * 100).toFixed(1) + "%</td></tr>";
+    });
+    html += "</tbody></table>";
+    body.innerHTML = html;
+    body.querySelectorAll(".chk-box").forEach(function (cb) {
+      cb.addEventListener("change", function () {
+        var c = getChecklist(currentChecklistId);
+        if (!c) return;
+        c.items[+this.getAttribute("data-idx")].checked = this.checked;
+        updateChecklist(c);
+        var prog = document.getElementById("chk-progress");
+        if (prog) prog.textContent = c.items.filter(function (it) { return it.checked; }).length + " / " + c.items.length;
+      });
+    });
+  }
+
+  function buildChecklistCsv(cl) {
+    var esc = function (v) { var s = String(v == null ? "" : v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+    var lines = ["# " + cl.name + " | " + (cl.place || "") + " | week " + cl.week + " | " + (cl.createdAt || "").slice(0, 10)];
+    lines.push("checked,rank,common_name,scientific_name,probability,change");
+    cl.items.forEach(function (it, idx) {
+      lines.push([it.checked ? 1 : 0, idx + 1, esc(it.name), esc(it.sci), it.prob.toFixed(6), it.delta.toFixed(6)].join(","));
+    });
+    return lines.join("\n");
   }
 
   // Editable "Hidden species" list shown in a dropdown popover; each row has
