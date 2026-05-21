@@ -906,3 +906,7 @@ table.chk-table .chk-text { min-width: 100px; }
 /* Visit counter (footer) */
 #visit-counter { padding: 4px 16px 16px; }
 #visit-counter img { height: 20px; vertical-align: middle; }
+
+/* Optional 2nd-language name column in the Species List (toggled by JS) */
+#species-list-table .name2 { display: none; }
+#species-list-table.has-name2 .name2 { display: table-cell; }

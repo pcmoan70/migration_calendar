@@ -24,27 +24,37 @@
   var lang = "en";            // current UI + species-name language code
   var langTaxCol = "com_name"; // taxonomy.csv column for current language
   var taxByCode = {};          // species_code -> { com_name, class_name, common_name_xx, ... }
+  var secondLang = "";         // optional 2nd species-name language ("" = off)
+  var secondTaxCol = "";       // taxonomy column for the 2nd language
 
   function t(key, vars) { return window.GeoI18N.t(lang, key, vars); }
 
-  // Localized common name for a label, falling back to the English common name
-  // then the scientific name. When a non-English language is active but only an
-  // English name is available — the language column is missing, empty, or just
-  // repeats the English name (e.g. Italian, which has no names column at all) —
-  // it is shown in brackets to flag it as unresolved, e.g. "[Barn Swallow]".
-  function speciesName(label) {
+  // Common name for a label in language `code` (taxonomy column `taxCol`),
+  // falling back to the English common name then the scientific name. When the
+  // language column is missing/empty or merely repeats the English name, the
+  // English name is shown in brackets to flag it as unresolved, e.g.
+  // "[Barn Swallow]". The scientific-name fallback is never bracketed.
+  function nameInCol(label, code, taxCol) {
     var row = label && taxByCode[label.key];
     if (row) {
       var en = row.com_name || "";
-      var loc = row[langTaxCol] || "";
-      if (lang === "en") return en || loc || (label && (label.common || label.sci || label.key)) || "";
-      // Real translation: present and not just a copy of the English name.
+      var loc = row[taxCol] || "";
+      if (code === "en") return en || loc || (label && (label.common || label.sci || label.key)) || "";
       if (loc && (!en || loc.toLowerCase() !== en.toLowerCase())) return loc;
       if (en) return "[" + en + "]";
       if (loc) return "[" + loc + "]";
     }
-    if (label && label.common) return lang === "en" ? label.common : "[" + label.common + "]";
-    return (label && (label.sci || label.key)) || "";       // scientific: no brackets
+    if (label && label.common) return code === "en" ? label.common : "[" + label.common + "]";
+    return (label && (label.sci || label.key)) || "";
+  }
+
+  function speciesName(label) { return nameInCol(label, lang, langTaxCol); }
+
+  // Name in the optional second language ("" when the feature is off).
+  function secondName(label) { return secondLang ? nameInCol(label, secondLang, secondTaxCol) : ""; }
+  function setSecondLang(code) {
+    secondLang = code || "";
+    secondTaxCol = secondLang ? window.GeoI18N.langByCode(secondLang).taxCol : "";
   }
 
   // ---- Species-group filter (taxonomic class) ------------------------------
@@ -346,6 +356,10 @@
               '<option value="annualtop" data-i18n="compare.annualtop">Annual Top</option>' +
             '</select>' +
           '</div>' +
+          '<div class="ctrl-group" id="secondlang-wrap" style="display:none">' +
+            '<label for="secondlang-select" data-i18n="ctrl.secondlang">2nd name</label>' +
+            '<select id="secondlang-select"></select>' +
+          '</div>' +
           '<div class="ctrl-group" id="barchart-threshold-wrap" style="display:none">' +
             '<label data-i18n="ctrl.bcthreshold">Probability range</label>' +
             '<div id="prob-range">' +
@@ -392,7 +406,7 @@
           '<div class="sp-coords" id="sp-coords"></div>' +
           '<div class="sp-actions"><button id="new-checklist-btn" class="demo-btn" data-i18n="btn.newchecklist">＋ Checklist</button></div>' +
           '<table id="species-list-table">' +
-            '<thead><tr><th data-i18n="th.rank">#</th><th data-i18n="th.species">Species</th><th data-i18n="th.sci">Scientific name</th><th data-i18n="th.prob">Probability</th><th></th><th id="sp-delta-head"></th></tr></thead>' +
+            '<thead><tr><th data-i18n="th.rank">#</th><th data-i18n="th.species">Species</th><th class="name2" id="sp-name2-head"></th><th data-i18n="th.sci">Scientific name</th><th data-i18n="th.prob">Probability</th><th></th><th id="sp-delta-head"></th></tr></thead>' +
             '<tbody id="sp-tbody"></tbody>' +
           '</table>' +
         '</div>' +
@@ -453,6 +467,7 @@
       populateLangSelect();
       populateWeekSelect();
       restoreControls();
+      populateSecondLangSelect();
       updateAnalysisControls();
       applyI18n();
       initMap();
@@ -578,6 +593,7 @@
     window.GeoState.save({ lang: lang });
     applyI18n();
     populateWeekSelect();   // re-label weeks in the new language
+    populateSecondLangSelect();   // re-localize the "(none)" option
     refreshSavedLocations();
     refreshHiddenUI();      // re-localize hidden-species chip names
     refreshCurrentView();   // re-render species names in the active panel
@@ -588,6 +604,16 @@
     sel.innerHTML = window.GeoI18N.LANGS.map(function (L) {
       return '<option value="' + L.code + '"' + (L.code === lang ? " selected" : "") + ">" + L.name + "</option>";
     }).join("");
+  }
+
+  // Second-name language selector: "(none)" + every language.
+  function populateSecondLangSelect() {
+    var sel = document.getElementById("secondlang-select");
+    var html = '<option value="">' + escapeHtml(t("compare.none")) + "</option>";
+    html += window.GeoI18N.LANGS.map(function (L) {
+      return '<option value="' + L.code + '"' + (L.code === secondLang ? " selected" : "") + ">" + L.name + "</option>";
+    }).join("");
+    sel.innerHTML = html;
   }
 
   // Apply translations to every [data-i18n] / [data-i18n-ph] element.
@@ -679,6 +705,7 @@
     var isMap = currentMode === "range" || currentMode === "richness";
     document.getElementById("species-search-wrap").style.display = isRange ? "" : "none";
     document.getElementById("compare-wrap").style.display = currentMode === "list" ? "" : "none";
+    document.getElementById("secondlang-wrap").style.display = currentMode === "list" ? "" : "none";
     // The probability min–max slider applies to the Species List, the checklist
     // (derived from it) and the analysis tabs.
     document.getElementById("barchart-threshold-wrap").style.display = (currentMode === "range" || currentMode === "list" || currentMode === "barchart") ? "" : "none";
@@ -707,6 +734,12 @@
 
     document.getElementById("lang-select").addEventListener("change", function () {
       setLang(this.value);
+    });
+
+    document.getElementById("secondlang-select").addEventListener("change", function () {
+      setSecondLang(this.value);
+      window.GeoState.save({ secondLang: secondLang });
+      if (currentMode === "list" && marker) { var ll = marker.getLatLng(); renderSpeciesList(ll.lat, ll.lng); }
     });
 
     document.getElementById("basemap-select").addEventListener("change", function () {
@@ -1395,11 +1428,16 @@
 
       document.getElementById("sp-delta-head").textContent =
         !hasCompare ? "" : kind === "focus" ? cmp.refLabel : t(kind === "ratio" ? "th.ratio" : "th.delta", { ref: cmp.refLabel });
+      // Optional second-language name column.
+      var tbl = document.getElementById("species-list-table");
+      tbl.classList.toggle("has-name2", !!secondLang);
+      document.getElementById("sp-name2-head").textContent = secondLang ? window.GeoI18N.langByCode(secondLang).name : "";
       document.getElementById("sp-coords").textContent =
         t("sp.summary", { lat: lat.toFixed(4), lon: lon.toFixed(4), week: week, n: results.length, p: (pmin * 100).toFixed(0) });
       document.getElementById("sp-tbody").innerHTML = results.map(function (r, idx) {
         var cmpCell = !hasCompare ? "<td></td>" : kind === "ratio" ? ratioCell(r.cmpVal) : kind === "focus" ? focusCell(r.cmpVal) : deltaCell(r.cmpVal);
-        return '<tr><td>' + (idx + 1) + '</td><td>' + nameLinkHtml(r.label) + '</td><td style="font-style:italic">' +
+        var name2Cell = '<td class="name2">' + (secondLang ? escapeHtml(secondName(r.label)) : "") + '</td>';
+        return '<tr><td>' + (idx + 1) + '</td><td>' + nameLinkHtml(r.label) + '</td>' + name2Cell + '<td style="font-style:italic">' +
                escapeHtml(r.label.sci) + '</td><td>' + (r.prob * 100).toFixed(1) + '%</td><td class="prob-bar-cell"><div class="prob-bar" style="width:' +
                Math.round(r.prob * 100) + '%"></div></td>' + cmpCell + '</tr>';
       }).join("");
@@ -1407,12 +1445,16 @@
       document.getElementById("barchart-panel").style.display = "none";
       setStatus(t("status.spResult", { n: results.length, p: (pmin * 100).toFixed(0), lat: lat.toFixed(2), lon: lon.toFixed(2) }));
 
-      // Build CSV for species list (includes comparison column when active)
-      var header = "rank,species_code,common_name,scientific_name,probability";
+      // Build CSV for species list (includes 2nd-name + comparison columns when active)
+      var header = "rank,species_code,common_name";
+      if (secondLang) header += ",common_name_" + secondLang;
+      header += ",scientific_name,probability";
       if (hasCompare) header += "," + (kind === "ratio" ? "fraction_of_" : kind === "focus" ? "annual_top_" : "delta_vs_") + cmp.refLabel.replace(/[",\s]+/g, "_");
       var csvLines = [header];
       results.forEach(function (r, idx) {
-        var line = (idx + 1) + ',"' + r.label.key + '","' + speciesName(r.label).replace(/"/g, '""') + '","' + r.label.sci.replace(/"/g, '""') + '",' + r.prob.toFixed(6);
+        var line = (idx + 1) + ',"' + r.label.key + '","' + speciesName(r.label).replace(/"/g, '""') + '"';
+        if (secondLang) line += ',"' + secondName(r.label).replace(/"/g, '""') + '"';
+        line += ',"' + r.label.sci.replace(/"/g, '""') + '",' + r.prob.toFixed(6);
         if (hasCompare) line += "," + r.cmpVal.toFixed(6);
         csvLines.push(line);
       });
@@ -1793,7 +1835,7 @@
         else if (cmpMode === "mean") { var sm = 0; for (var m = 0; m < 48; m++) sm += all[m * nSpecies + i]; cmpVal = cur - sm / 48; }
         else if (cmpMode === "annualmax") cmpVal = mx > 0 ? cur / mx : 0;
         else if (cmpMode === "annualtop") cmpVal = window.GeoAnalysis.focusSeries(scratch, mx)[wkIdx];
-        items.push({ key: labels[i].key, sci: labels[i].sci, name: speciesName(labels[i]), prob: cur, delta: delta, cmp: cmpVal, checked: false, locality: "", notes: "" });
+        items.push({ key: labels[i].key, sci: labels[i].sci, name: speciesName(labels[i]), name2: secondName(labels[i]), prob: cur, delta: delta, cmp: cmpVal, checked: false, locality: "", notes: "" });
       }
       items.sort(function (a, b) { return b.prob - a.prob; });
       // Column kind/label for the comparison value (if any).
@@ -1806,7 +1848,7 @@
       var place = (await reverseGeocode(lat, lon)) || (lat.toFixed(3) + ", " + lon.toFixed(3));
       var nm = window.prompt(t("chk.namePrompt"), place);
       if (nm === null) { setStatus(""); return; }
-      var cl = { id: "chk-" + Date.now(), name: nm.trim() || place, place: place, lat: lat, lon: lon, week: week, lang: lang, createdAt: new Date().toISOString(), cmpKind: cmpKind, cmpLabel: cmpLabel, items: items };
+      var cl = { id: "chk-" + Date.now(), name: nm.trim() || place, place: place, lat: lat, lon: lon, week: week, lang: lang, lang2: secondLang, lang2Name: secondLang ? window.GeoI18N.langByCode(secondLang).name : "", createdAt: new Date().toISOString(), cmpKind: cmpKind, cmpLabel: cmpLabel, items: items };
       var arr = getChecklists(); arr.push(cl); saveChecklists(arr);
       refreshChecklists();
       openChecklist(cl.id);
@@ -1865,8 +1907,9 @@
     var html = '<h3 class="chk-title">' + escapeHtml(cl.name) + "</h3>";
     html += '<div class="chk-meta">' + meta + ' · <span id="chk-progress">' + checked + " / " + cl.items.length + "</span></div>";
     var cmpHead = cl.cmpKind ? "<th>" + escapeHtml(cl.cmpLabel || "") + "</th>" : "";
+    var name2Head = cl.lang2 ? "<th>" + escapeHtml(cl.lang2Name || cl.lang2) + "</th>" : "";
     html += '<table class="chk-table"><thead><tr><th class="chk-cb"></th><th>' + escapeHtml(t("th.rank")) + "</th><th>" + escapeHtml(t("th.species")) +
-      "</th><th>" + escapeHtml(t("th.sci")) + "</th><th>" + escapeHtml(t("th.prob")) + "</th><th>" + escapeHtml(t("th.change")) +
+      "</th>" + name2Head + "<th>" + escapeHtml(t("th.sci")) + "</th><th>" + escapeHtml(t("th.prob")) + "</th><th>" + escapeHtml(t("th.change")) +
       "</th>" + cmpHead + "<th>" + escapeHtml(t("th.locality")) + "</th><th>" + escapeHtml(t("th.notes")) + "</th></tr></thead><tbody>";
     cl.items.forEach(function (it, idx) {
       var dcls = it.delta > 0.001 ? "delta-up" : (it.delta < -0.001 ? "delta-down" : "delta-flat");
@@ -1874,8 +1917,9 @@
         : cl.cmpKind === "ratio" ? ratioCell(it.cmp)
         : cl.cmpKind === "focus" ? focusCell(it.cmp)
         : deltaCell(it.cmp));
+      var name2Cell = cl.lang2 ? "<td>" + escapeHtml(it.name2 || "") + "</td>" : "";
       html += '<tr><td class="chk-cb"><input type="checkbox" class="chk-box" data-idx="' + idx + '"' + (it.checked ? " checked" : "") + "></td>" +
-        "<td>" + (idx + 1) + "</td><td>" + escapeHtml(it.name) + '</td><td style="font-style:italic">' + escapeHtml(it.sci) + "</td>" +
+        "<td>" + (idx + 1) + "</td><td>" + escapeHtml(it.name) + "</td>" + name2Cell + '<td style="font-style:italic">' + escapeHtml(it.sci) + "</td>" +
         "<td>" + (it.prob * 100).toFixed(1) + '%</td><td class="' + dcls + '">' + (it.delta * 100).toFixed(1) + "%</td>" + cmpCell +
         '<td><input type="text" class="chk-text" data-idx="' + idx + '" data-field="locality" value="' + escapeHtml(it.locality || "") + '"></td>' +
         '<td><input type="text" class="chk-text" data-idx="' + idx + '" data-field="notes" value="' + escapeHtml(it.notes || "") + '"></td></tr>';
@@ -1905,10 +1949,13 @@
   function buildChecklistCsv(cl) {
     var esc = function (v) { var s = String(v == null ? "" : v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
     var cmpCol = cl.cmpKind ? "," + (cl.cmpKind === "ratio" ? "fraction_of_" : cl.cmpKind === "focus" ? "annual_top_" : "delta_vs_") + String(cl.cmpLabel || "").replace(/[",\s]+/g, "_") : "";
+    var name2Col = cl.lang2 ? ",common_name_" + cl.lang2 : "";
     var lines = ["# " + cl.name + " | " + (cl.place || "") + " | week " + cl.week + " | " + (cl.createdAt || "").slice(0, 10)];
-    lines.push("checked,rank,common_name,scientific_name,probability,change" + cmpCol + ",locality,notes");
+    lines.push("checked,rank,common_name" + name2Col + ",scientific_name,probability,change" + cmpCol + ",locality,notes");
     cl.items.forEach(function (it, idx) {
-      var row = [it.checked ? 1 : 0, idx + 1, esc(it.name), esc(it.sci), it.prob.toFixed(6), it.delta.toFixed(6)];
+      var row = [it.checked ? 1 : 0, idx + 1, esc(it.name)];
+      if (cl.lang2) row.push(esc(it.name2 || ""));
+      row.push(esc(it.sci), it.prob.toFixed(6), it.delta.toFixed(6));
       if (cl.cmpKind) row.push(it.cmp == null ? "" : it.cmp.toFixed(6));
       row.push(esc(it.locality || ""), esc(it.notes || ""));
       lines.push(row.join(","));
@@ -1974,6 +2021,8 @@
 
     var cmp = window.GeoState.get("compare", null);
     if (cmp !== null) document.getElementById("compare-select").value = cmp;
+
+    setSecondLang(window.GeoState.get("secondLang", ""));
 
     analysisTab = window.GeoState.get("analysisTab", "timeline");
     document.getElementById("an-rankby").value = window.GeoState.get("scatterRankBy", "arrival");
