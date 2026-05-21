@@ -335,16 +335,6 @@
           '<div class="ctrl-group ctrl-group-btn" id="play-btn-wrap">' +
             '<button id="play-btn" class="demo-btn" data-i18n="btn.play">\u25b6 Play migration</button>' +
           '</div>' +
-          '<div class="ctrl-group" id="threshold-wrap" style="display:none">' +
-            '<label for="threshold-select" data-i18n="ctrl.threshold">Min probability</label>' +
-            '<select id="threshold-select">' +
-              '<option value="1">1%</option>' +
-              '<option value="5" selected>5%</option>' +
-              '<option value="10">10%</option>' +
-              '<option value="25">25%</option>' +
-              '<option value="50">50%</option>' +
-            '</select>' +
-          '</div>' +
           '<div class="ctrl-group" id="compare-wrap" style="display:none">' +
             '<label for="compare-select" data-i18n="ctrl.compare">Compare to</label>' +
             '<select id="compare-select">' +
@@ -686,9 +676,10 @@
     var isRange = currentMode === "range";
     var isMap = currentMode === "range" || currentMode === "richness";
     document.getElementById("species-search-wrap").style.display = isRange ? "" : "none";
-    document.getElementById("threshold-wrap").style.display = currentMode === "list" ? "" : "none";
     document.getElementById("compare-wrap").style.display = currentMode === "list" ? "" : "none";
-    document.getElementById("barchart-threshold-wrap").style.display = currentMode === "barchart" ? "" : "none";
+    // The probability min–max slider applies to the Species List, the checklist
+    // (derived from it) and the analysis tabs.
+    document.getElementById("barchart-threshold-wrap").style.display = (currentMode === "list" || currentMode === "barchart") ? "" : "none";
     // Week applies in every mode (incl. Migration timeline, where it sets the
     // "current week" used by the Probability / Arrivals / Scatter tabs).
     document.getElementById("week-select-wrap").style.display = "";
@@ -759,17 +750,13 @@
       updateLegend();
     });
 
-    document.getElementById("threshold-select").addEventListener("change", function () {
-      window.GeoState.save({ threshold: +this.value });
-      if (currentMode === "list" && marker) { var ll = marker.getLatLng(); renderSpeciesList(ll.lat, ll.lng); }
-    });
-
     document.getElementById("compare-select").addEventListener("change", function () {
       window.GeoState.save({ compare: this.value });
       if (currentMode === "list" && marker) { var ll = marker.getLatLng(); renderSpeciesList(ll.lat, ll.lng); }
     });
 
-    // Two-sided probability range (min/max) for the analysis tabs.
+    // Two-sided probability range (min/max) shared by the Species List and the
+    // analysis tabs (and used when building a checklist).
     function onProbRange(e) {
       var loEl = document.getElementById("prob-min"), hiEl = document.getElementById("prob-max");
       var lo = +loEl.value, hi = +hiEl.value;
@@ -779,6 +766,7 @@
       document.getElementById("prob-max-val").textContent = hi + "%";
       window.GeoState.save({ probMin: lo, probMax: hi });
       if (currentMode === "barchart" && analysisData) renderActiveTab();
+      else if (currentMode === "list" && marker) { var ll = marker.getLatLng(); renderSpeciesList(ll.lat, ll.lng); }
     }
     document.getElementById("prob-min").addEventListener("input", onProbRange);
     document.getElementById("prob-max").addEventListener("input", onProbRange);
@@ -1343,7 +1331,8 @@
 
   async function renderSpeciesList(lat, lon) {
     var week = +document.getElementById("week-select").value;
-    var threshold = +document.getElementById("threshold-select").value / 100;
+    var pmin = +document.getElementById("prob-min").value / 100;
+    var pmax = +document.getElementById("prob-max").value / 100;
     setStatus(t("status.predicting", { lat: lat.toFixed(2), lon: lon.toFixed(2), week: week }));
     try {
       var out = await runInference(new Float32Array([lat, lon, week]), 1);
@@ -1352,7 +1341,7 @@
       var isRatio = cmp.ratio === true;   // "Annual max" → show current ÷ peak
       var results = [];
       for (var i = 0; i < labels.length; i++) {
-        if (out[i] >= threshold && inGroup(i) && !isHidden(labels[i].key)) {
+        if (out[i] >= pmin && out[i] <= pmax && inGroup(i) && !isHidden(labels[i].key)) {
           var cval = 0;
           if (hasCompare) cval = isRatio ? (cmp.probs[i] > 0 ? out[i] / cmp.probs[i] : 0) : (out[i] - cmp.probs[i]);
           results.push({ label: labels[i], prob: out[i], cmpVal: cval });
@@ -1363,7 +1352,7 @@
       document.getElementById("sp-delta-head").textContent =
         hasCompare ? t(isRatio ? "th.ratio" : "th.delta", { ref: cmp.refLabel }) : "";
       document.getElementById("sp-coords").textContent =
-        t("sp.summary", { lat: lat.toFixed(4), lon: lon.toFixed(4), week: week, n: results.length, p: (threshold * 100).toFixed(0) });
+        t("sp.summary", { lat: lat.toFixed(4), lon: lon.toFixed(4), week: week, n: results.length, p: (pmin * 100).toFixed(0) });
       document.getElementById("sp-tbody").innerHTML = results.map(function (r, idx) {
         var cmpCell = !hasCompare ? "<td></td>" : (isRatio ? ratioCell(r.cmpVal) : deltaCell(r.cmpVal));
         return '<tr><td>' + (idx + 1) + '</td><td>' + nameLinkHtml(r.label) + '</td><td style="font-style:italic">' +
@@ -1372,7 +1361,7 @@
       }).join("");
       document.getElementById("species-panel").style.display = "block";
       document.getElementById("barchart-panel").style.display = "none";
-      setStatus(t("status.spResult", { n: results.length, p: (threshold * 100).toFixed(0), lat: lat.toFixed(2), lon: lon.toFixed(2) }));
+      setStatus(t("status.spResult", { n: results.length, p: (pmin * 100).toFixed(0), lat: lat.toFixed(2), lon: lon.toFixed(2) }));
 
       // Build CSV for species list (includes comparison column when active)
       var header = "rank,species_code,common_name,scientific_name,probability";
@@ -1734,7 +1723,8 @@
     if (!marker) return;
     var ll = marker.getLatLng(), lat = ll.lat, lon = ll.lng;
     var week = +document.getElementById("week-select").value;
-    var threshold = +document.getElementById("threshold-select").value / 100;
+    var pmin = +document.getElementById("prob-min").value / 100;
+    var pmax = +document.getElementById("prob-max").value / 100;
     var nSpecies = labels.length, wkIdx = week - 1;
     setStatus(t("status.buildingChecklist"));
     try {
@@ -1745,7 +1735,7 @@
       var items = [];
       for (var i = 0; i < nSpecies; i++) {
         var cur = all[wkIdx * nSpecies + i];
-        if (cur < threshold || !inGroup(i) || isHidden(labels[i].key)) continue;
+        if (cur < pmin || cur > pmax || !inGroup(i) || isHidden(labels[i].key)) continue;
         var mx = 0;
         for (var k = 0; k < 48; k++) { var v = all[k * nSpecies + i]; if (v > mx) mx = v; }
         var prev = all[((wkIdx + 47) % 48) * nSpecies + i], next = all[((wkIdx + 1) % 48) * nSpecies + i];
@@ -1913,9 +1903,6 @@
 
     var week = window.GeoState.get("week", null);
     if (week) document.getElementById("week-select").value = week;
-
-    var thr = window.GeoState.get("threshold", null);
-    if (thr) document.getElementById("threshold-select").value = thr;
 
     var cmp = window.GeoState.get("compare", null);
     if (cmp !== null) document.getElementById("compare-select").value = cmp;
