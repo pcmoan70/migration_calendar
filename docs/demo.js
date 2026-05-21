@@ -1746,12 +1746,11 @@
       for (var i = 0; i < nSpecies; i++) {
         var cur = all[wkIdx * nSpecies + i];
         if (cur < threshold || !inGroup(i) || isHidden(labels[i].key)) continue;
-        var probs = new Float32Array(48), mx = 0;
-        for (var k = 0; k < 48; k++) { var v = all[k * nSpecies + i]; probs[k] = v; if (v > mx) mx = v; }
+        var mx = 0;
+        for (var k = 0; k < 48; k++) { var v = all[k * nSpecies + i]; if (v > mx) mx = v; }
         var prev = all[((wkIdx + 47) % 48) * nSpecies + i], next = all[((wkIdx + 1) % 48) * nSpecies + i];
         var delta = mx > 1e-6 ? (next - prev) / mx : 0;
-        var focus = window.GeoAnalysis.focusSeries(probs, mx)[wkIdx];
-        items.push({ key: labels[i].key, sci: labels[i].sci, name: speciesName(labels[i]), prob: cur, delta: delta, focus: focus, checked: false, locality: "", notes: "" });
+        items.push({ key: labels[i].key, sci: labels[i].sci, name: speciesName(labels[i]), prob: cur, delta: delta, checked: false, locality: "", notes: "" });
       }
       items.sort(function (a, b) { return b.prob - a.prob; });
       var place = (await reverseGeocode(lat, lon)) || (lat.toFixed(3) + ", " + lon.toFixed(3));
@@ -1817,14 +1816,12 @@
     html += '<div class="chk-meta">' + meta + ' · <span id="chk-progress">' + checked + " / " + cl.items.length + "</span></div>";
     html += '<table class="chk-table"><thead><tr><th class="chk-cb"></th><th>' + escapeHtml(t("th.rank")) + "</th><th>" + escapeHtml(t("th.species")) +
       "</th><th>" + escapeHtml(t("th.sci")) + "</th><th>" + escapeHtml(t("th.prob")) + "</th><th>" + escapeHtml(t("th.change")) +
-      "</th><th>" + escapeHtml(t("th.focus")) + "</th><th>" + escapeHtml(t("th.locality")) + "</th><th>" + escapeHtml(t("th.notes")) + "</th></tr></thead><tbody>";
+      "</th><th>" + escapeHtml(t("th.locality")) + "</th><th>" + escapeHtml(t("th.notes")) + "</th></tr></thead><tbody>";
     cl.items.forEach(function (it, idx) {
       var dcls = it.delta > 0.001 ? "delta-up" : (it.delta < -0.001 ? "delta-down" : "delta-flat");
-      var focus = (it.focus == null) ? "" : Math.round(it.focus);
       html += '<tr><td class="chk-cb"><input type="checkbox" class="chk-box" data-idx="' + idx + '"' + (it.checked ? " checked" : "") + "></td>" +
         "<td>" + (idx + 1) + "</td><td>" + escapeHtml(it.name) + '</td><td style="font-style:italic">' + escapeHtml(it.sci) + "</td>" +
         "<td>" + (it.prob * 100).toFixed(1) + '%</td><td class="' + dcls + '">' + (it.delta * 100).toFixed(1) + "%</td>" +
-        "<td>" + focus + "</td>" +
         '<td><input type="text" class="chk-text" data-idx="' + idx + '" data-field="locality" value="' + escapeHtml(it.locality || "") + '"></td>' +
         '<td><input type="text" class="chk-text" data-idx="' + idx + '" data-field="notes" value="' + escapeHtml(it.notes || "") + '"></td></tr>';
     });
@@ -1853,10 +1850,10 @@
   function buildChecklistCsv(cl) {
     var esc = function (v) { var s = String(v == null ? "" : v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
     var lines = ["# " + cl.name + " | " + (cl.place || "") + " | week " + cl.week + " | " + (cl.createdAt || "").slice(0, 10)];
-    lines.push("checked,rank,common_name,scientific_name,probability,change,focus,locality,notes");
+    lines.push("checked,rank,common_name,scientific_name,probability,change,locality,notes");
     cl.items.forEach(function (it, idx) {
       lines.push([it.checked ? 1 : 0, idx + 1, esc(it.name), esc(it.sci), it.prob.toFixed(6), it.delta.toFixed(6),
-        (it.focus == null ? "" : it.focus.toFixed(2)), esc(it.locality || ""), esc(it.notes || "")].join(","));
+        esc(it.locality || ""), esc(it.notes || "")].join(","));
     });
     return lines.join("\n");
   }
