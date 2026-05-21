@@ -295,8 +295,8 @@
             '</select>' +
           '</div>' +
           '<div class="ctrl-group" id="savedloc-wrap">' +
-            '<label for="savedloc-select" data-i18n="ctrl.savedloc">Saved locations</label>' +
-            '<select id="savedloc-select"></select>' +
+            '<label data-i18n="ctrl.savedloc">Saved locations</label>' +
+            '<div id="savedloc-list"></div>' +
           '</div>' +
           '<div class="ctrl-group ctrl-group-btn" id="saveloc-btn-wrap" style="display:none">' +
             '<button id="saveloc-btn" class="demo-btn" data-i18n="btn.saveloc">\u2605 Save</button>' +
@@ -661,7 +661,6 @@
     document.getElementById("play-btn").addEventListener("click", toggleAnimation);
 
     document.getElementById("saveloc-btn").addEventListener("click", saveCurrentLocation);
-    document.getElementById("savedloc-select").addEventListener("change", goToSavedLocation);
 
     document.getElementById("csv-download-btn").addEventListener("click", function () {
       if (lastCsvData) downloadCsv(lastCsvData.filename, lastCsvData.content);
@@ -873,6 +872,13 @@
     return [+document.getElementById("week-select").value];
   }
 
+  // Cells per inference call. The model emits labels.length (~12k) floats per
+  // cell, so we cap the output buffer at ~32 MB to bound worker memory and
+  // avoid tab crashes when sweeping large viewports / all 48 weeks.
+  function inferChunk() {
+    return Math.max(256, Math.floor(8000000 / labels.length));
+  }
+
   // ---- Range map -----------------------------------------------------------
   async function renderRangeMap() {
     var key = document.getElementById("species-search").dataset.selectedKey;
@@ -881,7 +887,7 @@
     var gen = ++renderGeneration;
     var lbl = labelsByKey[key], speciesIdx = lbl.index, name = speciesName(lbl);
     var selectedWeek = +document.getElementById("week-select").value;
-    var weeks = weeksToCompute(), nSpecies = labels.length, CHUNK = 4096;
+    var weeks = weeksToCompute(), nSpecies = labels.length, CHUNK = inferChunk();
     var g = viewportGrid(), totalPoints = g.nLat * g.nLon;
 
     // Find weeks with missing cells
@@ -980,7 +986,7 @@
     if (rendering) { renderGeneration++; return; }
     var gen = ++renderGeneration;
     var selectedWeek = +document.getElementById("week-select").value;
-    var weeks = weeksToCompute(), nSpecies = labels.length, CHUNK = 4096;
+    var weeks = weeksToCompute(), nSpecies = labels.length, CHUNK = inferChunk();
     var g = viewportGrid(), totalPoints = g.nLat * g.nLon;
     var richName = t("legend.count");
 
@@ -1431,14 +1437,31 @@
   function hideSaveLocBtn() { document.getElementById("saveloc-btn-wrap").style.display = "none"; }
 
   function refreshSavedLocations() {
-    var sel = document.getElementById("savedloc-select");
-    if (!sel) return;
+    var box = document.getElementById("savedloc-list");
+    if (!box) return;
     var locs = window.GeoState.locations();
-    var html = '<option value="">' + escapeHtml(t("ph.savedloc")) + "</option>";
-    html += locs.map(function (l) {
-      return '<option value="' + l.id + '">' + escapeHtml(l.name) + "</option>";
+    if (!locs.length) {
+      box.innerHTML = '<span class="savedloc-empty">' + escapeHtml(t("ph.savedloc")) + "</span>";
+      return;
+    }
+    // Each location is a chip: name (click to go) + × (click to delete).
+    box.innerHTML = locs.map(function (l) {
+      var n = escapeHtml(l.name);
+      return '<span class="savedloc-chip">' +
+        '<button type="button" class="savedloc-go" data-id="' + l.id + '" title="' + n + '">' + n + "</button>" +
+        '<button type="button" class="savedloc-del" data-id="' + l.id + '" title="' + escapeHtml(t("loc.delete")) + '" aria-label="' + escapeHtml(t("loc.delete")) + '">×</button>' +
+        "</span>";
     }).join("");
-    sel.innerHTML = html;
+    box.querySelectorAll(".savedloc-go").forEach(function (b) {
+      b.addEventListener("click", function () { goToSavedLocation(this.getAttribute("data-id")); });
+    });
+    box.querySelectorAll(".savedloc-del").forEach(function (b) {
+      b.addEventListener("click", function (e) {
+        e.stopPropagation();
+        window.GeoState.removeLocation(this.getAttribute("data-id"));
+        refreshSavedLocations();
+      });
+    });
   }
 
   function saveCurrentLocation() {
@@ -1451,8 +1474,7 @@
     refreshSavedLocations();
   }
 
-  function goToSavedLocation() {
-    var id = document.getElementById("savedloc-select").value;
+  function goToSavedLocation(id) {
     if (!id) return;
     var loc = window.GeoState.locations().filter(function (l) { return l.id === id; })[0];
     if (!loc) return;

@@ -86,7 +86,8 @@ window.GeoI18N = (function () {
       "compare.mean": "Annual mean",
       "compare.max": "Annual max",
       "ctrl.savedloc": "Saved locations",
-      "ph.savedloc": "— go to saved location —",
+      "ph.savedloc": "No saved locations yet",
+      "loc.delete": "Delete location",
       "btn.saveloc": "★ Save",
       "btn.csv": "⬇ CSV",
       "btn.play": "▶ Play migration",
@@ -155,6 +156,15 @@ window.GeoI18N = (function () {
         "<li><b>Previous / Next week</b> and <b>Annual mean</b> show the change Δ = current probability − the comparison value.</li>" +
         "<li><b>Annual max</b> shows the current week as a fraction of the species' yearly peak: <code>current ÷ max over the year</code>. 100% means the selected week is that species' best week.</li>" +
         "</ul>" +
+        "<h4>Technology</h4>" +
+        "<p>The AI model runs <b>entirely in your web browser</b> — there is no server and your location is never sent anywhere. The neural network is downloaded once (~7 MB) and all predictions are computed on your own device. Built with:</p>" +
+        "<ul>" +
+        "<li><b>ONNX Runtime Web</b> (WebAssembly) — runs the neural network in the browser.</li>" +
+        "<li><b>Web Workers</b> — inference runs off the main thread so the interface stays responsive.</li>" +
+        "<li><b>BirdNET Geomodel</b> — the trained model, exported to ONNX (FP16, ~7 MB).</li>" +
+        "<li><b>Leaflet</b> with OpenStreetMap / CARTO tiles — the interactive map.</li>" +
+        "<li><b>Plain HTML, CSS and JavaScript</b> — no framework and no build step; served as a static site (GitHub Pages).</li>" +
+        "</ul>" +
         "<p class=\"about-note\">Predictions are model estimates, not ground truth. Model weights © the BirdNET team, licensed CC BY-SA 4.0; map tiles © OpenStreetMap contributors, © CARTO.</p>",
     },
     sv: {
@@ -185,7 +195,8 @@ window.GeoI18N = (function () {
       "compare.mean": "Årsmedel",
       "compare.max": "Årsmax",
       "ctrl.savedloc": "Sparade platser",
-      "ph.savedloc": "— gå till sparad plats —",
+      "ph.savedloc": "Inga sparade platser än",
+      "loc.delete": "Ta bort plats",
       "btn.saveloc": "★ Spara",
       "btn.csv": "⬇ CSV",
       "btn.play": "▶ Spela migration",
@@ -254,7 +265,52 @@ window.GeoI18N = (function () {
         "<li><b>Föregående / Nästa vecka</b> och <b>Årsmedel</b> visar förändringen Δ = aktuell sannolikhet − jämförelsevärdet.</li>" +
         "<li><b>Årsmax</b> visar aktuell vecka som en andel av artens årstopp: <code>aktuell ÷ max över året</code>. 100% betyder att vald vecka är artens bästa vecka.</li>" +
         "</ul>" +
+        "<h4>Teknik</h4>" +
+        "<p>AI-modellen körs <b>helt i din webbläsare</b> — det finns ingen server och din position skickas aldrig någonstans. Det neurala nätverket laddas ner en gång (~7 MB) och alla förutsägelser beräknas på din egen enhet. Byggt med:</p>" +
+        "<ul>" +
+        "<li><b>ONNX Runtime Web</b> (WebAssembly) — kör det neurala nätverket i webbläsaren.</li>" +
+        "<li><b>Web Workers</b> — beräkningen körs utanför huvudtråden så att gränssnittet förblir responsivt.</li>" +
+        "<li><b>BirdNET Geomodel</b> — den tränade modellen, exporterad till ONNX (FP16, ~7 MB).</li>" +
+        "<li><b>Leaflet</b> med OpenStreetMap-/CARTO-rutor — den interaktiva kartan.</li>" +
+        "<li><b>Ren HTML, CSS och JavaScript</b> — inget ramverk och inget byggsteg; serveras som en statisk sida (GitHub Pages).</li>" +
+        "</ul>" +
         "<p class=\"about-note\">Förutsägelser är modelluppskattningar, inte sanning. Modellvikter © BirdNET-teamet, licens CC BY-SA 4.0; kartrutor © OpenStreetMap-bidragsgivare, © CARTO.</p>",
+    },
+    no: {
+      // Norwegian: documentation is fully translated; other UI strings fall
+      // back to English (per-key) until a full Norwegian UI is added.
+      "about.title": "ℹ︎ Om modellen og hvordan verdiene beregnes",
+      "about.html":
+        "<h4>Habitatmodellen</h4>" +
+        "<p>Dette verktøyet kjører <a href=\"https://github.com/birdnet-team/geomodel\" target=\"_blank\" rel=\"noopener\">BirdNET Geomodel</a> — et spatiotemporalt nevralt nettverk — helt i nettleseren din via ONNX Runtime Web. Ut fra <b>breddegrad</b>, <b>lengdegrad</b> og <b>uke i året</b> (1–48; modellen deler året i 48 uker på omtrent 7,6 dager) forutsier den en <b>forekomstsannsynlighet</b> (0–100%) for hver av 12 012 arter blant fugler, pattedyr, amfibier og insekter. Sannsynligheten gjenspeiler hvor sannsynlig det er at arten finnes der på den tiden av året, lært fra globale funndata og miljøvariabler. Det er et modellert estimat — ikke et observasjonsantall eller en garanti.</p>" +
+        "<h4>Kartvisninger</h4>" +
+        "<ul>" +
+        "<li><b>Artsutbredelse</b> — sannsynligheten for én valgt art over kartet for valgt uke.</li>" +
+        "<li><b>Artsrikdom</b> — antall arter med sannsynlighet på minst 5% i hver rutecelle, begrenset til valgt artsgruppe. ▶ Spill av migrasjon animerer kartet uke for uke.</li>" +
+        "</ul>" +
+        "<p>Kartet beregnes på et rutenett (3° bredt utzoomet, ned til 0,25° innzoomet) og tegnes med bilineær glatting, slik at fargene tones mellom cellesentre i stedet for å danne harde blokker.</p>" +
+        "<h4>Stedsanalyse (klikk på kartet)</h4>" +
+        "<ul>" +
+        "<li><b>Tidslinje</b> — hver arts sannsynlighet over alle 48 ukene.</li>" +
+        "<li><b>Sannsynlighet</b> — et varmekart art × uke (rødt = lavt, grønt = høyt), skalert etter verdiene på skjermen.</li>" +
+        "<li><b>Ankomster</b> — for hver art og uke en ankomstscore <code>(P[neste uke] − P[forrige uke]) ÷ maks</code>, der <code>maks</code> er artens høyeste ukesannsynlighet gjennom året. Grønt = stigende (ankommer), rødt = synkende (forlater); ukene går rundt årsgrensen (1 ↔ 48).</li>" +
+        "<li><b>Spredning</b> — gjeldende ukes ankomstscore (x) mot sannsynlighet (y) for topp-artene, med en sorterbar tabell under.</li>" +
+        "</ul>" +
+        "<h4>Artsliste — kolonnen «Sammenlign med»</h4>" +
+        "<ul>" +
+        "<li><b>Forrige / Neste uke</b> og <b>Årsgjennomsnitt</b> viser endringen Δ = gjeldende sannsynlighet − sammenligningsverdien.</li>" +
+        "<li><b>Årsmaks</b> viser gjeldende uke som en andel av artens årstopp: <code>gjeldende ÷ maks gjennom året</code>. 100% betyr at valgt uke er artens beste uke.</li>" +
+        "</ul>" +
+        "<h4>Teknologi</h4>" +
+        "<p>AI-modellen kjører <b>helt i nettleseren din</b> — det finnes ingen server, og posisjonen din sendes aldri noe sted. Det nevrale nettverket lastes ned én gang (~7 MB), og alle forutsigelser beregnes på din egen enhet. Bygget med:</p>" +
+        "<ul>" +
+        "<li><b>ONNX Runtime Web</b> (WebAssembly) — kjører det nevrale nettverket i nettleseren.</li>" +
+        "<li><b>Web Workers</b> — beregningen kjøres utenfor hovedtråden så grensesnittet forblir responsivt.</li>" +
+        "<li><b>BirdNET Geomodel</b> — den trente modellen, eksportert til ONNX (FP16, ~7 MB).</li>" +
+        "<li><b>Leaflet</b> med OpenStreetMap-/CARTO-fliser — det interaktive kartet.</li>" +
+        "<li><b>Ren HTML, CSS og JavaScript</b> — ingen rammeverk og ingen byggesteg; servert som en statisk side (GitHub Pages).</li>" +
+        "</ul>" +
+        "<p class=\"about-note\">Forutsigelser er modellestimater, ikke fasit. Modellvekter © BirdNET-teamet, lisensiert CC BY-SA 4.0; kartfliser © OpenStreetMap-bidragsytere, © CARTO.</p>",
     },
   };
 
