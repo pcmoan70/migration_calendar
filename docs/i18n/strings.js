@@ -171,7 +171,7 @@ window.GeoI18N = (function () {
         "<li><b>Species Range</b> — the probability of one chosen species across the map for the selected week.</li>" +
         "<li><b>Species Richness</b> — the number of species whose probability is at least 5% in each grid cell, limited to the selected species group. ▶ Play migration animates the map week by week.</li>" +
         "</ul>" +
-        "<p>The map is evaluated on a grid of cells (3° wide when zoomed out, down to 0.25° when zoomed in) and drawn with bilinear smoothing, so colours blend between cell centres instead of forming hard blocks. <b>Note:</b> Species Range, Species Richness and ▶ Play migration evaluate the model across many map cells, so a modern computer with a capable GPU is recommended for smooth performance.</p>" +
+        "<p>The map is evaluated on a grid of cells (3° wide when zoomed out, down to 0.25° when zoomed in) and drawn with bilinear smoothing, so colours blend between cell centres instead of forming hard blocks. <b>Note:</b> Species Range, Species Richness and ▶ Play migration evaluate the model across many map cells, so a modern computer with a fast CPU is recommended for smooth performance.</p>" +
         "<h4>Location analysis (click the map)</h4>" +
         "<ul>" +
         "<li><b>Timeline</b> — each species' probability across all 48 weeks.</li>" +
@@ -308,7 +308,7 @@ window.GeoI18N = (function () {
         "<li><b>Artutbredning</b> — sannolikheten för en vald art över kartan för vald vecka.</li>" +
         "<li><b>Artrikedom</b> — antalet arter vars sannolikhet är minst 5% i varje rutnätscell, begränsat till vald artgrupp. ▶ Spela migration animerar kartan vecka för vecka.</li>" +
         "</ul>" +
-        "<p>Kartan beräknas på ett rutnät (3° brett utzoomat, ner till 0,25° inzoomat) och ritas med bilinjär utjämning, så att färger tonar mellan cellcentrum i stället för att bilda hårda block. <b>Obs:</b> Artutbredning, Artrikedom och ▶ Spela migration kör modellen över många kartceller, så en modern dator med ett kraftfullt grafikkort (GPU) rekommenderas för smidig prestanda.</p>" +
+        "<p>Kartan beräknas på ett rutnät (3° brett utzoomat, ner till 0,25° inzoomat) och ritas med bilinjär utjämning, så att färger tonar mellan cellcentrum i stället för att bilda hårda block. <b>Obs:</b> Artutbredning, Artrikedom och ▶ Spela migration kör modellen över många kartceller, så en modern dator med en snabb processor (CPU) rekommenderas för smidig prestanda.</p>" +
         "<h4>Platsanalys (klicka på kartan)</h4>" +
         "<ul>" +
         "<li><b>Tidslinje</b> — varje arts sannolikhet över alla 48 veckor.</li>" +
@@ -347,7 +347,7 @@ window.GeoI18N = (function () {
         "<li><b>Artsutbredelse</b> — sannsynligheten for én valgt art over kartet for valgt uke.</li>" +
         "<li><b>Artsrikdom</b> — antall arter med sannsynlighet på minst 5% i hver rutecelle, begrenset til valgt artsgruppe. ▶ Spill av migrasjon animerer kartet uke for uke.</li>" +
         "</ul>" +
-        "<p>Kartet beregnes på et rutenett (3° bredt utzoomet, ned til 0,25° innzoomet) og tegnes med bilineær glatting, slik at fargene tones mellom cellesentre i stedet for å danne harde blokker. <b>Merk:</b> Artsutbredelse, Artsrikdom og ▶ Spill av migrasjon kjører modellen over mange kartceller, så en moderne datamaskin med et kraftig grafikkort (GPU) anbefales for jevn ytelse.</p>" +
+        "<p>Kartet beregnes på et rutenett (3° bredt utzoomet, ned til 0,25° innzoomet) og tegnes med bilineær glatting, slik at fargene tones mellom cellesentre i stedet for å danne harde blokker. <b>Merk:</b> Artsutbredelse, Artsrikdom og ▶ Spill av migrasjon kjører modellen over mange kartceller, så en moderne datamaskin med en rask prosessor (CPU) anbefales for jevn ytelse.</p>" +
         "<h4>Stedsanalyse (klikk på kartet)</h4>" +
         "<ul>" +
         "<li><b>Tidslinje</b> — hver arts sannsynlighet over alle 48 ukene.</li>" +
@@ -384,7 +384,7 @@ window.GeoI18N = (function () {
         "<li><b>Aire de répartition</b> — la probabilité d'une espèce choisie sur la carte pour la semaine sélectionnée.</li>" +
         "<li><b>Richesse spécifique</b> — le nombre d'espèces dont la probabilité atteint au moins 5 % dans chaque cellule, limité au groupe d'espèces sélectionné. ▶ Lire la migration anime la carte semaine par semaine.</li>" +
         "</ul>" +
-        "<p>La carte est calculée sur une grille de cellules (3° en vue éloignée, jusqu'à 0,25° en vue rapprochée) et dessinée avec un lissage bilinéaire, afin que les couleurs se fondent entre les centres des cellules au lieu de former des blocs nets. <b>Remarque :</b> l'Aire de répartition, la Richesse spécifique et ▶ Lire la migration évaluent le modèle sur de nombreuses cellules ; un ordinateur moderne doté d'un GPU performant est recommandé pour une bonne fluidité.</p>" +
+        "<p>La carte est calculée sur une grille de cellules (3° en vue éloignée, jusqu'à 0,25° en vue rapprochée) et dessinée avec un lissage bilinéaire, afin que les couleurs se fondent entre les centres des cellules au lieu de former des blocs nets. <b>Remarque :</b> l'Aire de répartition, la Richesse spécifique et ▶ Lire la migration évaluent le modèle sur de nombreuses cellules ; un ordinateur moderne doté d'un CPU (processeur) performant est recommandé pour une bonne fluidité.</p>" +
         "<h4>Analyse de localisation (cliquez sur la carte)</h4>" +
         "<ul>" +
         "<li><b>Chronologie</b> — la probabilité de chaque espèce sur les 48 semaines.</li>" +
@@ -421,7 +421,7 @@ window.GeoI18N = (function () {
         "<li><b>Artverbreitung</b> — die Wahrscheinlichkeit einer ausgewählten Art auf der Karte für die gewählte Woche.</li>" +
         "<li><b>Artenreichtum</b> — die Anzahl der Arten mit einer Wahrscheinlichkeit von mindestens 5 % in jeder Rasterzelle, begrenzt auf die gewählte Artengruppe. ▶ Migration abspielen animiert die Karte Woche für Woche.</li>" +
         "</ul>" +
-        "<p>Die Karte wird auf einem Zellraster berechnet (3° herausgezoomt, bis 0,25° herangezoomt) und mit bilinearer Glättung gezeichnet, sodass die Farben zwischen den Zellzentren ineinander übergehen, statt harte Blöcke zu bilden. <b>Hinweis:</b> Artverbreitung, Artenreichtum und ▶ Migration abspielen werten das Modell über viele Kartenzellen aus; für flüssige Leistung wird ein moderner Computer mit leistungsfähiger GPU empfohlen.</p>" +
+        "<p>Die Karte wird auf einem Zellraster berechnet (3° herausgezoomt, bis 0,25° herangezoomt) und mit bilinearer Glättung gezeichnet, sodass die Farben zwischen den Zellzentren ineinander übergehen, statt harte Blöcke zu bilden. <b>Hinweis:</b> Artverbreitung, Artenreichtum und ▶ Migration abspielen werten das Modell über viele Kartenzellen aus; für flüssige Leistung wird ein moderner Computer mit schneller CPU (Prozessor) empfohlen.</p>" +
         "<h4>Standortanalyse (auf die Karte klicken)</h4>" +
         "<ul>" +
         "<li><b>Zeitverlauf</b> — die Wahrscheinlichkeit jeder Art über alle 48 Wochen.</li>" +
@@ -458,7 +458,7 @@ window.GeoI18N = (function () {
         "<li><b>Verspreiding</b> — de waarschijnlijkheid van één gekozen soort over de kaart voor de geselecteerde week.</li>" +
         "<li><b>Soortenrijkdom</b> — het aantal soorten met een waarschijnlijkheid van minstens 5% in elke rastercel, beperkt tot de geselecteerde soortgroep. ▶ Migratie afspelen animeert de kaart week voor week.</li>" +
         "</ul>" +
-        "<p>De kaart wordt berekend op een raster van cellen (3° uitgezoomd, tot 0,25° ingezoomd) en getekend met bilineaire vloeiing, zodat kleuren tussen celcentra in elkaar overvloeien in plaats van harde blokken te vormen. <b>Let op:</b> Verspreiding, Soortenrijkdom en ▶ Migratie afspelen berekenen het model over veel kaartcellen, dus een moderne computer met een capabele GPU wordt aanbevolen voor vlotte prestaties.</p>" +
+        "<p>De kaart wordt berekend op een raster van cellen (3° uitgezoomd, tot 0,25° ingezoomd) en getekend met bilineaire vloeiing, zodat kleuren tussen celcentra in elkaar overvloeien in plaats van harde blokken te vormen. <b>Let op:</b> Verspreiding, Soortenrijkdom en ▶ Migratie afspelen berekenen het model over veel kaartcellen, dus een moderne computer met een snelle CPU (processor) wordt aanbevolen voor vlotte prestaties.</p>" +
         "<h4>Locatieanalyse (klik op de kaart)</h4>" +
         "<ul>" +
         "<li><b>Tijdlijn</b> — de waarschijnlijkheid van elke soort over alle 48 weken.</li>" +
@@ -495,7 +495,7 @@ window.GeoI18N = (function () {
         "<li><b>Areale della specie</b> — la probabilità di una specie scelta sulla mappa per la settimana selezionata.</li>" +
         "<li><b>Ricchezza di specie</b> — il numero di specie con probabilità di almeno il 5% in ogni cella della griglia, limitato al gruppo di specie selezionato. ▶ Riproduci migrazione anima la mappa settimana per settimana.</li>" +
         "</ul>" +
-        "<p>La mappa è calcolata su una griglia di celle (3° con vista ampia, fino a 0,25° con zoom ravvicinato) e disegnata con interpolazione bilineare, così che i colori sfumino tra i centri delle celle invece di formare blocchi netti. <b>Nota:</b> Areale della specie, Ricchezza di specie e ▶ Riproduci migrazione valutano il modello su molte celle, quindi si consiglia un computer moderno con una GPU capace per prestazioni fluide.</p>" +
+        "<p>La mappa è calcolata su una griglia di celle (3° con vista ampia, fino a 0,25° con zoom ravvicinato) e disegnata con interpolazione bilineare, così che i colori sfumino tra i centri delle celle invece di formare blocchi netti. <b>Nota:</b> Areale della specie, Ricchezza di specie e ▶ Riproduci migrazione valutano il modello su molte celle, quindi si consiglia un computer moderno con una CPU (processore) veloce per prestazioni fluide.</p>" +
         "<h4>Analisi della località (clicca sulla mappa)</h4>" +
         "<ul>" +
         "<li><b>Cronologia</b> — la probabilità di ogni specie su tutte le 48 settimane.</li>" +
