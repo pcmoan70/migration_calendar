@@ -580,7 +580,9 @@
     document.getElementById("threshold-wrap").style.display = currentMode === "list" ? "" : "none";
     document.getElementById("compare-wrap").style.display = currentMode === "list" ? "" : "none";
     document.getElementById("barchart-threshold-wrap").style.display = currentMode === "barchart" ? "" : "none";
-    document.getElementById("week-select-wrap").style.display = currentMode === "barchart" ? "none" : "";
+    // Week applies in every mode (incl. Migration timeline, where it sets the
+    // "current week" used by the Probability / Arrivals / Scatter tabs).
+    document.getElementById("week-select-wrap").style.display = "";
     document.getElementById("play-btn-wrap").style.display = isMap ? "" : "none";
   }
 

@@ -213,7 +213,7 @@ window.GeoAnalysis = (function () {
       top.forEach(function (it) {
         var x = sx(it.arrival).toFixed(1), y = sy(it.probability).toFixed(1);
         var name = ctx.speciesName(it.label);
-        var title = name + " (" + it.label.sci + ")\n" + ctx.t("th.arrival") + " " + (it.arrival > 0 ? "+" : "") + (it.arrival * 100).toFixed(1) + "%\n" + ctx.t("th.prob") + " " + (it.probability * 100).toFixed(1) + "%";
+        var title = name + " (" + it.label.sci + ")\n" + ctx.t("th.arrival") + " " + (it.arrival * 100).toFixed(1) + "%\n" + ctx.t("th.prob") + " " + (it.probability * 100).toFixed(1) + "%";
         svg += '<circle class="an-pt" cx="' + x + '" cy="' + y + '" r="5" fill="' + arrivalColor(it.arrival) + '" stroke="rgba(0,0,0,0.5)" stroke-width="0.8"><title>' + esc(title) + "</title></circle>";
       });
       svg += "</svg>";
@@ -247,7 +247,7 @@ window.GeoAnalysis = (function () {
       var norm = pRange > 0 ? (r.probability - pMin) / pRange : 0;
       tbl += "<tr><td>" + esc(ctx.speciesName(r.label)) + "</td>";
       tbl += '<td class="an-num an-tint" style="background:' + probColor(norm) + '">' + (r.probability * 100).toFixed(1) + "%</td>";
-      tbl += '<td class="an-num an-tint" style="background:' + arrivalColor(r.arrival) + '">' + (r.arrival > 0 ? "+" : "") + (r.arrival * 100).toFixed(1) + "%</td></tr>";
+      tbl += '<td class="an-num an-tint" style="background:' + arrivalColor(r.arrival) + '">' + (r.arrival * 100).toFixed(1) + "%</td></tr>";
     });
     tbl += "</tbody></table>";
 
