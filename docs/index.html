@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Species Distribution &amp; Migration Explorer</title>
+  <meta name="description" content="Interactive, in-browser explorer of bird & wildlife distribution and migration patterns, powered by the BirdNET Geomodel running client-side via ONNX Runtime Web." />
+
+  <!-- Leaflet (map) -->
+  <link rel="stylesheet"
+        href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+
+  <link rel="stylesheet" href="demo.css" />
+</head>
+<body>
+  <header id="site-header">
+    <h1 data-i18n="app.title">Species Distribution &amp; Migration Explorer</h1>
+  </header>
+
+  <!-- demo.js renders the whole interactive app into this mount point -->
+  <div id="demo-root"></div>
+
+  <!-- i18n strings + persisted state + analysis views (load before demo.js) -->
+  <script src="i18n/strings.js"></script>
+  <script src="state.js"></script>
+  <script src="analysis.js"></script>
+
+  <!-- Leaflet -->
+  <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"
+          integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+  <!-- Main app (loads ONNX Runtime Web inside inference-worker.js) -->
+  <script src="demo.js"></script>
+</body>
+</html>
