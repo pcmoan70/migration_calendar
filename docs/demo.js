@@ -1402,6 +1402,27 @@
     return '<td class="ratio-cell" style="background:' + bg + '">' + Math.round(n) + "</td>";
   }
 
+  // Reverse-geocoded place names for the coords line, cached per location.
+  var placeCache = {};
+  function placeKey(lat, lon) { return lat.toFixed(3) + "," + lon.toFixed(3); }
+
+  // Set a coords/summary line, prefixed with the resolved place name. The base
+  // summary shows immediately; the place name is prepended once resolved (and
+  // re-applied on later renders at the same location via the cache).
+  function setCoordsWithPlace(el, lat, lon, baseSummary) {
+    if (!el) return;
+    var k = placeKey(lat, lon);
+    el.dataset.base = baseSummary;
+    el.dataset.placeKey = k;
+    var apply = function (name) { el.textContent = (name ? name + " · " : "") + el.dataset.base; };
+    if (placeCache[k] !== undefined) { apply(placeCache[k]); return; }
+    el.textContent = baseSummary;
+    reverseGeocode(lat, lon).then(function (name) {
+      placeCache[k] = name || "";
+      if (el.dataset.placeKey === k) apply(placeCache[k]);
+    });
+  }
+
   async function renderSpeciesList(lat, lon) {
     var week = +document.getElementById("week-select").value;
     var pmin = +document.getElementById("prob-min").value / 100;
@@ -1432,8 +1453,8 @@
       var tbl = document.getElementById("species-list-table");
       tbl.classList.toggle("has-name2", !!secondLang);
       document.getElementById("sp-name2-head").textContent = secondLang ? window.GeoI18N.langByCode(secondLang).name : "";
-      document.getElementById("sp-coords").textContent =
-        t("sp.summary", { lat: lat.toFixed(4), lon: lon.toFixed(4), week: week, n: results.length, p: (pmin * 100).toFixed(0) });
+      setCoordsWithPlace(document.getElementById("sp-coords"), lat, lon,
+        t("sp.summary", { lat: lat.toFixed(4), lon: lon.toFixed(4), week: week, n: results.length, p: (pmin * 100).toFixed(0) }));
       document.getElementById("sp-tbody").innerHTML = results.map(function (r, idx) {
         var cmpCell = !hasCompare ? "<td></td>" : kind === "ratio" ? ratioCell(r.cmpVal) : kind === "focus" ? focusCell(r.cmpVal) : deltaCell(r.cmpVal);
         var name2Cell = '<td class="name2">' + (secondLang ? escapeHtml(secondName(r.label)) : "") + '</td>';
@@ -1631,8 +1652,8 @@
     var lat = analysisData.lat, lon = analysisData.lon;
     var nVisible = window.GeoAnalysis.visibleSpecies(ctx).length;
 
-    document.getElementById("bc-coords").textContent =
-      t("sp.summary", { lat: lat.toFixed(4), lon: lon.toFixed(4), week: ctx.week, n: nVisible, p: (ctx.thresholdFrac * 100).toFixed(0) });
+    setCoordsWithPlace(document.getElementById("bc-coords"), lat, lon,
+      t("sp.summary", { lat: lat.toFixed(4), lon: lon.toFixed(4), week: ctx.week, n: nVisible, p: (ctx.thresholdFrac * 100).toFixed(0) }));
     setStatus(t("status.spResult", { n: nVisible, p: (ctx.thresholdFrac * 100).toFixed(0), lat: lat.toFixed(2), lon: lon.toFixed(2) }));
 
     if (analysisTab === "timeline") renderTimelineTab(container, ctx);
