@@ -317,16 +317,6 @@
               '<option value="barchart" data-i18n="mode.barchart">Migration Timeline (click map)</option>' +
             '</select>' +
           '</div>' +
-          '<div class="ctrl-group">' +
-            '<label for="group-select" data-i18n="ctrl.group">Species group</label>' +
-            '<select id="group-select">' +
-              '<option value="all" data-i18n="group.all">All groups</option>' +
-              '<option value="aves" data-i18n="group.aves">Birds</option>' +
-              '<option value="mammalia" data-i18n="group.mammalia">Mammals</option>' +
-              '<option value="amphibia" data-i18n="group.amphibia">Amphibians</option>' +
-              '<option value="insecta" data-i18n="group.insecta">Insects</option>' +
-            '</select>' +
-          '</div>' +
           '<div class="ctrl-group" id="species-search-wrap">' +
             '<label for="species-search" data-i18n="ctrl.species">Species</label>' +
             '<input id="species-search" type="text" autocomplete="off" data-i18n-ph="ph.species" placeholder="Search species\u2026" />' +
@@ -405,6 +395,16 @@
               '<option value="streets" data-i18n="basemap.streets">Streets</option>' +
               '<option value="topo" data-i18n="basemap.topo">Topographic</option>' +
               '<option value="satellite" data-i18n="basemap.satellite">Satellite</option>' +
+            '</select>' +
+          '</div>' +
+          '<div class="ctrl-group">' +
+            '<label for="group-select" data-i18n="ctrl.group">Species group</label>' +
+            '<select id="group-select">' +
+              '<option value="all" data-i18n="group.all">All groups</option>' +
+              '<option value="aves" data-i18n="group.aves">Birds</option>' +
+              '<option value="mammalia" data-i18n="group.mammalia">Mammals</option>' +
+              '<option value="amphibia" data-i18n="group.amphibia">Amphibians</option>' +
+              '<option value="insecta" data-i18n="group.insecta">Insects</option>' +
             '</select>' +
           '</div>' +
           '<div class="ctrl-group" id="hires-wrap" style="display:none">' +
@@ -2122,8 +2122,9 @@
     speciesGroup = window.GeoState.get("group", "all");
     document.getElementById("group-select").value = speciesGroup;
 
-    hiRes = !!window.GeoState.get("hiRes", false);
-    document.getElementById("hires-toggle").checked = hiRes;
+    // Always start with high resolution off.
+    hiRes = false;
+    document.getElementById("hires-toggle").checked = false;
 
     // Always start with the full probability range 5%–100% on load.
     document.getElementById("prob-min").value = 5;
