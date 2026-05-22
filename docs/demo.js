@@ -308,20 +308,6 @@
       '<div id="demo-app" style="display:none">' +
         '<div id="demo-controls">' +
           '<div class="ctrl-group">' +
-            '<label for="lang-select" data-i18n="ctrl.language">Language</label>' +
-            '<select id="lang-select"></select>' +
-          '</div>' +
-          '<div class="ctrl-group">' +
-            '<label for="basemap-select" data-i18n="ctrl.basemap">Base map</label>' +
-            '<select id="basemap-select">' +
-              '<option value="dark" data-i18n="basemap.dark">Dark</option>' +
-              '<option value="light" data-i18n="basemap.light">Light</option>' +
-              '<option value="streets" data-i18n="basemap.streets">Streets</option>' +
-              '<option value="topo" data-i18n="basemap.topo">Topographic</option>' +
-              '<option value="satellite" data-i18n="basemap.satellite">Satellite</option>' +
-            '</select>' +
-          '</div>' +
-          '<div class="ctrl-group">' +
             '<label for="mode-select" data-i18n="ctrl.mode">Mode</label>' +
             '<select id="mode-select">' +
               '<option value="range" data-i18n="mode.range">Species Range</option>' +
@@ -404,6 +390,22 @@
             '<div id="computing-progress-wrap"><div id="computing-progress-bar"></div></div>' +
           '</div>' +
           '<div id="demo-legend"></div>' +
+        '</div>' +
+        '<div id="map-controls">' +
+          '<div class="ctrl-group">' +
+            '<label for="lang-select" data-i18n="ctrl.language">Language</label>' +
+            '<select id="lang-select"></select>' +
+          '</div>' +
+          '<div class="ctrl-group">' +
+            '<label for="basemap-select" data-i18n="ctrl.basemap">Base map</label>' +
+            '<select id="basemap-select">' +
+              '<option value="dark" data-i18n="basemap.dark">Dark</option>' +
+              '<option value="light" data-i18n="basemap.light">Light</option>' +
+              '<option value="streets" data-i18n="basemap.streets">Streets</option>' +
+              '<option value="topo" data-i18n="basemap.topo">Topographic</option>' +
+              '<option value="satellite" data-i18n="basemap.satellite">Satellite</option>' +
+            '</select>' +
+          '</div>' +
         '</div>' +
         '<div id="csv-btn-wrap" style="display:none">' +
           '<button id="csv-download-btn" class="demo-btn" data-i18n="btn.csv" title="Download CSV">\u2b07 CSV</button>' +
@@ -732,9 +734,9 @@
       var sa = document.querySelector("#species-panel .sp-actions");
       if (sa && wrap.parentNode !== sa) sa.appendChild(wrap);
     } else {
-      var mapWrap = document.getElementById("demo-map-wrap");
-      if (mapWrap && wrap.previousElementSibling !== mapWrap) {
-        mapWrap.parentNode.insertBefore(wrap, mapWrap.nextSibling);
+      var anchor = document.getElementById("map-controls");
+      if (anchor && wrap.previousElementSibling !== anchor) {
+        anchor.parentNode.insertBefore(wrap, anchor.nextSibling);
       }
     }
   }
@@ -2101,11 +2103,11 @@
     speciesGroup = window.GeoState.get("group", "all");
     document.getElementById("group-select").value = speciesGroup;
 
-    var pMin = window.GeoState.get("probMin", null), pMax = window.GeoState.get("probMax", null);
-    if (pMin !== null) document.getElementById("prob-min").value = pMin;
-    if (pMax !== null) document.getElementById("prob-max").value = pMax;
-    document.getElementById("prob-min-val").textContent = document.getElementById("prob-min").value + "%";
-    document.getElementById("prob-max-val").textContent = document.getElementById("prob-max").value + "%";
+    // Always start with the full probability range 5%–100% on load.
+    document.getElementById("prob-min").value = 5;
+    document.getElementById("prob-max").value = 100;
+    document.getElementById("prob-min-val").textContent = "5%";
+    document.getElementById("prob-max-val").textContent = "100%";
 
     loadHidden();
 

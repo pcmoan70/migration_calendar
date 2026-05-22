@@ -932,3 +932,18 @@ table.chk-table .chk-text { min-width: 100px; }
 
 /* Timeline: highlight the current-week bar */
 .bc-bar.bc-cur { background: #d32f2f !important; opacity: 1 !important; }
+
+/* Language + Base map controls relocated below the map */
+#map-controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; margin: 0 0 12px; }
+#map-controls .ctrl-group { display: flex; flex-direction: column; }
+#map-controls label { font-size: 0.82rem; font-weight: 600; display: block; margin-bottom: 3px; }
+#map-controls select {
+  height: 34px;
+  box-sizing: border-box;
+  padding: 0 8px;
+  font-size: 0.88rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #fff;
+  color: #1c2526;
+}
