@@ -358,59 +358,103 @@
       .catch(function () { countryCache[k] = ""; return ""; });
   }
 
-  // Show recent observations of a species near the clicked location, from the
-  // public iNaturalist API (no key, covers all taxa), most recent first.
-  function showRecent(name, sci, lat, lon) {
-    var modal = document.getElementById("recent-modal");
+  // GBIF occurrences in a 25 km box over a date range. GBIF has no server-side
+  // date sort, so we page the date-filtered results (up to ~900) and sort
+  // client-side, returning the 100 most recent.
+  async function gbifRecent(sci, lat, lon, range) {
+    var base = "https://api.gbif.org/v1/occurrence/search?hasCoordinate=true&limit=300&scientificName=" +
+      encodeURIComponent(sci) + "&geometry=" + encodeURIComponent(gbifGeometry(lat, lon, 12.5)) +
+      "&eventDate=" + encodeURIComponent(range);
+    var all = [], offset = 0, total = Infinity, pages = 0;
+    while (offset < total && pages < 3) {
+      var j = await (await fetch(base + "&offset=" + offset)).json();
+      total = j.count || 0;
+      var res = j.results || [];
+      for (var i = 0; i < res.length; i++) all.push(res[i]);
+      offset += 300; pages++;
+      if (res.length < 300) break;
+    }
+    all.sort(function (a, b) { return String(b.eventDate || "").localeCompare(String(a.eventDate || "")); });
+    return all.slice(0, 100).map(function (o) {
+      return {
+        date: (o.eventDate || "").slice(0, 10) || "—",
+        place: o.locality || o.verbatimLocality || o.stateProvince || o.county || o.country || "",
+        who: (Array.isArray(o.recordedBy) ? o.recordedBy.join(", ") : o.recordedBy) || o.datasetName || "",
+        url: o.key ? "https://www.gbif.org/occurrence/" + o.key : ""
+      };
+    });
+  }
+
+  // iNaturalist observations (live everywhere) for the same window, newest first.
+  async function inatRecent(sci, lat, lon, d1, d2) {
+    var url = "https://api.inaturalist.org/v1/observations?verifiable=true&order_by=observed_on&order=desc&per_page=100" +
+      "&d1=" + d1 + "&d2=" + d2 + "&taxon_name=" + encodeURIComponent(sci) +
+      "&lat=" + lat.toFixed(4) + "&lng=" + lon.toFixed(4) + "&radius=25";
+    var j = await (await fetch(url)).json();
+    return ((j && j.results) || []).map(function (o) {
+      return {
+        date: o.observed_on || (o.time_observed_at || "").slice(0, 10) || "—",
+        place: o.place_guess || "",
+        who: (o.user && (o.user.login || o.user.name)) || "",
+        url: "https://www.inaturalist.org/observations/" + o.id
+      };
+    });
+  }
+
+  // Show recent observations of a species near the clicked location: last
+  // 2 months, most recent first, up to 100. GBIF is the primary source (the
+  // Nordic atlases publish to it in near-real-time); iNaturalist's live API is
+  // the fallback where GBIF lags.
+  async function showRecent(name, sci, lat, lon) {
     var body = document.getElementById("recent-body");
     document.getElementById("recent-title").textContent = name;
     body.innerHTML = '<div class="spinner" style="margin:24px auto"></div>';
-    modal.style.display = "flex";
-    var webUrl = "https://www.inaturalist.org/observations?taxon_name=" + encodeURIComponent(sci) +
-      "&lat=" + lat.toFixed(4) + "&lng=" + lon.toFixed(4) + "&radius=100&order_by=observed_on&order=desc";
+    document.getElementById("recent-modal").style.display = "flex";
     var token = ++recentToken;
-    // GBIF link, filtered by location (a bounding box around the point) and —
-    // once reverse-geocoded — country.
+
+    var to = new Date(), from = new Date(); from.setMonth(from.getMonth() - 2);
+    var fmtD = function (d) { return d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2); };
+    var d1 = fmtD(from), d2 = fmtD(to), range = d1 + "," + d2;
+
+    var inatWeb = "https://www.inaturalist.org/observations?taxon_name=" + encodeURIComponent(sci) +
+      "&lat=" + lat.toFixed(4) + "&lng=" + lon.toFixed(4) + "&radius=25&d1=" + d1 + "&d2=" + d2 + "&order_by=observed_on&order=desc";
     var gbifBase = "https://www.gbif.org/occurrence/search?q=" + encodeURIComponent(sci) +
-      "&geometry=" + encodeURIComponent(gbifGeometry(lat, lon, 12.5));   // ~25 × 25 km box
+      "&geometry=" + encodeURIComponent(gbifGeometry(lat, lon, 12.5));
     var countryParam = "";
-    var gbifHref = function () { return gbifBase + countryParam; };
-    var viewAll = function () {
-      return '<div class="recent-links"><a href="' + escapeHtml(webUrl) + '" target="_blank" rel="noopener">' + escapeHtml(t("recent.viewall")) + '</a>' +
-        ' · <a class="recent-gbif" href="' + escapeHtml(gbifHref()) + '" target="_blank" rel="noopener">GBIF</a></div>';
+    var links = function () {
+      return '<div class="recent-links"><a class="recent-gbif" href="' + escapeHtml(gbifBase + countryParam) + '" target="_blank" rel="noopener">GBIF</a>' +
+        ' · <a href="' + escapeHtml(inatWeb) + '" target="_blank" rel="noopener">' + escapeHtml(t("recent.viewall")) + '</a></div>';
     };
     countryCode(lat, lon).then(function (cc) {
       if (!cc) return;
       countryParam = "&country=" + cc;
       if (token !== recentToken) return;
       var a = document.querySelector("#recent-body .recent-gbif");
-      if (a) a.setAttribute("href", gbifHref());
+      if (a) a.setAttribute("href", gbifBase + countryParam);
     });
-    // Last 2 months, most recent first, up to 100. (GBIF lags ~1–2 years and
-    // can't sort by date, so the recent feed uses iNaturalist's live data.)
-    var to = new Date(), from = new Date(); from.setMonth(from.getMonth() - 2);
-    var fmtD = function (d) { return d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2); };
-    var api = "https://api.inaturalist.org/v1/observations?verifiable=true&order_by=observed_on&order=desc&per_page=100" +
-      "&d1=" + fmtD(from) + "&d2=" + fmtD(to) + "&taxon_name=" +
-      encodeURIComponent(sci) + "&lat=" + lat.toFixed(4) + "&lng=" + lon.toFixed(4) + "&radius=100";
-    fetch(api).then(function (r) { return r.json(); }).then(function (j) {
+
+    function render(rows, src) {
       if (token !== recentToken) return;
-      var obs = (j && j.results) || [];
-      if (!obs.length) { body.innerHTML = '<p class="recent-none">' + escapeHtml(t("recent.none")) + "</p>" + viewAll(); return; }
-      var rows = obs.map(function (o) {
-        var when = o.observed_on || (o.time_observed_at || "").slice(0, 10) || "—";
-        var place = escapeHtml(o.place_guess || "");
-        var who = escapeHtml((o.user && (o.user.login || o.user.name)) || "");
-        var href = "https://www.inaturalist.org/observations/" + o.id;
-        return '<tr><td class="rc-date">' + escapeHtml(when) + '</td><td class="rc-place">' +
-          '<a href="' + href + '" target="_blank" rel="noopener">' + (place || "(map)") + "</a></td>" +
-          '<td class="rc-who">' + who + "</td></tr>";
+      if (!rows.length) { body.innerHTML = '<p class="recent-none">' + escapeHtml(t("recent.none")) + "</p>" + links(); return; }
+      var html = rows.map(function (r) {
+        var place = r.place || "(map)";
+        var cell = r.url ? '<a href="' + escapeHtml(r.url) + '" target="_blank" rel="noopener">' + escapeHtml(place) + "</a>" : escapeHtml(place);
+        return '<tr><td class="rc-date">' + escapeHtml(r.date) + '</td><td class="rc-place">' + cell + '</td><td class="rc-who">' + escapeHtml(r.who) + "</td></tr>";
       }).join("");
-      body.innerHTML = '<table class="recent-table"><tbody>' + rows + "</tbody></table>" + viewAll();
-    }).catch(function () {
+      body.innerHTML = '<div class="recent-src">' + escapeHtml(src + " · " + d1 + " – " + d2) + "</div>" +
+        '<table class="recent-table"><tbody>' + html + "</tbody></table>" + links();
+    }
+
+    try {
+      var rows = await gbifRecent(sci, lat, lon, range);
       if (token !== recentToken) return;
-      body.innerHTML = '<p class="recent-none">' + escapeHtml(t("recent.none")) + "</p>" + viewAll();
-    });
+      if (rows.length) { render(rows, "GBIF"); return; }
+      var inat = await inatRecent(sci, lat, lon, d1, d2);   // fallback where GBIF lags
+      render(inat, "iNaturalist");
+    } catch (e) {
+      if (token !== recentToken) return;
+      body.innerHTML = '<p class="recent-none">' + escapeHtml(t("recent.none")) + "</p>" + links();
+    }
   }
 
   // ---- Distribution-map pop-up --------------------------------------------
