@@ -960,7 +960,7 @@
     document.getElementById("secondlang-select").addEventListener("change", function () {
       setSecondLang(this.value);
       window.GeoState.save({ secondLang: secondLang });
-      if (currentMode === "list" && marker) { var ll = marker.getLatLng(); renderSpeciesList(ll.lat, ll.lng); }
+      rerenderPointList();
     });
 
     document.getElementById("basemap-select").addEventListener("change", function () {
@@ -1001,8 +1001,8 @@
       window.GeoState.save({ group: speciesGroup });
       // Re-render whatever depends on the species set.
       if (currentMode === "richness") triggerRender();
-      else if (currentMode === "list" && marker) { var ll = marker.getLatLng(); renderSpeciesList(ll.lat, ll.lng); }
       else if (currentMode === "barchart" && analysisData) renderActiveTab();
+      else rerenderPointList();   // list or range (per-point list)
       // Refresh an open species-search dropdown.
       var resEl = document.getElementById("species-results");
       if (resEl && resEl.style.display === "block") showSearch(document.getElementById("species-search"), resEl);
@@ -1029,15 +1029,15 @@
 
     document.getElementById("week-select").addEventListener("change", function () {
       window.GeoState.save({ week: +this.value });
-      if (currentMode === "range" || currentMode === "richness") showCachedWeek();
-      else if (currentMode === "list" && marker) { var ll = marker.getLatLng(); renderSpeciesList(ll.lat, ll.lng); }
-      else if (currentMode === "barchart" && analysisData) renderActiveTab();
+      if (currentMode === "range" || currentMode === "richness") showCachedWeek();  // re-filter cached cells
+      if (currentMode === "barchart" && analysisData) renderActiveTab();
+      rerenderPointList();   // update the per-point list (list or range with a marker)
       updateLegend();
     });
 
     document.getElementById("compare-select").addEventListener("change", function () {
       window.GeoState.save({ compare: this.value });
-      if (currentMode === "list" && marker) { var ll = marker.getLatLng(); renderSpeciesList(ll.lat, ll.lng); }
+      rerenderPointList();
     });
 
     // Two-sided probability range (min/max) shared by the Species List and the
@@ -1050,9 +1050,11 @@
       document.getElementById("prob-min-val").textContent = lo + "%";
       document.getElementById("prob-max-val").textContent = hi + "%";
       window.GeoState.save({ probMin: lo, probMax: hi });
-      if (currentMode === "barchart" && analysisData) renderActiveTab();
-      else if (currentMode === "list" && marker) { var ll = marker.getLatLng(); renderSpeciesList(ll.lat, ll.lng); }
-      else if (currentMode === "range" && cachedRender) showCachedWeek();
+      if (currentMode === "barchart" && analysisData) { renderActiveTab(); return; }
+      // Range: re-filter the cached overlay (no re-inference). List/Range: also
+      // refresh the per-point list. The probability range never recomputes the map.
+      if (currentMode === "range" && cachedRender) showCachedWeek();
+      rerenderPointList();
     }
     document.getElementById("prob-min").addEventListener("input", onProbRange);
     document.getElementById("prob-max").addEventListener("input", onProbRange);
@@ -1591,6 +1593,16 @@
   }
 
   // ---- Species list --------------------------------------------------------
+  // Re-render the per-point species list at the current marker. Used by control
+  // changes (compare, 2nd name, group, week, probability range) — applies in
+  // both Species List and Species Range mode (both show the list on click).
+  function rerenderPointList() {
+    if ((currentMode === "list" || currentMode === "range") && marker) {
+      var ll = marker.getLatLng();
+      renderSpeciesList(ll.lat, ll.lng);
+    }
+  }
+
   function onMapClick(e) {
     // List + Range both show the per-point species list on click; Migration
     // Timeline shows the analysis. (In Range mode the range overlay stays.)
