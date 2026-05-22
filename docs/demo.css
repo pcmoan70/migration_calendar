@@ -973,3 +973,7 @@ table.chk-table .chk-text { min-width: 100px; }
   text-align: center;
 }
 #perf-modal-box p { margin: 0 0 18px; font-size: 0.95rem; line-height: 1.5; }
+
+/* High-resolution factor row */
+.hires-row { display: flex; align-items: center; gap: 8px; height: 34px; }
+#hires-factor { height: 30px; padding: 0 6px; }

@@ -60,7 +60,8 @@
   // ---- Species-group filter (taxonomic class) ------------------------------
   // Groups present in the model: aves, mammalia, amphibia, insecta.
   var speciesGroup = "all";   // "all" or a class_name value
-  var hiRes = false;          // high-resolution grid (3× points per axis) for range/richness
+  var hiRes = false;          // high-resolution grid for range/richness
+  var hiResFactor = 3;        // points-per-axis multiplier when hiRes is on
   var labelClass = [];        // class_name per label index (built after load)
 
   function buildLabelClass() {
@@ -408,7 +409,12 @@
             '</select>' +
           '</div>' +
           '<div class="ctrl-group" id="hires-wrap" style="display:none">' +
-            '<label class="hires-label"><input type="checkbox" id="hires-toggle" /> <span data-i18n="ctrl.hires">High resolution</span></label>' +
+            '<div class="hires-row">' +
+              '<label class="hires-label"><input type="checkbox" id="hires-toggle" /> <span data-i18n="ctrl.hires">High resolution</span></label>' +
+              '<select id="hires-factor" title="Resolution factor (points per axis)">' +
+                '<option>1</option><option>2</option><option selected>3</option><option>5</option><option>7</option><option>9</option><option>11</option>' +
+              '</select>' +
+            '</div>' +
           '</div>' +
         '</div>' +
         '<div id="csv-btn-wrap" style="display:none">' +
@@ -798,6 +804,12 @@
       if (currentMode === "range" || currentMode === "richness") { clearOverlay(); triggerRender(); }
     });
 
+    document.getElementById("hires-factor").addEventListener("change", function () {
+      hiResFactor = +this.value || 1;
+      window.GeoState.save({ hiResFactor: hiResFactor });
+      if (hiRes && (currentMode === "range" || currentMode === "richness")) { clearOverlay(); triggerRender(); }
+    });
+
     document.getElementById("perf-modal-ok").addEventListener("click", hidePerfModal);
     document.getElementById("perf-modal").addEventListener("click", function (e) {
       if (e.target === this) hidePerfModal();   // click outside the box
@@ -1133,8 +1145,9 @@
     else { west = wrapLon(west); east = wrapLon(east); if (east <= west) east += 360; }
     if (north - south < 0.1) north = south + 0.1;
     if (east - west < 0.1) east = west + 0.1;
-    // High-resolution mode triples the points per axis (1/3 the cell size).
-    var step = (ZOOM_STEP[map.getZoom()] || 3) / (hiRes ? 3 : 1);
+    // High-resolution mode multiplies the points per axis by hiResFactor
+    // (1/hiResFactor the cell size).
+    var step = (ZOOM_STEP[map.getZoom()] || 3) / (hiRes ? hiResFactor : 1);
     south = Math.max(Math.floor(south / step) * step, -90);
     north = Math.min(Math.ceil(north / step) * step, 90);
     west = Math.floor(west / step) * step;
@@ -2146,9 +2159,11 @@
     speciesGroup = window.GeoState.get("group", "all");
     document.getElementById("group-select").value = speciesGroup;
 
-    // Always start with high resolution off.
+    // Always start with high resolution off; remember the chosen factor.
     hiRes = false;
     document.getElementById("hires-toggle").checked = false;
+    hiResFactor = +window.GeoState.get("hiResFactor", 3) || 3;
+    document.getElementById("hires-factor").value = String(hiResFactor);
 
     // Always start with the full probability range 5%–100% on load.
     document.getElementById("prob-min").value = 5;
