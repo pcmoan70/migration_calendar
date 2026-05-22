@@ -1011,7 +1011,7 @@ table.chk-table .chk-text { min-width: 100px; }
 }
 #distmap-close:hover { color: var(--md-default-fg-color, #000); }
 .distmap-img {
-  display: block; max-width: 100%; height: auto; margin: 0 auto;
+  display: block; max-width: 100%; max-height: 70vh; width: auto; height: auto; margin: 0 auto;
   background: #fff; border-radius: 6px;
 }
 .distmap-links { margin-top: 10px; font-size: 0.85rem; text-align: center; }

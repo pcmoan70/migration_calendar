@@ -272,6 +272,14 @@
     return "https://search.macaulaylibrary.org/catalog?q=" + encodeURIComponent(sci);
   }
 
+  // BirdLife DataZone factsheet (birds only): the slug is the English name and
+  // scientific name kebab-cased, e.g. "ural-owl-strix-uralensis".
+  function slugify(s) { return String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, ""); }
+  function birdlifeUrl(en, sci) {
+    return "https://datazone.birdlife.org/species/factsheet/" + slugify(en) + "-" + slugify(sci);
+  }
+  function isBirdKey(key) { return /^aves$/i.test((taxByCode[key] || {}).class_name || ""); }
+
   // ---- Distribution-map pop-up --------------------------------------------
   // Look up a range/distribution map image for a species on Wikipedia
   // (English has the broadest coverage). We fetch the rendered article and
@@ -319,9 +327,12 @@
     }
     if (!best) return null;
     if (best.indexOf("//") === 0) best = "https:" + best;
-    var full = best.replace(/\/thumb\/(.+)\/[^\/]+$/, "/$1");   // un-thumbnail to full image
-    var thumb = best.replace(/\/\d+px-/, "/780px-");            // larger thumbnail
-    return { thumb: thumb, full: full };
+    // `best` is the page's own thumbnail (already generated, so it loads
+    // reliably). The full image is the un-thumbnailed original. We avoid
+    // requesting an arbitrary thumbnail width — Wikimedia won't always
+    // generate one on demand, which left the inline image broken.
+    var full = best.replace(/\/thumb\/(.+)\/[^\/]+$/, "/$1");
+    return { thumb: best, full: full };
   }
 
   function hideDistMap() { document.getElementById("distmap-modal").style.display = "none"; }
@@ -334,24 +345,41 @@
     modal.style.display = "flex";
     var lbl = key && labelsByKey[key];
     var en = (lbl && lbl.common) || name;   // English common name helps match filenames
+    var bird = key && isBirdKey(key);
+    // Reference links shown in the pop-up: Wikipedia, plus BirdLife (birds only).
+    function refLinks(fullUrl) {
+      var h = "";
+      if (fullUrl) h += '<a href="' + escapeHtml(fullUrl) + '" target="_blank" rel="noopener">' + escapeHtml(t("distmap.download")) + '</a> · ';
+      h += '<a href="' + escapeHtml(wikipediaUrl(sci)) + '" target="_blank" rel="noopener">Wikipedia</a>';
+      if (bird) h += ' · <a href="' + escapeHtml(birdlifeUrl(en, sci)) + '" target="_blank" rel="noopener">BirdLife</a>';
+      return h;
+    }
+    function showNone() {
+      body.innerHTML = '<p class="distmap-none">' + escapeHtml(t("distmap.none")) + '</p>' +
+        '<div class="distmap-links">' + refLinks(null) + '</div>';
+    }
     var token = ++distMapToken;
     wikiRangeImage(sci, en).then(function (res) {
       if (token !== distMapToken) return;   // a newer request superseded this
       if (res) {
-        body.innerHTML =
-          '<img class="distmap-img" src="' + escapeHtml(res.thumb) + '" alt="' + escapeHtml(name) + '" />' +
-          '<div class="distmap-links">' +
-            '<a href="' + escapeHtml(res.full) + '" target="_blank" rel="noopener">' + escapeHtml(t("distmap.download")) + '</a>' +
-            ' · <a href="' + escapeHtml(wikipediaUrl(sci)) + '" target="_blank" rel="noopener">Wikipedia</a>' +
-          '</div>';
+        body.innerHTML = '<div class="distmap-links">' + refLinks(res.full) + '</div>';
+        // Display the full original (loads reliably; CSS scales it to fit),
+        // falling back to the page's own thumbnail if the original fails.
+        var img = document.createElement("img");
+        img.className = "distmap-img";
+        img.alt = name;
+        img.onerror = function () {
+          if (img.src !== res.thumb) { img.src = res.thumb; }    // fall back to page thumbnail
+          else { img.style.display = "none"; }                   // both failed: keep links only
+        };
+        img.src = res.full;
+        body.insertBefore(img, body.firstChild);
       } else {
-        body.innerHTML = '<p class="distmap-none">' + escapeHtml(t("distmap.none")) +
-          ' <a href="' + escapeHtml(wikipediaUrl(sci)) + '" target="_blank" rel="noopener">Wikipedia</a></p>';
+        showNone();
       }
     }).catch(function () {
       if (token !== distMapToken) return;
-      body.innerHTML = '<p class="distmap-none">' + escapeHtml(t("distmap.none")) +
-        ' <a href="' + escapeHtml(wikipediaUrl(sci)) + '" target="_blank" rel="noopener">Wikipedia</a></p>';
+      showNone();
     });
   }
 
