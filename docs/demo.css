@@ -679,7 +679,7 @@ table.an-scatter-table td.an-tint { color: #fff; font-weight: 600; text-shadow: 
 #demo-controls .demo-btn { display: inline-flex; align-items: center; }
 
 /* ===== Dropdown popovers (Saved locations, Hidden species) ===== */
-#savedloc-wrap, #hidden-wrap { position: relative; }
+#savedloc-wrap, #hidden-wrap, #checklists-wrap { position: relative; }
 .dd-toggle {
   height: 34px;
   box-sizing: border-box;
