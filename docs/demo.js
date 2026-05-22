@@ -335,6 +335,29 @@
   // ---- Recent detections pop-up (iNaturalist) -----------------------------
   function hideRecent() { document.getElementById("recent-modal").style.display = "none"; }
 
+  // WKT bounding box of radius ~km around a point (longitude scaled by latitude),
+  // counter-clockwise as GBIF expects.
+  function gbifGeometry(lat, lon, km) {
+    var dLat = km / 111.32;
+    var cos = Math.cos(lat * Math.PI / 180);
+    var dLon = km / (111.32 * (cos > 0.01 ? cos : 0.01));
+    var s = Math.max(-90, lat - dLat), n = Math.min(90, lat + dLat), w = lon - dLon, e = lon + dLon;
+    return "POLYGON((" + w + " " + s + "," + e + " " + s + "," + e + " " + n + "," + w + " " + n + "," + w + " " + s + "))";
+  }
+  // Reverse-geocode the ISO-3166 alpha-2 country code for a point (cached).
+  var countryCache = {};
+  function countryCode(lat, lon) {
+    var k = lat.toFixed(2) + "," + lon.toFixed(2);
+    if (countryCache[k] !== undefined) return Promise.resolve(countryCache[k]);
+    return fetch("https://nominatim.openstreetmap.org/reverse?format=json&zoom=3&addressdetails=1&lat=" + lat + "&lon=" + lon, { headers: { Accept: "application/json" } })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) {
+        var cc = j && j.address && j.address.country_code ? j.address.country_code.toUpperCase() : "";
+        countryCache[k] = cc; return cc;
+      })
+      .catch(function () { countryCache[k] = ""; return ""; });
+  }
+
   // Show recent observations of a species near the clicked location, from the
   // public iNaturalist API (no key, covers all taxa), most recent first.
   function showRecent(name, sci, lat, lon) {
@@ -345,16 +368,30 @@
     modal.style.display = "flex";
     var webUrl = "https://www.inaturalist.org/observations?taxon_name=" + encodeURIComponent(sci) +
       "&lat=" + lat.toFixed(4) + "&lng=" + lon.toFixed(4) + "&radius=100&order_by=observed_on&order=desc";
-    var gbifUrl = "https://www.gbif.org/occurrence/search?q=" + encodeURIComponent(sci);
-    var viewAll = '<div class="recent-links"><a href="' + escapeHtml(webUrl) + '" target="_blank" rel="noopener">' + escapeHtml(t("recent.viewall")) + '</a>' +
-      ' · <a href="' + escapeHtml(gbifUrl) + '" target="_blank" rel="noopener">GBIF</a></div>';
     var token = ++recentToken;
+    // GBIF link, filtered by location (a bounding box around the point) and —
+    // once reverse-geocoded — country.
+    var gbifBase = "https://www.gbif.org/occurrence/search?q=" + encodeURIComponent(sci) +
+      "&geometry=" + encodeURIComponent(gbifGeometry(lat, lon, 5));   // ~5 km radius
+    var countryParam = "";
+    var gbifHref = function () { return gbifBase + countryParam; };
+    var viewAll = function () {
+      return '<div class="recent-links"><a href="' + escapeHtml(webUrl) + '" target="_blank" rel="noopener">' + escapeHtml(t("recent.viewall")) + '</a>' +
+        ' · <a class="recent-gbif" href="' + escapeHtml(gbifHref()) + '" target="_blank" rel="noopener">GBIF</a></div>';
+    };
+    countryCode(lat, lon).then(function (cc) {
+      if (!cc) return;
+      countryParam = "&country=" + cc;
+      if (token !== recentToken) return;
+      var a = document.querySelector("#recent-body .recent-gbif");
+      if (a) a.setAttribute("href", gbifHref());
+    });
     var api = "https://api.inaturalist.org/v1/observations?verifiable=true&order_by=observed_on&order=desc&per_page=25&taxon_name=" +
       encodeURIComponent(sci) + "&lat=" + lat.toFixed(4) + "&lng=" + lon.toFixed(4) + "&radius=100";
     fetch(api).then(function (r) { return r.json(); }).then(function (j) {
       if (token !== recentToken) return;
       var obs = (j && j.results) || [];
-      if (!obs.length) { body.innerHTML = '<p class="recent-none">' + escapeHtml(t("recent.none")) + "</p>" + viewAll; return; }
+      if (!obs.length) { body.innerHTML = '<p class="recent-none">' + escapeHtml(t("recent.none")) + "</p>" + viewAll(); return; }
       var rows = obs.map(function (o) {
         var when = o.observed_on || (o.time_observed_at || "").slice(0, 10) || "—";
         var place = escapeHtml(o.place_guess || "");
@@ -364,10 +401,10 @@
           '<a href="' + href + '" target="_blank" rel="noopener">' + (place || "(map)") + "</a></td>" +
           '<td class="rc-who">' + who + "</td></tr>";
       }).join("");
-      body.innerHTML = '<table class="recent-table"><tbody>' + rows + "</tbody></table>" + viewAll;
+      body.innerHTML = '<table class="recent-table"><tbody>' + rows + "</tbody></table>" + viewAll();
     }).catch(function () {
       if (token !== recentToken) return;
-      body.innerHTML = '<p class="recent-none">' + escapeHtml(t("recent.none")) + "</p>" + viewAll;
+      body.innerHTML = '<p class="recent-none">' + escapeHtml(t("recent.none")) + "</p>" + viewAll();
     });
   }
 
