@@ -297,11 +297,12 @@
   // factsheet slug directly: BirdLife uses its own taxonomy, so the genus
   // often differs from eBird's (e.g. Sandhill Crane is Antigone canadensis in
   // eBird but Grus canadensis on BirdLife), which would 404 or land on the
-  // wrong species. A scoped Google search reliably resolves to the correct
-  // factsheet (it handles the synonyms), so we use that.
+  // wrong species. DuckDuckGo's "!ducky" bang does an I'm-Feeling-Lucky jump
+  // to the top hit of a site-restricted search, so it navigates straight to
+  // the correct factsheet (resolving the synonyms) with no extra click.
   function birdlifeUrl(en, sci) {
-    var q = (en ? en + " " : "") + sci + " site:datazone.birdlife.org/species/factsheet";
-    return "https://www.google.com/search?q=" + encodeURIComponent(q);
+    var q = "!ducky " + (en ? en + " " : "") + sci + " site:datazone.birdlife.org/species/factsheet";
+    return "https://duckduckgo.com/?q=" + encodeURIComponent(q);
   }
   function isBirdKey(key) { return /^aves$/i.test((taxByCode[key] || {}).class_name || ""); }
 
