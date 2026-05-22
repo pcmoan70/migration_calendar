@@ -263,6 +263,27 @@
     return "https://" + wl + ".wikipedia.org/wiki/Special:Search?search=" + encodeURIComponent(sci);
   }
 
+  // Open the species' Wikipedia article in the UI language, falling back to the
+  // English article when the locale-language Wikipedia has no page for it.
+  // The tab is opened synchronously (preserving the user gesture) and its URL
+  // is set once the locale page's existence is known.
+  function openWikipedia(sci) {
+    var wl = lang === "zh-CN" ? "zh" : lang;
+    var enUrl = "https://en.wikipedia.org/wiki/Special:Search?search=" + encodeURIComponent(sci);
+    if (wl === "en") { openExternal(enUrl); return; }
+    var w = window.open("about:blank", "_blank");
+    var go = function (url) { if (w) { w.location.href = url; } else { openExternal(url); } };
+    fetch("https://" + wl + ".wikipedia.org/w/api.php?origin=*&format=json&action=query&redirects=1&titles=" + encodeURIComponent(sci))
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        var pages = j.query && j.query.pages;
+        var page = pages && pages[Object.keys(pages)[0]];
+        var exists = page && page.missing === undefined && page.pageid !== undefined;
+        go(exists ? "https://" + wl + ".wikipedia.org/wiki/" + encodeURIComponent(String(page.title || sci).replace(/ /g, "_")) : enUrl);
+      })
+      .catch(function () { go(enUrl); });
+  }
+
   // Macaulay Library media catalog: eBird taxon code for birds (label keys are
   // eBird codes), else a free-text search by scientific name.
   function macaulayUrl(key, sci) {
@@ -272,11 +293,15 @@
     return "https://search.macaulaylibrary.org/catalog?q=" + encodeURIComponent(sci);
   }
 
-  // BirdLife DataZone factsheet (birds only): the slug is the English name and
-  // scientific name kebab-cased, e.g. "ural-owl-strix-uralensis".
-  function slugify(s) { return String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, ""); }
+  // Link to the species' BirdLife DataZone factsheet. We can't build the
+  // factsheet slug directly: BirdLife uses its own taxonomy, so the genus
+  // often differs from eBird's (e.g. Sandhill Crane is Antigone canadensis in
+  // eBird but Grus canadensis on BirdLife), which would 404 or land on the
+  // wrong species. A scoped Google search reliably resolves to the correct
+  // factsheet (it handles the synonyms), so we use that.
   function birdlifeUrl(en, sci) {
-    return "https://datazone.birdlife.org/species/factsheet/" + slugify(en) + "-" + slugify(sci);
+    var q = (en ? en + " " : "") + sci + " site:datazone.birdlife.org/species/factsheet";
+    return "https://www.google.com/search?q=" + encodeURIComponent(q);
   }
   function isBirdKey(key) { return /^aves$/i.test((taxByCode[key] || {}).class_name || ""); }
 
@@ -350,7 +375,7 @@
     function refLinks(fullUrl) {
       var h = "";
       if (fullUrl) h += '<a href="' + escapeHtml(fullUrl) + '" target="_blank" rel="noopener">' + escapeHtml(t("distmap.download")) + '</a> · ';
-      h += '<a href="' + escapeHtml(wikipediaUrl(sci)) + '" target="_blank" rel="noopener">Wikipedia</a>';
+      h += '<a class="dm-wiki" data-sci="' + escapeHtml(sci) + '" href="' + escapeHtml(wikipediaUrl(sci)) + '" target="_blank" rel="noopener">Wikipedia</a>';
       if (bird) h += ' · <a href="' + escapeHtml(birdlifeUrl(en, sci)) + '" target="_blank" rel="noopener">BirdLife</a>';
       return h;
     }
@@ -959,6 +984,11 @@
     document.getElementById("distmap-modal").addEventListener("click", function (e) {
       if (e.target === this) hideDistMap();
     });
+    // Wikipedia links in the pop-up use the locale→English fallback.
+    document.getElementById("distmap-body").addEventListener("click", function (e) {
+      var a = e.target.closest && e.target.closest(".dm-wiki");
+      if (a) { e.preventDefault(); openWikipedia(a.getAttribute("data-sci")); }
+    });
     document.addEventListener("keydown", function (e) {
       if (e.key === "Escape") { hidePerfModal(); hideDistMap(); }
     });
@@ -1094,7 +1124,7 @@
         var act = this.getAttribute("data-act");
         if (act === "hide") hideSpecies(menuKey);
         else if (act === "filter") applyNameFilter(menuName);
-        else if (act === "wiki") openExternal(wikipediaUrl(menuSci || menuName));
+        else if (act === "wiki") openWikipedia(menuSci || menuName);
         else if (act === "birdlife") openExternal(birdlifeUrl((labelsByKey[menuKey] && labelsByKey[menuKey].common) || menuName, menuSci || menuName));
         else if (act === "macaulay") openExternal(macaulayUrl(menuKey, menuSci || menuName));
         else if (act === "distmap") showDistMap(menuName, menuSci || menuName, menuKey);
