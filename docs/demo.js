@@ -63,6 +63,7 @@
   var hiRes = false;          // high-resolution grid for range/richness
   var hiResFactor = 3;        // points-per-axis multiplier when hiRes is on
   var distMapToken = 0;       // guards against stale distribution-map fetches
+  var recentToken = 0;        // guards against stale recent-detections fetches
   var labelClass = [];        // class_name per label index (built after load)
 
   function buildLabelClass() {
@@ -330,6 +331,45 @@
       .catch(function () { go(fallback); });
   }
   function isBirdKey(key) { return /^aves$/i.test((taxByCode[key] || {}).class_name || ""); }
+
+  // ---- Recent detections pop-up (iNaturalist) -----------------------------
+  function hideRecent() { document.getElementById("recent-modal").style.display = "none"; }
+
+  // Show recent observations of a species near the clicked location, from the
+  // public iNaturalist API (no key, covers all taxa), most recent first.
+  function showRecent(name, sci, lat, lon) {
+    var modal = document.getElementById("recent-modal");
+    var body = document.getElementById("recent-body");
+    document.getElementById("recent-title").textContent = name;
+    body.innerHTML = '<div class="spinner" style="margin:24px auto"></div>';
+    modal.style.display = "flex";
+    var webUrl = "https://www.inaturalist.org/observations?taxon_name=" + encodeURIComponent(sci) +
+      "&lat=" + lat.toFixed(4) + "&lng=" + lon.toFixed(4) + "&radius=100&order_by=observed_on&order=desc";
+    var gbifUrl = "https://www.gbif.org/occurrence/search?q=" + encodeURIComponent(sci);
+    var viewAll = '<div class="recent-links"><a href="' + escapeHtml(webUrl) + '" target="_blank" rel="noopener">' + escapeHtml(t("recent.viewall")) + '</a>' +
+      ' · <a href="' + escapeHtml(gbifUrl) + '" target="_blank" rel="noopener">GBIF</a></div>';
+    var token = ++recentToken;
+    var api = "https://api.inaturalist.org/v1/observations?verifiable=true&order_by=observed_on&order=desc&per_page=25&taxon_name=" +
+      encodeURIComponent(sci) + "&lat=" + lat.toFixed(4) + "&lng=" + lon.toFixed(4) + "&radius=100";
+    fetch(api).then(function (r) { return r.json(); }).then(function (j) {
+      if (token !== recentToken) return;
+      var obs = (j && j.results) || [];
+      if (!obs.length) { body.innerHTML = '<p class="recent-none">' + escapeHtml(t("recent.none")) + "</p>" + viewAll; return; }
+      var rows = obs.map(function (o) {
+        var when = o.observed_on || (o.time_observed_at || "").slice(0, 10) || "—";
+        var place = escapeHtml(o.place_guess || "");
+        var who = escapeHtml((o.user && (o.user.login || o.user.name)) || "");
+        var href = "https://www.inaturalist.org/observations/" + o.id;
+        return '<tr><td class="rc-date">' + escapeHtml(when) + '</td><td class="rc-place">' +
+          '<a href="' + href + '" target="_blank" rel="noopener">' + (place || "(map)") + "</a></td>" +
+          '<td class="rc-who">' + who + "</td></tr>";
+      }).join("");
+      body.innerHTML = '<table class="recent-table"><tbody>' + rows + "</tbody></table>" + viewAll;
+    }).catch(function () {
+      if (token !== recentToken) return;
+      body.innerHTML = '<p class="recent-none">' + escapeHtml(t("recent.none")) + "</p>" + viewAll;
+    });
+  }
 
   // ---- Distribution-map pop-up --------------------------------------------
   // Look up a range/distribution map image for a species on Wikipedia
@@ -625,6 +665,7 @@
           '<div id="chk-body"></div>' +
         '</div>' +
         '<div id="sp-menu" style="display:none">' +
+          '<button type="button" class="sp-menu-item" data-act="recent" data-i18n="menu.recent">Recent detections</button>' +
           '<button type="button" class="sp-menu-item" data-act="distmap" data-i18n="menu.distmap">Distribution map</button>' +
           '<button type="button" class="sp-menu-item" data-act="wiki" data-i18n="menu.wiki">Wikipedia</button>' +
           '<button type="button" class="sp-menu-item" data-act="birdlife" data-i18n="menu.birdlife">BirdLife</button>' +
@@ -636,6 +677,11 @@
           '<button type="button" id="distmap-close" aria-label="Close">×</button>' +
           '<h3 id="distmap-title"></h3>' +
           '<div id="distmap-body"></div>' +
+        '</div></div>' +
+        '<div id="recent-modal" style="display:none"><div id="recent-box">' +
+          '<button type="button" id="recent-close" aria-label="Close">×</button>' +
+          '<h3 id="recent-title"></h3>' +
+          '<div id="recent-body"></div>' +
         '</div></div>' +
         '<details id="about-panel">' +
           '<summary data-i18n="about.title">About the model &amp; how values are computed</summary>' +
@@ -1013,6 +1059,10 @@
     document.getElementById("distmap-modal").addEventListener("click", function (e) {
       if (e.target === this) hideDistMap();
     });
+    document.getElementById("recent-close").addEventListener("click", hideRecent);
+    document.getElementById("recent-modal").addEventListener("click", function (e) {
+      if (e.target === this) hideRecent();
+    });
     // Pop-up reference links: Wikipedia uses the locale→English fallback;
     // BirdLife resolves the factsheet via its numeric ID.
     document.getElementById("distmap-body").addEventListener("click", function (e) {
@@ -1023,7 +1073,7 @@
       if (bl) { e.preventDefault(); openBirdLife(bl.getAttribute("data-en"), bl.getAttribute("data-sci")); }
     });
     document.addEventListener("keydown", function (e) {
-      if (e.key === "Escape") { hidePerfModal(); hideDistMap(); }
+      if (e.key === "Escape") { hidePerfModal(); hideDistMap(); hideRecent(); }
     });
 
     document.getElementById("group-select").addEventListener("change", function () {
@@ -1163,6 +1213,7 @@
         else if (act === "birdlife") openBirdLife((labelsByKey[menuKey] && labelsByKey[menuKey].common) || menuName, menuSci || menuName);
         else if (act === "macaulay") openExternal(macaulayUrl(menuKey, menuSci || menuName));
         else if (act === "distmap") showDistMap(menuName, menuSci || menuName, menuKey);
+        else if (act === "recent") { var rl = marker ? marker.getLatLng() : map.getCenter(); showRecent(menuName, menuSci || menuName, rl.lat, rl.lng); }
         spMenu.style.display = "none";
       });
     });
