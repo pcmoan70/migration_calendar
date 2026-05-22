@@ -341,15 +341,6 @@
               '<option value="annualtop" data-i18n="compare.annualtop">Annual Top</option>' +
             '</select>' +
           '</div>' +
-          '<div class="ctrl-group" id="barchart-threshold-wrap" style="display:none">' +
-            '<label data-i18n="ctrl.bcthreshold">Probability range</label>' +
-            '<div id="prob-range">' +
-              '<div class="pr-track"></div>' +
-              '<input type="range" id="prob-min" min="0" max="100" step="1" value="5" />' +
-              '<input type="range" id="prob-max" min="0" max="100" step="1" value="100" />' +
-            '</div>' +
-            '<div id="prob-range-vals"><span id="prob-min-val">5%</span> – <span id="prob-max-val">100%</span></div>' +
-          '</div>' +
           '<div class="ctrl-group" id="savedloc-wrap">' +
             '<label data-i18n="ctrl.savedloc">Saved locations</label>' +
             '<button type="button" id="savedloc-toggle" class="dd-toggle"><span id="savedloc-btn-text"></span><span class="dd-caret" aria-hidden="true">▾</span></button>' +
@@ -415,6 +406,15 @@
           '<div class="ctrl-group" id="secondlang-wrap" style="display:none">' +
             '<label for="secondlang-select" data-i18n="ctrl.secondlang">2nd name</label>' +
             '<select id="secondlang-select"></select>' +
+          '</div>' +
+          '<div class="ctrl-group" id="barchart-threshold-wrap" style="display:none">' +
+            '<label data-i18n="ctrl.bcthreshold">Probability range</label>' +
+            '<div id="prob-range">' +
+              '<div class="pr-track"></div>' +
+              '<input type="range" id="prob-min" min="0" max="100" step="1" value="5" />' +
+              '<input type="range" id="prob-max" min="0" max="100" step="1" value="100" />' +
+            '</div>' +
+            '<div id="prob-range-vals"><span id="prob-min-val">5%</span> – <span id="prob-max-val">100%</span></div>' +
           '</div>' +
         '</div>' +
         '<div id="csv-btn-wrap" style="display:none">' +
