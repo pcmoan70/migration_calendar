@@ -62,6 +62,7 @@
   var speciesGroup = "all";   // "all" or a class_name value
   var hiRes = false;          // high-resolution grid for range/richness
   var hiResFactor = 3;        // points-per-axis multiplier when hiRes is on
+  var distMapToken = 0;       // guards against stale distribution-map fetches
   var labelClass = [];        // class_name per label index (built after load)
 
   function buildLabelClass() {
@@ -271,6 +272,77 @@
     return "https://search.macaulaylibrary.org/catalog?q=" + encodeURIComponent(sci);
   }
 
+  // ---- Distribution-map pop-up --------------------------------------------
+  // Look up a range/distribution map image for a species on Wikipedia
+  // (English has the broadest range-map coverage). Returns { thumb, full,
+  // page } or null.
+  async function wikiRangeImage(sci) {
+    var base = "https://en.wikipedia.org/w/api.php?origin=*&format=json&redirects=1";
+    var r = await fetch(base + "&action=query&prop=images&imlimit=300&titles=" + encodeURIComponent(sci));
+    var j = await r.json();
+    var pages = j.query && j.query.pages;
+    if (!pages) return null;
+    var page = pages[Object.keys(pages)[0]];
+    if (!page || page.missing !== undefined || !page.images) return null;
+    var titles = page.images.map(function (x) { return x.title; })
+      .filter(function (t) { return /\.(png|svg|jpe?g)$/i.test(t); });
+    // Score candidates. Range-map files are often concatenated/camel-case
+    // ("ParusMajorMap.svg", "CyanistesCaeruleusDistribution.png", "… ebird
+    // data map.png"), so match on substrings and filter out site chrome/icons.
+    function score(t) {
+      var l = t.toLowerCase();
+      if (/logo|commons|ambox|icon|edit-|flag|wikis?ource|loudspeaker|speaker|sound|increase|decrease|steady|padlock|question|disambig|symbol/.test(l)) return -100;
+      var s = 0;
+      if (l.indexOf("distribution") >= 0) s += 10;
+      if (l.indexOf("range") >= 0) s += 6;
+      if (l.indexOf("ebird") >= 0) s += 6;
+      if (l.indexOf("occurrence") >= 0 || l.indexOf("occurence") >= 0) s += 6;
+      if (l.indexOf("map") >= 0) s += 3;
+      if (/locator|globe|blank/.test(l)) s -= 4;
+      return s;
+    }
+    var cand = titles.filter(function (t) { return score(t) >= 3; })
+      .sort(function (a, b) { return score(b) - score(a); });
+    if (!cand.length) return null;
+    var file = cand[0];
+    var ir = await fetch(base + "&action=query&prop=imageinfo&iiprop=url&iiurlwidth=760&titles=" + encodeURIComponent(file));
+    var ij = await ir.json();
+    var ipages = ij.query && ij.query.pages;
+    var ipage = ipages && ipages[Object.keys(ipages)[0]];
+    var ii = ipage && ipage.imageinfo && ipage.imageinfo[0];
+    if (!ii) return null;
+    return { thumb: ii.thumburl || ii.url, full: ii.url };
+  }
+
+  function hideDistMap() { document.getElementById("distmap-modal").style.display = "none"; }
+
+  function showDistMap(name, sci) {
+    var modal = document.getElementById("distmap-modal");
+    var body = document.getElementById("distmap-body");
+    document.getElementById("distmap-title").textContent = name;
+    body.innerHTML = '<div class="spinner" style="margin:24px auto"></div>';
+    modal.style.display = "flex";
+    var token = ++distMapToken;
+    wikiRangeImage(sci).then(function (res) {
+      if (token !== distMapToken) return;   // a newer request superseded this
+      if (res) {
+        body.innerHTML =
+          '<img class="distmap-img" src="' + escapeHtml(res.thumb) + '" alt="' + escapeHtml(name) + '" />' +
+          '<div class="distmap-links">' +
+            '<a href="' + escapeHtml(res.full) + '" target="_blank" rel="noopener">' + escapeHtml(t("distmap.download")) + '</a>' +
+            ' · <a href="' + escapeHtml(wikipediaUrl(sci)) + '" target="_blank" rel="noopener">Wikipedia</a>' +
+          '</div>';
+      } else {
+        body.innerHTML = '<p class="distmap-none">' + escapeHtml(t("distmap.none")) +
+          ' <a href="' + escapeHtml(wikipediaUrl(sci)) + '" target="_blank" rel="noopener">Wikipedia</a></p>';
+      }
+    }).catch(function () {
+      if (token !== distMapToken) return;
+      body.innerHTML = '<p class="distmap-none">' + escapeHtml(t("distmap.none")) +
+        ' <a href="' + escapeHtml(wikipediaUrl(sci)) + '" target="_blank" rel="noopener">Wikipedia</a></p>';
+    });
+  }
+
   // "Filter" action: drop the name into the analysis filter box and apply it.
   function applyNameFilter(name) {
     var f = document.getElementById("an-filter");
@@ -462,11 +534,17 @@
           '<div id="chk-body"></div>' +
         '</div>' +
         '<div id="sp-menu" style="display:none">' +
+          '<button type="button" class="sp-menu-item" data-act="distmap" data-i18n="menu.distmap">Distribution map</button>' +
           '<button type="button" class="sp-menu-item" data-act="wiki" data-i18n="menu.wiki">Wikipedia</button>' +
           '<button type="button" class="sp-menu-item" data-act="macaulay" data-i18n="menu.macaulay">Macaulay Library</button>' +
           '<button type="button" class="sp-menu-item" data-act="filter" data-i18n="menu.filter">Filter</button>' +
           '<button type="button" class="sp-menu-item" data-act="hide" data-i18n="menu.hide">Do not show</button>' +
         '</div>' +
+        '<div id="distmap-modal" style="display:none"><div id="distmap-box">' +
+          '<button type="button" id="distmap-close" aria-label="Close">×</button>' +
+          '<h3 id="distmap-title"></h3>' +
+          '<div id="distmap-body"></div>' +
+        '</div></div>' +
         '<details id="about-panel">' +
           '<summary data-i18n="about.title">About the model &amp; how values are computed</summary>' +
           '<div id="about-body"></div>' +
@@ -829,8 +907,12 @@
     document.getElementById("perf-modal").addEventListener("click", function (e) {
       if (e.target === this) hidePerfModal();   // click outside the box
     });
+    document.getElementById("distmap-close").addEventListener("click", hideDistMap);
+    document.getElementById("distmap-modal").addEventListener("click", function (e) {
+      if (e.target === this) hideDistMap();
+    });
     document.addEventListener("keydown", function (e) {
-      if (e.key === "Escape") hidePerfModal();
+      if (e.key === "Escape") { hidePerfModal(); hideDistMap(); }
     });
 
     document.getElementById("group-select").addEventListener("change", function () {
@@ -963,6 +1045,7 @@
         else if (act === "filter") applyNameFilter(menuName);
         else if (act === "wiki") openExternal(wikipediaUrl(menuSci || menuName));
         else if (act === "macaulay") openExternal(macaulayUrl(menuKey, menuSci || menuName));
+        else if (act === "distmap") showDistMap(menuName, menuSci || menuName);
         spMenu.style.display = "none";
       });
     });
