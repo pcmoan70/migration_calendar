@@ -274,56 +274,68 @@
 
   // ---- Distribution-map pop-up --------------------------------------------
   // Look up a range/distribution map image for a species on Wikipedia
-  // (English has the broadest range-map coverage). Returns { thumb, full,
-  // page } or null.
-  async function wikiRangeImage(sci) {
-    var base = "https://en.wikipedia.org/w/api.php?origin=*&format=json&redirects=1";
-    var r = await fetch(base + "&action=query&prop=images&imlimit=300&titles=" + encodeURIComponent(sci));
+  // (English has the broadest coverage). We fetch the rendered article and
+  // scan its <img> tags: range maps are usually named with "distribution",
+  // "range", "map", "ebird" or "IUCN", but some are just an SVG named after
+  // the species — so we also fuzzy-match the Latin and English names and
+  // treat a species-named SVG as a likely range map. Returns {thumb, full}.
+  function distMapName(s) {
+    if (!s) return [];
+    var l = s.toLowerCase();
+    return [l.replace(/[^a-z0-9]+/g, "_"), l.replace(/[^a-z0-9]+/g, "")].filter(function (x) { return x.length > 3; });
+  }
+  function distMapFile(src) {
+    try { return decodeURIComponent(src.split("?")[0].split("/").pop()).toLowerCase(); }
+    catch (e) { return src.toLowerCase(); }
+  }
+  async function wikiRangeImage(sci, en) {
+    var r = await fetch("https://en.wikipedia.org/w/api.php?origin=*&format=json&redirects=1&action=parse&prop=text&page=" + encodeURIComponent(sci));
     var j = await r.json();
-    var pages = j.query && j.query.pages;
-    if (!pages) return null;
-    var page = pages[Object.keys(pages)[0]];
-    if (!page || page.missing !== undefined || !page.images) return null;
-    var titles = page.images.map(function (x) { return x.title; })
-      .filter(function (t) { return /\.(png|svg|jpe?g)$/i.test(t); });
-    // Score candidates. Range-map files are often concatenated/camel-case
-    // ("ParusMajorMap.svg", "CyanistesCaeruleusDistribution.png", "… ebird
-    // data map.png"), so match on substrings and filter out site chrome/icons.
-    function score(t) {
-      var l = t.toLowerCase();
-      if (/logo|commons|ambox|icon|edit-|flag|wikis?ource|loudspeaker|speaker|sound|increase|decrease|steady|padlock|question|disambig|symbol/.test(l)) return -100;
+    var html = j.parse && j.parse.text && j.parse.text["*"];
+    if (!html) return null;
+    var nameTok = distMapName(sci).concat(distMapName(en));
+    var re = /<img\b[^>]*>/gi, m, best = null, bestScore = 0;
+    while ((m = re.exec(html))) {
+      var src = (m[0].match(/\bsrc="([^"]+)"/) || [])[1];
+      if (!src || !/\.(png|svg|jpe?g)/i.test(src)) continue;
+      var alt = (m[0].match(/\balt="([^"]*)"/) || [])[1] || "";
+      var fn = distMapFile(src);            // filename only (URL path always has /wikipedia/commons/)
+      var l = fn + " " + alt.toLowerCase();
+      // Site chrome / status & locator icons — never a range map.
+      if (/commons-logo|ambox|oojs|edit-ltr|status[_ ]?iucn|loudspeaker|symbol|poster|sound|question|padlock|pencil|magnify|increase|decrease|steady|gnome|crystal|wiki(media|pedia)/.test(l)) continue;
       var s = 0;
       if (l.indexOf("distribution") >= 0) s += 10;
       if (l.indexOf("range") >= 0) s += 6;
       if (l.indexOf("ebird") >= 0) s += 6;
       if (l.indexOf("occurrence") >= 0 || l.indexOf("occurence") >= 0) s += 6;
-      if (l.indexOf("map") >= 0) s += 3;
-      if (/locator|globe|blank/.test(l)) s -= 4;
-      return s;
+      if (l.indexOf("iucn") >= 0) s += 6;
+      if (/[_ \-]map[_.\-]|map\.(png|svg|jpe?g)/.test(l)) s += 4;
+      if (/locator|globe|blank/.test(l)) s -= 5;
+      var nameHit = nameTok.some(function (tk) { return fn.indexOf(tk) >= 0; });
+      if (nameHit) s += 3;
+      var mapish = /distribution|range|ebird|occurrence|occurence|iucn/.test(l) || /[_ \-]map[_.\-]|map\.(png|svg|jpe?g)/.test(l);
+      var svgName = /\.svg/.test(fn) && nameHit;   // species-named SVG → likely the range map
+      if ((mapish || svgName) && s > bestScore) { bestScore = s; best = src; }
     }
-    var cand = titles.filter(function (t) { return score(t) >= 3; })
-      .sort(function (a, b) { return score(b) - score(a); });
-    if (!cand.length) return null;
-    var file = cand[0];
-    var ir = await fetch(base + "&action=query&prop=imageinfo&iiprop=url&iiurlwidth=760&titles=" + encodeURIComponent(file));
-    var ij = await ir.json();
-    var ipages = ij.query && ij.query.pages;
-    var ipage = ipages && ipages[Object.keys(ipages)[0]];
-    var ii = ipage && ipage.imageinfo && ipage.imageinfo[0];
-    if (!ii) return null;
-    return { thumb: ii.thumburl || ii.url, full: ii.url };
+    if (!best) return null;
+    if (best.indexOf("//") === 0) best = "https:" + best;
+    var full = best.replace(/\/thumb\/(.+)\/[^\/]+$/, "/$1");   // un-thumbnail to full image
+    var thumb = best.replace(/\/\d+px-/, "/780px-");            // larger thumbnail
+    return { thumb: thumb, full: full };
   }
 
   function hideDistMap() { document.getElementById("distmap-modal").style.display = "none"; }
 
-  function showDistMap(name, sci) {
+  function showDistMap(name, sci, key) {
     var modal = document.getElementById("distmap-modal");
     var body = document.getElementById("distmap-body");
     document.getElementById("distmap-title").textContent = name;
     body.innerHTML = '<div class="spinner" style="margin:24px auto"></div>';
     modal.style.display = "flex";
+    var lbl = key && labelsByKey[key];
+    var en = (lbl && lbl.common) || name;   // English common name helps match filenames
     var token = ++distMapToken;
-    wikiRangeImage(sci).then(function (res) {
+    wikiRangeImage(sci, en).then(function (res) {
       if (token !== distMapToken) return;   // a newer request superseded this
       if (res) {
         body.innerHTML =
@@ -1045,7 +1057,7 @@
         else if (act === "filter") applyNameFilter(menuName);
         else if (act === "wiki") openExternal(wikipediaUrl(menuSci || menuName));
         else if (act === "macaulay") openExternal(macaulayUrl(menuKey, menuSci || menuName));
-        else if (act === "distmap") showDistMap(menuName, menuSci || menuName);
+        else if (act === "distmap") showDistMap(menuName, menuSci || menuName, menuKey);
         spMenu.style.display = "none";
       });
     });
