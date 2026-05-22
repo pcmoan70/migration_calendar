@@ -386,7 +386,12 @@
       var a = document.querySelector("#recent-body .recent-gbif");
       if (a) a.setAttribute("href", gbifHref());
     });
-    var api = "https://api.inaturalist.org/v1/observations?verifiable=true&order_by=observed_on&order=desc&per_page=25&taxon_name=" +
+    // Last 2 months, most recent first, up to 100. (GBIF lags ~1–2 years and
+    // can't sort by date, so the recent feed uses iNaturalist's live data.)
+    var to = new Date(), from = new Date(); from.setMonth(from.getMonth() - 2);
+    var fmtD = function (d) { return d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2); };
+    var api = "https://api.inaturalist.org/v1/observations?verifiable=true&order_by=observed_on&order=desc&per_page=100" +
+      "&d1=" + fmtD(from) + "&d2=" + fmtD(to) + "&taxon_name=" +
       encodeURIComponent(sci) + "&lat=" + lat.toFixed(4) + "&lng=" + lon.toFixed(4) + "&radius=100";
     fetch(api).then(function (r) { return r.json(); }).then(function (j) {
       if (token !== recentToken) return;
