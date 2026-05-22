@@ -977,3 +977,6 @@ table.chk-table .chk-text { min-width: 100px; }
 /* High-resolution factor row */
 .hires-row { display: flex; align-items: center; gap: 8px; height: 34px; }
 #hires-factor { height: 30px; padding: 0 6px; }
+
+/* "Last change" line in the footer */
+#last-change { padding: 0 16px 2px; font-size: 0.72rem; opacity: 0.6; }

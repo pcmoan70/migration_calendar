@@ -341,10 +341,6 @@
               '<option value="annualtop" data-i18n="compare.annualtop">Annual Top</option>' +
             '</select>' +
           '</div>' +
-          '<div class="ctrl-group" id="secondlang-wrap" style="display:none">' +
-            '<label for="secondlang-select" data-i18n="ctrl.secondlang">2nd name</label>' +
-            '<select id="secondlang-select"></select>' +
-          '</div>' +
           '<div class="ctrl-group" id="barchart-threshold-wrap" style="display:none">' +
             '<label data-i18n="ctrl.bcthreshold">Probability range</label>' +
             '<div id="prob-range">' +
@@ -416,6 +412,10 @@
               '</select>' +
             '</div>' +
           '</div>' +
+          '<div class="ctrl-group" id="secondlang-wrap" style="display:none">' +
+            '<label for="secondlang-select" data-i18n="ctrl.secondlang">2nd name</label>' +
+            '<select id="secondlang-select"></select>' +
+          '</div>' +
         '</div>' +
         '<div id="csv-btn-wrap" style="display:none">' +
           '<button id="csv-download-btn" class="demo-btn" data-i18n="btn.csv" title="Download CSV">\u2b07 CSV</button>' +
@@ -472,6 +472,7 @@
           '<div id="about-body"></div>' +
         '</details>' +
         '<div id="demo-footer" data-i18n="footer.attrib"></div>' +
+        '<div id="last-change"></div>' +
         '<div id="visit-counter"><img src="https://api.visitorbadge.io/api/visitors?path=https%3A%2F%2Fpcmoan70.github.io%2Fmigration_calendar&label=page%20visits&labelColor=%230f1b24&countColor=%232f6f4f" alt="page visits" /></div>' +
         '<div id="perf-modal" style="display:none"><div id="perf-modal-box">' +
           '<p data-i18n="popup.perf"></p>' +
@@ -499,6 +500,7 @@
       refreshHiddenUI();
       refreshChecklists();
       setStatus(t("status.selectSpecies"));
+      showLastChange();
       showPerfModal();
     } catch (e) {
       document.getElementById("demo-loading").innerHTML =
@@ -739,6 +741,19 @@
     document.getElementById("play-btn-wrap").style.display = isMap ? "" : "none";
     document.getElementById("hires-wrap").style.display = isMap ? "" : "none";
     relocateCsvButton();
+  }
+
+  // Show the "Last change" timestamp (written into last-change.txt by the
+  // pre-commit hook on every commit/push to main).
+  function showLastChange() {
+    var el = document.getElementById("last-change");
+    if (!el) return;
+    fetch("last-change.txt", { cache: "no-store" }).then(function (r) {
+      return r.ok ? r.text() : "";
+    }).then(function (txt) {
+      txt = (txt || "").trim();
+      if (txt) el.textContent = t("footer.lastchange", { t: txt });
+    }).catch(function () { /* offline — leave blank */ });
   }
 
   // One-time performance note shown over the page on load.

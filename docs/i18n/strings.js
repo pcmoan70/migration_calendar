@@ -165,6 +165,7 @@ window.GeoI18N = (function () {
       "loc.savePrompt": "Name this location:",
       "loc.defaultName": "{lat}, {lon}",
       "footer.attrib": "Model: BirdNET Geomodel (weights CC BY-SA 4.0). App code MIT. Predictions are estimates — not ground truth.",
+      "footer.lastchange": "Last change: {t}",
       "about.title": "ℹ︎ About the model & how values are computed",
       "about.html":
         "<h4>The habitat model</h4>" +
@@ -305,6 +306,7 @@ window.GeoI18N = (function () {
       "loc.savePrompt": "Namnge platsen:",
       "loc.defaultName": "{lat}, {lon}",
       "footer.attrib": "Modell: BirdNET Geomodel (vikter CC BY-SA 4.0). Appkod MIT. Förutsägelser är uppskattningar — inte sanning.",
+      "footer.lastchange": "Senaste ändring: {t}",
       "about.title": "ℹ︎ Om modellen & hur värdena beräknas",
       "about.html":
         "<h4>Habitatmodellen</h4>" +
