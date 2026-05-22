@@ -951,3 +951,25 @@ table.chk-table .chk-text { min-width: 100px; }
 /* High-resolution toggle */
 #hires-wrap .hires-label { display: flex; align-items: center; gap: 6px; height: 34px; font-weight: 600; font-size: 0.82rem; white-space: nowrap; cursor: pointer; }
 #hires-wrap input { width: 16px; height: 16px; }
+
+/* Performance note modal (shown on page load) */
+#perf-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 5000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  padding: 20px;
+}
+#perf-modal-box {
+  background: var(--md-default-bg-color, #fff);
+  color: var(--md-default-fg-color, #1c2526);
+  max-width: 460px;
+  padding: 22px 24px;
+  border-radius: 10px;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.4);
+  text-align: center;
+}
+#perf-modal-box p { margin: 0 0 18px; font-size: 0.95rem; line-height: 1.5; }

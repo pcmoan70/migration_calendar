@@ -467,6 +467,10 @@
         '</details>' +
         '<div id="demo-footer" data-i18n="footer.attrib"></div>' +
         '<div id="visit-counter"><img src="https://api.visitorbadge.io/api/visitors?path=https%3A%2F%2Fpcmoan70.github.io%2Fmigration_calendar&label=page%20visits&labelColor=%230f1b24&countColor=%232f6f4f" alt="page visits" /></div>' +
+        '<div id="perf-modal" style="display:none"><div id="perf-modal-box">' +
+          '<p data-i18n="popup.perf"></p>' +
+          '<button id="perf-modal-ok" class="demo-btn" data-i18n="popup.ok">OK</button>' +
+        '</div></div>' +
       '</div>';
 
     // Restore saved language before building the UI text.
@@ -489,6 +493,7 @@
       refreshHiddenUI();
       refreshChecklists();
       setStatus(t("status.selectSpecies"));
+      showPerfModal();
     } catch (e) {
       document.getElementById("demo-loading").innerHTML =
         '<span style="color:red">' + t("app.failed", { msg: e.message }) + '</span>';
@@ -730,6 +735,16 @@
     relocateCsvButton();
   }
 
+  // One-time performance note shown over the page on load.
+  function showPerfModal() {
+    var m = document.getElementById("perf-modal");
+    if (m) m.style.display = "flex";
+  }
+  function hidePerfModal() {
+    var m = document.getElementById("perf-modal");
+    if (m) m.style.display = "none";
+  }
+
   // In Species List mode the CSV button sits next to the "＋ Checklist" button;
   // in every other mode it lives directly below the map.
   function relocateCsvButton() {
@@ -781,6 +796,14 @@
       hiRes = this.checked;
       window.GeoState.save({ hiRes: hiRes });
       if (currentMode === "range" || currentMode === "richness") { clearOverlay(); triggerRender(); }
+    });
+
+    document.getElementById("perf-modal-ok").addEventListener("click", hidePerfModal);
+    document.getElementById("perf-modal").addEventListener("click", function (e) {
+      if (e.target === this) hidePerfModal();   // click outside the box
+    });
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") hidePerfModal();
     });
 
     document.getElementById("group-select").addEventListener("change", function () {
@@ -2105,7 +2128,8 @@
 
   // ---- Restore persisted control values ------------------------------------
   function restoreControls() {
-    currentMode = window.GeoState.get("mode", "range");
+    // Always start in Species List mode (overrides any saved mode).
+    currentMode = "list";
     document.getElementById("mode-select").value = currentMode;
 
     // Always start on the current week of the year (overrides any saved week).
