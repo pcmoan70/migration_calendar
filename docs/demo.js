@@ -372,7 +372,7 @@
     // GBIF link, filtered by location (a bounding box around the point) and —
     // once reverse-geocoded — country.
     var gbifBase = "https://www.gbif.org/occurrence/search?q=" + encodeURIComponent(sci) +
-      "&geometry=" + encodeURIComponent(gbifGeometry(lat, lon, 5));   // ~5 km radius
+      "&geometry=" + encodeURIComponent(gbifGeometry(lat, lon, 12.5));   // ~25 × 25 km box
     var countryParam = "";
     var gbifHref = function () { return gbifBase + countryParam; };
     var viewAll = function () {
