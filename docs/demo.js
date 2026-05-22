@@ -881,8 +881,11 @@
     var isRange = currentMode === "range";
     var isMap = currentMode === "range" || currentMode === "richness";
     document.getElementById("species-search-wrap").style.display = isRange ? "" : "none";
-    document.getElementById("compare-wrap").style.display = currentMode === "list" ? "" : "none";
-    document.getElementById("secondlang-wrap").style.display = currentMode === "list" ? "" : "none";
+    // Species List + Species Range both produce a per-point species list (which
+    // uses "Compare to" and the 2nd-name column), so show these in both.
+    var listish = currentMode === "list" || currentMode === "range";
+    document.getElementById("compare-wrap").style.display = listish ? "" : "none";
+    document.getElementById("secondlang-wrap").style.display = listish ? "" : "none";
     // The probability min–max slider applies to the Species List, the checklist
     // (derived from it) and the analysis tabs.
     document.getElementById("barchart-threshold-wrap").style.display = (currentMode === "range" || currentMode === "list" || currentMode === "barchart") ? "" : "none";
