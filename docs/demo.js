@@ -60,6 +60,7 @@
   // ---- Species-group filter (taxonomic class) ------------------------------
   // Groups present in the model: aves, mammalia, amphibia, insecta.
   var speciesGroup = "all";   // "all" or a class_name value
+  var hiRes = false;          // high-resolution grid (3× points per axis) for range/richness
   var labelClass = [];        // class_name per label index (built after load)
 
   function buildLabelClass() {
@@ -406,6 +407,9 @@
               '<option value="satellite" data-i18n="basemap.satellite">Satellite</option>' +
             '</select>' +
           '</div>' +
+          '<div class="ctrl-group" id="hires-wrap" style="display:none">' +
+            '<label class="hires-label"><input type="checkbox" id="hires-toggle" /> <span data-i18n="ctrl.hires">High resolution</span></label>' +
+          '</div>' +
         '</div>' +
         '<div id="csv-btn-wrap" style="display:none">' +
           '<button id="csv-download-btn" class="demo-btn" data-i18n="btn.csv" title="Download CSV">\u2b07 CSV</button>' +
@@ -722,6 +726,7 @@
     // "current week" used by the Probability / Arrivals / Scatter tabs).
     document.getElementById("week-select-wrap").style.display = "";
     document.getElementById("play-btn-wrap").style.display = isMap ? "" : "none";
+    document.getElementById("hires-wrap").style.display = isMap ? "" : "none";
     relocateCsvButton();
   }
 
@@ -770,6 +775,12 @@
 
     document.getElementById("basemap-select").addEventListener("change", function () {
       setBasemap(this.value);
+    });
+
+    document.getElementById("hires-toggle").addEventListener("change", function () {
+      hiRes = this.checked;
+      window.GeoState.save({ hiRes: hiRes });
+      if (currentMode === "range" || currentMode === "richness") { clearOverlay(); triggerRender(); }
     });
 
     document.getElementById("group-select").addEventListener("change", function () {
@@ -1020,18 +1031,18 @@
     if (overlayCanvas) { overlayCanvas.width = 0; overlayCanvas.height = 0; }
   }
 
-  // Renders the cell grid as a smooth heatmap: each cell becomes one texel in
-  // a small offscreen image, which is then drawn scaled to the viewport with
-  // bilinear smoothing so probabilities blend between cell centres instead of
-  // appearing as hard blocks.
+  // Renders the cell grid as a smooth heatmap. To avoid colour/alpha fringing
+  // (which image smoothing of an RGBA grid produces around the range edges),
+  // we bilinearly interpolate the PROBABILITY SCALAR — in both longitude
+  // (linear in screen-x) and latitude (non-linear in Web Mercator, so each row
+  // is mapped back to its latitude) — and only then colourise each pixel. The
+  // buffer is built at ~screen resolution so it is drawn essentially 1:1.
   function paintOverlay() {
     if (!cachedRender || !map) return;
     ensureOverlayCanvas();
 
     var g = cachedRender.grid, probs = cachedRender.probs;
     var size = map.getSize();
-    // Only resize when the map size actually changed — reallocating the canvas
-    // backing buffer every animation frame churns GPU/render memory needlessly.
     if (overlayCanvas.width !== size.x || overlayCanvas.height !== size.y) {
       overlayCanvas.width = size.x;
       overlayCanvas.height = size.y;
@@ -1040,46 +1051,53 @@
     var ctx = overlayCanvas.getContext("2d");
     ctx.clearRect(0, 0, size.x, size.y);
 
-    // Project the grid's geographic bounds to container pixels. Longitude maps
-    // linearly to x, but latitude is non-linear in Web Mercator, so a single
-    // linear stretch misaligns the overlay (worse when zoomed out). Build the
-    // buffer with rows sampled uniformly in SCREEN-Y: for each output row we
-    // map back to latitude and bilinearly interpolate between the two nearest
-    // cell-row centres — keeping the heatmap smooth AND map-aligned.
     var nw = map.latLngToContainerPoint([g.north, g.west]);
     var se = map.latLngToContainerPoint([g.south, g.east]);
     var destX = nw.x, destW = se.x - nw.x, destY = nw.y, destH = se.y - nw.y;
     if (destW <= 0 || destH <= 0) return;
 
-    var H = Math.max(2, Math.min(Math.round(destH), 600));   // vertical sample rows
+    // Output buffer at (capped) screen resolution.
+    var BW = Math.max(2, Math.min(Math.round(destW), 1100));
+    var BH = Math.max(2, Math.min(Math.round(destH), 760));
     if (!offscreenCanvas) offscreenCanvas = document.createElement("canvas");
-    offscreenCanvas.width = g.nLon;
-    offscreenCanvas.height = H;
+    offscreenCanvas.width = BW;
+    offscreenCanvas.height = BH;
     var octx = offscreenCanvas.getContext("2d");
-    var img = octx.createImageData(g.nLon, H);
+    var img = octx.createImageData(BW, BH);
     var data = img.data;
-    for (var oy = 0; oy < H; oy++) {
-      var sy = destY + (oy + 0.5) / H * destH;                 // screen y of this row
-      var lat = map.containerPointToLatLng([destX, sy]).lat;   // → latitude (Mercator-correct)
-      var rf = (g.north - lat) / g.step - 0.5;                 // fractional cell-row index
+
+    // Fractional cell-COLUMN index per output column (lon is linear in x).
+    var col0 = new Int32Array(BW), col1 = new Int32Array(BW), colFrac = new Float64Array(BW);
+    for (var ox = 0; ox < BW; ox++) {
+      var cf = (ox + 0.5) / BW * g.nLon - 0.5;
+      var c0 = Math.floor(cf);
+      colFrac[ox] = Math.max(0, Math.min(1, cf - c0));
+      col0[ox] = Math.max(0, Math.min(g.nLon - 1, c0));
+      col1[ox] = Math.max(0, Math.min(g.nLon - 1, c0 + 1));
+    }
+
+    for (var oy = 0; oy < BH; oy++) {
+      var sy = destY + (oy + 0.5) / BH * destH;
+      var lat = map.containerPointToLatLng([destX, sy]).lat;   // Mercator-correct latitude
+      var rf = (g.north - lat) / g.step - 0.5;
       var r0 = Math.floor(rf), fr = Math.max(0, Math.min(1, rf - r0));
       r0 = Math.max(0, Math.min(g.nLat - 1, r0));
       var r1 = Math.max(0, Math.min(g.nLat - 1, r0 + 1));
-      var base0 = r0 * g.nLon, base1 = r1 * g.nLon, rowOff = oy * g.nLon * 4;
-      for (var ox = 0; ox < g.nLon; ox++) {
-        var p = probs[base0 + ox] + (probs[base1 + ox] - probs[base0 + ox]) * fr;
-        var c = colormapLookup(p);
-        var o = rowOff + ox * 4;
-        data[o] = c[0]; data[o + 1] = c[1]; data[o + 2] = c[2];
+      var base0 = r0 * g.nLon, base1 = r1 * g.nLon, rowOff = oy * BW * 4;
+      for (var ox2 = 0; ox2 < BW; ox2++) {
+        var a = col0[ox2], b = col1[ox2], fc = colFrac[ox2];
+        // bilinear on the scalar probability
+        var top = probs[base0 + a] + (probs[base0 + b] - probs[base0 + a]) * fc;
+        var bot = probs[base1 + a] + (probs[base1 + b] - probs[base1 + a]) * fc;
+        var p = top + (bot - top) * fr;
+        var col = colormapLookup(p);
+        var o = rowOff + ox2 * 4;
+        data[o] = col[0]; data[o + 1] = col[1]; data[o + 2] = col[2];
         data[o + 3] = p >= 0.01 ? Math.round(Math.min(1, 0.25 + p * 0.75) * 255) : 0;
       }
     }
     octx.putImageData(img, 0, 0);
-
-    // Texel centres align with cell centres: column ox centre (ox+0.5)/nLon maps
-    // to nw.x + (ox+0.5)/nLon·destW (lon linear); rows are already screen-uniform.
     ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = "high";
     ctx.drawImage(offscreenCanvas, destX, destY, destW, destH);
   }
 
@@ -1092,7 +1110,8 @@
     else { west = wrapLon(west); east = wrapLon(east); if (east <= west) east += 360; }
     if (north - south < 0.1) north = south + 0.1;
     if (east - west < 0.1) east = west + 0.1;
-    var step = ZOOM_STEP[map.getZoom()] || 3;
+    // High-resolution mode triples the points per axis (1/3 the cell size).
+    var step = (ZOOM_STEP[map.getZoom()] || 3) / (hiRes ? 3 : 1);
     south = Math.max(Math.floor(south / step) * step, -90);
     north = Math.min(Math.ceil(north / step) * step, 90);
     west = Math.floor(west / step) * step;
@@ -1196,7 +1215,7 @@
       var nr = normalizeProbs(buildViewportArray(getCellMap(cacheKey(key, selectedWeek), g.step), g));
       cachedRender = { grid: g, probs: nr.probs, maxProb: nr.maxProb };
       paintOverlay();
-      setStatus(t("status.rangeCached", { name: name, week: weekText(selectedWeek), n: totalPoints.toLocaleString(), step: g.step }));
+      setStatus(t("status.rangeCached", { name: name, week: weekText(selectedWeek), n: totalPoints.toLocaleString(), step: (Math.round(g.step * 100) / 100) }));
       updateLegend();
       updateMapCsv();
       return;
@@ -1235,7 +1254,7 @@
       var nrF = normalizeProbs(buildViewportArray(getCellMap(cacheKey(key, selectedWeek), g.step), g));
       cachedRender = { grid: g, probs: nrF.probs, maxProb: nrF.maxProb };
       paintOverlay();
-      setStatus(t("status.rangeDone", { name: name, week: weekText(selectedWeek), n: totalPoints.toLocaleString(), step: g.step }));
+      setStatus(t("status.rangeDone", { name: name, week: weekText(selectedWeek), n: totalPoints.toLocaleString(), step: (Math.round(g.step * 100) / 100) }));
       updateLegend();
       updateMapCsv();
     } catch (e) { setStatus(t("status.error", { msg: e.message })); console.error(e); }
@@ -1255,7 +1274,7 @@
         for (var i = 0; i < raw.length; i++) if (raw[i] > maxVal) maxVal = raw[i];
         cachedRender = { grid: g, probs: perceptualNorm(raw, maxVal), maxVal: maxVal, product: "richness" };
         paintOverlay();
-        setStatus(t("status.richnessCached", { week: weekText(week), n: g.nLat * g.nLon, step: g.step }));
+        setStatus(t("status.richnessCached", { week: weekText(week), n: g.nLat * g.nLon, step: (Math.round(g.step * 100) / 100) }));
         updateLegend();
         updateMapCsv();
       } else { renderRichness(); }
@@ -1269,7 +1288,7 @@
       var nr = normalizeProbs(buildViewportArray(cm2, g));
       cachedRender = { grid: g, probs: nr.probs, maxProb: nr.maxProb };
       paintOverlay();
-      setStatus(t("status.rangeCached", { name: speciesName(labelsByKey[key]), week: weekText(week), n: g.nLat * g.nLon, step: g.step }));
+      setStatus(t("status.rangeCached", { name: speciesName(labelsByKey[key]), week: weekText(week), n: g.nLat * g.nLon, step: (Math.round(g.step * 100) / 100) }));
       updateLegend();
       updateMapCsv();
     } else { renderRangeMap(); }
@@ -1299,7 +1318,7 @@
       for (var i = 0; i < raw.length; i++) if (raw[i] > maxVal) maxVal = raw[i];
       cachedRender = { grid: g, probs: perceptualNorm(raw, maxVal), maxVal: maxVal, product: "richness" };
       paintOverlay();
-      setStatus(t("status.richnessCached", { week: weekText(selectedWeek), n: totalPoints.toLocaleString(), step: g.step }));
+      setStatus(t("status.richnessCached", { week: weekText(selectedWeek), n: totalPoints.toLocaleString(), step: (Math.round(g.step * 100) / 100) }));
       updateLegend();
       updateMapCsv();
       return;
@@ -1345,7 +1364,7 @@
       for (var n = 0; n < rawF.length; n++) if (rawF[n] > maxF) maxF = rawF[n];
       cachedRender = { grid: g, probs: perceptualNorm(rawF, maxF), maxVal: maxF, product: "richness" };
       paintOverlay();
-      setStatus(t("status.richnessDone", { week: weekText(selectedWeek), n: totalPoints.toLocaleString(), step: g.step }));
+      setStatus(t("status.richnessDone", { week: weekText(selectedWeek), n: totalPoints.toLocaleString(), step: (Math.round(g.step * 100) / 100) }));
       updateLegend();
       updateMapCsv();
     } catch (e) { setStatus(t("status.error", { msg: e.message })); console.error(e); }
@@ -2102,6 +2121,9 @@
 
     speciesGroup = window.GeoState.get("group", "all");
     document.getElementById("group-select").value = speciesGroup;
+
+    hiRes = !!window.GeoState.get("hiRes", false);
+    document.getElementById("hires-toggle").checked = hiRes;
 
     // Always start with the full probability range 5%–100% on load.
     document.getElementById("prob-min").value = 5;
