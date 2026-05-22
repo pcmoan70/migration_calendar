@@ -109,13 +109,8 @@ window.GeoAnalysis = (function () {
       }
     });
 
-    // Sort: prob by current-week probability; arrivals by the strongest arrival
-    // across prev/current/next week; focus by the current-week focus value.
-    if (isArrival) {
-      rows.forEach(function (r) {
-        r.sortKey = Math.max(r.series[wkIdx], r.series[(wkIdx + 47) % 48], r.series[(wkIdx + 1) % 48]);
-      });
-    } else if (isFocus) {
+    // Sort every heatmap by the current-week value, largest first.
+    if (isArrival || isFocus) {
       rows.forEach(function (r) { r.sortKey = r.series[wkIdx]; });
     } else {
       rows.forEach(function (r) { r.sortKey = r.curProb; });

@@ -924,3 +924,11 @@ table.chk-table .chk-text { min-width: 100px; }
 
 /* CSV download button relocated below the map */
 #csv-btn-wrap { margin: 0 0 12px; }
+
+/* Species List comparison column rendered as a probability-style bar */
+.cmp-bar-cell { min-width: 90px; }
+.cmp-bar-cell .cmp-num { font-variant-numeric: tabular-nums; font-size: 0.82rem; }
+.cmp-bar-cell .cmp-bar { height: 6px; border-radius: 3px; background: var(--md-accent-fg-color, #2f6f4f); margin-top: 2px; }
+
+/* Timeline: highlight the current-week bar */
+.bc-bar.bc-cur { background: #d32f2f !important; opacity: 1 !important; }

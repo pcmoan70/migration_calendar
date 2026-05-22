@@ -187,6 +187,13 @@
     return t("week.fmt", { w: w, period: period[pi], month: months[mi] || months[11] });
   }
 
+  // Current BirdNET week (1–48) for today's date.
+  function weekOfToday() {
+    var now = new Date();
+    var dayOfYear = Math.floor((now - new Date(now.getFullYear(), 0, 1)) / 86400000) + 1;
+    return Math.max(1, Math.min(48, Math.floor((dayOfYear - 1) / 365 * 48) + 1));
+  }
+
   // ---- State ---------------------------------------------------------------
   var worker = null;
   var inferenceId = 0;
@@ -1419,6 +1426,17 @@
     return '<td class="ratio-cell" style="background:' + bg + '">' + Math.round(n) + "</td>";
   }
 
+  // Species List comparison cell as a probability-style bar (used when every
+  // value in the column is positive). pct scaled by kind: focus is already
+  // 0–100; ratio/delta are fractions → ×100.
+  function cmpBarCell(kind, v) {
+    var pct = Math.max(0, Math.min(100, kind === "focus" ? v : v * 100));
+    var label = kind === "focus" ? String(Math.round(v))
+      : kind === "ratio" ? (v * 100).toFixed(0) + "%"
+      : (v * 100).toFixed(1) + "%";
+    return '<td class="cmp-bar-cell"><span class="cmp-num">' + label + '</span><div class="cmp-bar" style="width:' + pct.toFixed(1) + '%"></div></td>';
+  }
+
   // Reverse-geocoded place names for the coords line, cached per location.
   var placeCache = {};
   function placeKey(lat, lon) { return lat.toFixed(3) + "," + lon.toFixed(3); }
@@ -1463,6 +1481,10 @@
         }
       }
       results.sort(function (a, b) { return b.prob - a.prob; });
+      // When every comparison value is positive, show it as a probability-style
+      // bar; otherwise (e.g. week-over-week change) show the value with
+      // negatives in red.
+      var cmpAllPositive = hasCompare && results.every(function (r) { return r.cmpVal >= 0; });
 
       document.getElementById("sp-delta-head").textContent =
         !hasCompare ? "" : kind === "focus" ? cmp.refLabel : t(kind === "ratio" ? "th.ratio" : "th.delta", { ref: cmp.refLabel });
@@ -1473,7 +1495,7 @@
       setCoordsWithPlace(document.getElementById("sp-coords"), lat, lon,
         t("sp.summary", { lat: lat.toFixed(4), lon: lon.toFixed(4), week: week, n: results.length, p: (pmin * 100).toFixed(0) }));
       document.getElementById("sp-tbody").innerHTML = results.map(function (r, idx) {
-        var cmpCell = !hasCompare ? "<td></td>" : kind === "ratio" ? ratioCell(r.cmpVal) : kind === "focus" ? focusCell(r.cmpVal) : deltaCell(r.cmpVal);
+        var cmpCell = !hasCompare ? "<td></td>" : cmpAllPositive ? cmpBarCell(kind, r.cmpVal) : deltaCell(r.cmpVal);
         var name2Cell = '<td class="name2">' + (secondLang ? escapeHtml(secondName(r.label)) : "") + '</td>';
         return '<tr><td>' + (idx + 1) + '</td><td>' + nameLinkHtml(r.label) + '</td>' + name2Cell + '<td style="font-style:italic">' +
                escapeHtml(r.label.sci) + '</td><td>' + (r.prob * 100).toFixed(1) + '%</td><td class="prob-bar-cell"><div class="prob-bar" style="width:' +
@@ -1685,12 +1707,14 @@
 
   // Timeline tab: per-species 48-week phenology bars (sorted by annual mean).
   function renderTimelineTab(container, ctx) {
+    var wkIdx = ctx.week - 1;
     var rows = window.GeoAnalysis.visibleSpecies(ctx);
     rows.forEach(function (r) {
       var sum = 0; for (var w = 0; w < 48; w++) sum += r.probs[w];
       r.avg = sum / 48;
     });
-    rows.sort(function (a, b) { return b.avg - a.avg; });
+    // Sort by current-week probability (largest first).
+    rows.sort(function (a, b) { return b.probs[wkIdx] - a.probs[wkIdx]; });
 
     var globalMax = 0;
     rows.forEach(function (r) { for (var w = 0; w < 48; w++) if (r.probs[w] > globalMax) globalMax = r.probs[w]; });
@@ -1713,7 +1737,8 @@
         var pct = (prob / globalMax) * 100;
         var opacity = Math.max(0.15, prob / globalMax);
         var monthClass = (w3 % 4 === 0) ? " bc-month-start" : "";
-        html += '<div class="bc-bar' + monthClass + '" style="height:' + pct.toFixed(1) + '%;opacity:' + opacity.toFixed(2) + '" title="' + (w3 + 1) + ": " + (prob * 100).toFixed(1) + '%"></div>';
+        var curClass = (w3 === wkIdx) ? " bc-cur" : "";
+        html += '<div class="bc-bar' + monthClass + curClass + '" style="height:' + pct.toFixed(1) + '%;opacity:' + opacity.toFixed(2) + '" title="' + (w3 + 1) + ": " + (prob * 100).toFixed(1) + '%"></div>';
       }
       html += '</div><div class="bc-months">';
       for (var m = 0; m < 12; m++) html += "<span>" + escapeHtml(MONTH_LABELS[m]) + "</span>";
@@ -2062,8 +2087,8 @@
     currentMode = window.GeoState.get("mode", "range");
     document.getElementById("mode-select").value = currentMode;
 
-    var week = window.GeoState.get("week", null);
-    if (week) document.getElementById("week-select").value = week;
+    // Always start on the current week of the year (overrides any saved week).
+    document.getElementById("week-select").value = weekOfToday();
 
     var cmp = window.GeoState.get("compare", null);
     if (cmp !== null) document.getElementById("compare-select").value = cmp;
