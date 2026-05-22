@@ -330,17 +330,6 @@
           '<div class="ctrl-group ctrl-group-btn" id="play-btn-wrap">' +
             '<button id="play-btn" class="demo-btn" data-i18n="btn.play">\u25b6 Play migration</button>' +
           '</div>' +
-          '<div class="ctrl-group" id="compare-wrap" style="display:none">' +
-            '<label for="compare-select" data-i18n="ctrl.compare">Compare to</label>' +
-            '<select id="compare-select">' +
-              '<option value="" data-i18n="compare.none">\u2014 none \u2014</option>' +
-              '<option value="prev" selected data-i18n="compare.prev">Previous week</option>' +
-              '<option value="next" data-i18n="compare.next">Next week</option>' +
-              '<option value="mean" data-i18n="compare.mean">Annual mean</option>' +
-              '<option value="annualmax" data-i18n="compare.max">Annual max</option>' +
-              '<option value="annualtop" data-i18n="compare.annualtop">Annual Top</option>' +
-            '</select>' +
-          '</div>' +
           '<div class="ctrl-group" id="savedloc-wrap">' +
             '<label data-i18n="ctrl.savedloc">Saved locations</label>' +
             '<button type="button" id="savedloc-toggle" class="dd-toggle"><span id="savedloc-btn-text"></span><span class="dd-caret" aria-hidden="true">▾</span></button>' +
@@ -406,6 +395,17 @@
           '<div class="ctrl-group" id="secondlang-wrap" style="display:none">' +
             '<label for="secondlang-select" data-i18n="ctrl.secondlang">2nd name</label>' +
             '<select id="secondlang-select"></select>' +
+          '</div>' +
+          '<div class="ctrl-group" id="compare-wrap" style="display:none">' +
+            '<label for="compare-select" data-i18n="ctrl.compare">Compare to</label>' +
+            '<select id="compare-select">' +
+              '<option value="" data-i18n="compare.none">— none —</option>' +
+              '<option value="prev" selected data-i18n="compare.prev">Previous week</option>' +
+              '<option value="next" data-i18n="compare.next">Next week</option>' +
+              '<option value="mean" data-i18n="compare.mean">Annual mean</option>' +
+              '<option value="annualmax" data-i18n="compare.max">Annual max</option>' +
+              '<option value="annualtop" data-i18n="compare.annualtop">Annual Top</option>' +
+            '</select>' +
           '</div>' +
           '<div class="ctrl-group" id="barchart-threshold-wrap" style="display:none">' +
             '<label data-i18n="ctrl.bcthreshold">Probability range</label>' +
