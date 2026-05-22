@@ -980,3 +980,10 @@ table.chk-table .chk-text { min-width: 100px; }
 
 /* "Last change" line in the footer */
 #last-change { padding: 0 16px 2px; font-size: 0.72rem; opacity: 0.6; }
+
+/* Checklist disclaimer note (also printed at the bottom of the PDF) */
+.chk-note { margin: 14px 0 4px; font-size: 0.78rem; line-height: 1.45; color: var(--md-default-fg-color--light, #666); }
+.chk-note a { color: inherit; }
+@media print {
+  .chk-note { color: #000; margin-top: 18px; border-top: 1px solid #999; padding-top: 8px; }
+}

@@ -2068,6 +2068,7 @@
         '<td><input type="text" class="chk-text" data-idx="' + idx + '" data-field="notes" value="' + escapeHtml(it.notes || "") + '"></td></tr>';
     });
     html += "</tbody></table>";
+    html += '<p class="chk-note">' + t("chk.note") + "</p>";
     body.innerHTML = html;
     body.querySelectorAll(".chk-box").forEach(function (cb) {
       cb.addEventListener("change", function () {
