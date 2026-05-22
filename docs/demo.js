@@ -576,6 +576,7 @@
         '<div id="sp-menu" style="display:none">' +
           '<button type="button" class="sp-menu-item" data-act="distmap" data-i18n="menu.distmap">Distribution map</button>' +
           '<button type="button" class="sp-menu-item" data-act="wiki" data-i18n="menu.wiki">Wikipedia</button>' +
+          '<button type="button" class="sp-menu-item" data-act="birdlife" data-i18n="menu.birdlife">BirdLife</button>' +
           '<button type="button" class="sp-menu-item" data-act="macaulay" data-i18n="menu.macaulay">Macaulay Library</button>' +
           '<button type="button" class="sp-menu-item" data-act="filter" data-i18n="menu.filter">Filter</button>' +
           '<button type="button" class="sp-menu-item" data-act="hide" data-i18n="menu.hide">Do not show</button>' +
@@ -1069,6 +1070,9 @@
         menuKey = link.getAttribute("data-key");
         menuName = link.getAttribute("data-name");
         menuSci = link.getAttribute("data-sci") || "";
+        // BirdLife DataZone covers birds only — hide the item for other groups.
+        var blBtn = spMenu.querySelector('[data-act="birdlife"]');
+        if (blBtn) blBtn.style.display = isBirdKey(menuKey) ? "" : "none";
         spMenu.style.left = e.pageX + "px";
         spMenu.style.top = e.pageY + "px";
         spMenu.style.display = "block";
@@ -1084,6 +1088,7 @@
         if (act === "hide") hideSpecies(menuKey);
         else if (act === "filter") applyNameFilter(menuName);
         else if (act === "wiki") openExternal(wikipediaUrl(menuSci || menuName));
+        else if (act === "birdlife") openExternal(birdlifeUrl((labelsByKey[menuKey] && labelsByKey[menuKey].common) || menuName, menuSci || menuName));
         else if (act === "macaulay") openExternal(macaulayUrl(menuKey, menuSci || menuName));
         else if (act === "distmap") showDistMap(menuName, menuSci || menuName, menuKey);
         spMenu.style.display = "none";
