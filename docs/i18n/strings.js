@@ -53,10 +53,22 @@ window.GeoI18N = (function () {
   var MONTHS = {
     en: ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"],
     sv: ["jan","feb","mar","apr","maj","jun","jul","aug","sep","okt","nov","dec"],
+    de: ["Jan","Feb","Mär","Apr","Mai","Jun","Jul","Aug","Sep","Okt","Nov","Dez"],
+    es: ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"],
+    fr: ["janv.","févr.","mars","avr.","mai","juin","juil.","août","sept.","oct.","nov.","déc."],
+    nl: ["jan","feb","mrt","apr","mei","jun","jul","aug","sep","okt","nov","dec"],
+    no: ["jan.","feb.","mars","apr.","mai","juni","juli","aug.","sep.","okt.","nov.","des."],
+    it: ["gen","feb","mar","apr","mag","giu","lug","ago","set","ott","nov","dic"],
   };
   var PERIODS = {
     en: ["early", "mid", "late", "late"],
     sv: ["början av", "mitten av", "slutet av", "slutet av"],
+    de: ["Anfang", "Mitte", "Ende", "Ende"],
+    es: ["principios de", "mediados de", "finales de", "finales de"],
+    fr: ["début", "mi-", "fin", "fin"],
+    nl: ["begin", "half", "eind", "eind"],
+    no: ["begynnelsen av", "midten av", "slutten av", "slutten av"],
+    it: ["inizio", "metà", "fine", "fine"],
   };
 
   // {key} placeholders are filled by GeoI18N.t(key, vars).
@@ -345,46 +357,396 @@ window.GeoI18N = (function () {
         "<p>Det här verktyget är gratis att använda, och återkoppling välkomnas till <a href=\"mailto:vesmir09@gmail.com\">vesmir09@gmail.com</a>. En Norge-specifik habitatmodell är under utveckling och syftar till att använda rikare norska data än de Google Earth Engine-data som används i den nuvarande modellen. Målet med habitatmodellen är en förbättrad app för fågelsångsigenkänning (A!Birder) (under utveckling). Den här sidan är gjord för enkel kvalitetskontroll av den modellen.</p>" +
         "<p class=\"about-note\">Förutsägelser är modelluppskattningar, inte sanning. Modellvikter © BirdNET-teamet, licens CC BY-SA 4.0; kartrutor © OpenStreetMap-bidragsgivare, © CARTO.</p>",
     },
-    no: {
-      // Norwegian: documentation is fully translated; other UI strings fall
-      // back to English (per-key) until a full Norwegian UI is added.
-      "about.title": "ℹ︎ Om modellen og hvordan verdiene beregnes",
+    de: {
+      "app.title": "Explorer für Artverbreitung & Wanderung",
+      "app.loading": "Lade Modell, Bezeichnungen & Artnamen…",
+      "app.failed": "Laden fehlgeschlagen: {msg}",
+      "ctrl.language": "Sprache",
+      "ctrl.mode": "Modus",
+      "ctrl.group": "Artengruppe",
+      "group.all": "Alle Gruppen",
+      "group.aves": "Vögel",
+      "group.mammalia": "Säugetiere",
+      "group.amphibia": "Amphibien",
+      "group.insecta": "Insekten",
+      "mode.range": "Artverbreitung",
+      "mode.richness": "Artenreichtum",
+      "mode.list": "Artenliste (auf Karte klicken)",
+      "mode.barchart": "Wanderungsverlauf (auf Karte klicken)",
+      "ctrl.species": "Art",
+      "ph.species": "Art suchen…",
+      "ctrl.week": "Woche",
+      "ctrl.bcthreshold": "Wahrscheinlichkeitsbereich",
+      "ctrl.compare": "Vergleichen mit",
+      "compare.none": "— keine —",
+      "compare.prev": "Vorherige Woche",
+      "compare.next": "Nächste Woche",
+      "compare.mean": "Jahresmittel",
+      "compare.max": "Jahresmaximum",
+      "compare.annualtop": "Jahreshoch",
+      "ctrl.secondlang": "Zweitname",
+      "ctrl.savedloc": "Gespeicherte Orte",
+      "ph.savedloc": "Noch keine gespeicherten Orte",
+      "loc.delete": "Ort löschen",
+      "ctrl.hidden": "Ausgeblendete Arten",
+      "loc.unhide": "Wieder anzeigen",
+      "menu.filter": "Filtern",
+      "menu.hide": "Nicht anzeigen",
+      "menu.wiki": "Wikipedia",
+      "menu.macaulay": "Macaulay Library",
+      "btn.saveloc": "★ Speichern",
+      "btn.csv": "⬇ CSV",
+      "btn.play": "▶ Wanderung abspielen",
+      "btn.pause": "⏸ Pause",
+      "btn.newchecklist": "＋ Checkliste",
+      "btn.print": "🖨 Drucken",
+      "btn.close": "Schließen",
+      "btn.delete": "Löschen",
+      "ctrl.checklists": "Checklisten",
+      "chk.namePrompt": "Diese Checkliste benennen:",
+      "chk.note": "Hinweis: Die Wahrscheinlichkeiten und sonstigen Werte in dieser Checkliste stammen aus einem KI-Modell und stellen nur eine Schätzung der an diesem Ort wahrscheinlich vorkommenden Arten dar — es handelt sich nicht um bestätigte Beobachtungen. Für eine maßgebliche Artenreferenz siehe <a href=\"https://www.avilist.org\">avilist.org</a>.",
+      "status.buildingChecklist": "Checkliste wird erstellt…",
+      "th.change": "Änderung (Δ)",
+      "th.locality": "Fundort",
+      "th.notes": "Notizen",
+      "panel.spTitle": "Arten am Standort",
+      "panel.bcTitle": "Standortanalyse",
+      "tab.timeline": "Zeitverlauf",
+      "tab.prob": "Wahrscheinlichkeit",
+      "tab.arrival": "Ankünfte",
+      "tab.focus": "Jahreshoch",
+      "tab.scatter": "Streudiagramm",
+      "analysis.empty": "Keine Arten über dem Schwellenwert.",
+      "ctrl.filter": "Arten filtern",
+      "ph.filter": "Arten filtern…",
+      "ctrl.topN": "Top N",
+      "ctrl.rankby": "Ordnen nach",
+      "rank.arrival": "Ankünfte",
+      "rank.prob": "Wahrscheinlichkeit",
+      "rank.both": "Beide",
+      "ctrl.basemap": "Hintergrundkarte",
+      "ctrl.hires": "Hohe Auflösung",
+      "popup.perf": "Artverbreitung, Artenreichtum und ▶ Wanderung abspielen werten das Modell über viele Kartenzellen aus; für flüssige Leistung wird daher ein moderner Computer mit schneller CPU empfohlen.",
+      "popup.ok": "OK",
+      "basemap.dark": "Dunkel",
+      "basemap.light": "Hell",
+      "basemap.streets": "Straßen",
+      "basemap.topo": "Topografisch",
+      "basemap.satellite": "Satellit",
+      "scatter.xAxis": "Ankunft (aktuelle Woche)",
+      "scatter.yAxis": "Wahrscheinlichkeit (aktuelle Woche)",
+      "th.rank": "#",
+      "th.species": "Art",
+      "th.sci": "Wissenschaftlicher Name",
+      "th.prob": "Wahrscheinlichkeit",
+      "th.arrival": "Ankunft",
+      "th.delta": "Δ ggü. {ref}",
+      "th.ratio": "% von {ref}",
+      "legend.prob": "Vorkommenswahrscheinlichkeit",
+      "legend.count": "Vorhergesagte Artenzahl",
+      "status.selectSpecies": "Wählen Sie eine Art, um ihre vorhergesagte Verbreitungskarte zu sehen.",
+      "status.loadingModel": "Lade ONNX-Modell…",
+      "status.computing": "Berechne {name} – {week} · {n} neue Zellen [{i}/{total}]…",
+      "status.rangeDone": "{name} – {week} · {n} Zellen ({step}°)",
+      "status.rangeCached": "{name} – {week} · {n} Zellen ({step}°) [zwischengespeichert]",
+      "status.richnessDone": "Artenreichtum – {week} · {n} Zellen ({step}°)",
+      "status.richnessCached": "Artenreichtum – {week} · {n} Zellen ({step}°) [zwischengespeichert]",
+      "status.predicting": "Sage Arten bei ({lat}, {lon}) für Woche {week} voraus…",
+      "status.predicting48": "Sage 48 Wochen bei ({lat}, {lon}) voraus…",
+      "status.spResult": "{n} Arten über {p}% bei ({lat}, {lon})",
+      "status.error": "Fehler: {msg}",
+      "sp.summary": "{lat}°, {lon}° · Woche {week} · {n} Arten über {p}%",
+      "bc.summary": "{lat}°, {lon}° · {n} Arten über {p}% Mittel · normiert auf {max}%",
+      "bc.avg": "{p}% Mittel",
+      "week.fmt": "Woche {w} ({period} {month})",
+      "loc.savePrompt": "Diesen Ort benennen:",
+      "loc.defaultName": "{lat}, {lon}",
+      "footer.attrib": "Modell: BirdNET Geomodel (Gewichte CC BY-SA 4.0). App-Code MIT. Vorhersagen sind Schätzungen — keine gesicherte Wahrheit.",
+      "footer.lastchange": "Letzte Änderung: {t}",
+      "about.title": "ℹ︎ Über das Modell & wie die Werte berechnet werden",
       "about.html":
-        "<h4>Habitatmodellen</h4>" +
-        "<p>Dette verktøyet kjører <a href=\"https://github.com/birdnet-team/geomodel\" target=\"_blank\" rel=\"noopener\">BirdNET Geomodel</a> — et spatiotemporalt nevralt nettverk — helt i nettleseren din via ONNX Runtime Web. Ut fra <b>breddegrad</b>, <b>lengdegrad</b> og <b>uke i året</b> (1–48; modellen deler året i 48 uker på omtrent 7,6 dager) forutsier den en <b>forekomstsannsynlighet</b> (0–100%) for hver av 12 012 arter blant fugler, pattedyr, amfibier og insekter. Sannsynligheten gjenspeiler hvor sannsynlig det er at arten finnes der på den tiden av året, lært fra globale funndata og miljøvariabler. Det er et modellert estimat — ikke et observasjonsantall eller en garanti.</p>" +
-        "<h4>Kartvisninger</h4>" +
+        "<h4>Das Habitatmodell</h4>" +
+        "<p>Dieses Werkzeug führt das <a href=\"https://github.com/birdnet-team/geomodel\" target=\"_blank\" rel=\"noopener\">BirdNET Geomodel</a> — ein raumzeitliches neuronales Netz — vollständig in Ihrem Browser über ONNX Runtime Web aus. Aus <b>Breitengrad</b>, <b>Längengrad</b> und <b>Woche des Jahres</b> (1–48; das Modell teilt das Jahr in 48 Wochen von etwa 7,6 Tagen) sagt es eine <b>Vorkommenswahrscheinlichkeit</b> (0–100 %) für jede der 12.012 Arten unter Vögeln, Säugetieren, Amphibien und Insekten voraus. Die Wahrscheinlichkeit spiegelt wider, wie wahrscheinlich eine Art dort zu dieser Jahreszeit vorkommt, gelernt aus globalen Fundmeldungen und Umweltvariablen. Es ist eine modellierte Schätzung — keine Beobachtungszählung und keine Garantie.</p>" +
+        "<h4>Kartenansichten</h4>" +
         "<ul>" +
-        "<li><b>Artsutbredelse</b> — sannsynligheten for én valgt art over kartet for valgt uke.</li>" +
-        "<li><b>Artsrikdom</b> — antall arter med sannsynlighet på minst 5% i hver rutecelle, begrenset til valgt artsgruppe. ▶ Spill av migrasjon animerer kartet uke for uke.</li>" +
+        "<li><b>Artverbreitung</b> — die Wahrscheinlichkeit einer ausgewählten Art auf der Karte für die gewählte Woche.</li>" +
+        "<li><b>Artenreichtum</b> — die Anzahl der Arten mit einer Wahrscheinlichkeit von mindestens 5 % in jeder Rasterzelle, begrenzt auf die gewählte Artengruppe. ▶ Wanderung abspielen animiert die Karte Woche für Woche.</li>" +
         "</ul>" +
-        "<p>Kartet beregnes på et rutenett (3° bredt utzoomet, ned til 0,25° innzoomet) og tegnes med bilineær glatting, slik at fargene tones mellom cellesentre i stedet for å danne harde blokker. <b>Merk:</b> Artsutbredelse, Artsrikdom og ▶ Spill av migrasjon kjører modellen over mange kartceller, så en moderne datamaskin med en rask prosessor (CPU) anbefales for jevn ytelse.</p>" +
-        "<h4>Stedsanalyse (klikk på kartet)</h4>" +
+        "<p>Die Karte wird auf einem Zellraster berechnet (3° herausgezoomt, bis 0,25° herangezoomt) und mit bilinearer Glättung gezeichnet, sodass die Farben zwischen den Zellzentren ineinander übergehen, statt harte Blöcke zu bilden. <b>Hinweis:</b> Artverbreitung, Artenreichtum und ▶ Wanderung abspielen werten das Modell über viele Kartenzellen aus; für flüssige Leistung wird ein moderner Computer mit schneller CPU (Prozessor) empfohlen.</p>" +
+        "<h4>Standortanalyse (auf die Karte klicken)</h4>" +
         "<ul>" +
-        "<li><b>Tidslinje</b> — hver arts sannsynlighet over alle 48 ukene.</li>" +
-        "<li><b>Sannsynlighet</b> — et varmekart art × uke (rødt = lavt, grønt = høyt), skalert etter verdiene på skjermen.</li>" +
-        "<li><b>Ankomster</b> — for hver art og uke en ankomstscore <code>(P[neste uke] − P[forrige uke]) ÷ maks</code>, der <code>maks</code> er artens høyeste ukesannsynlighet gjennom året. Grønt = stigende (ankommer), rødt = synkende (forlater); ukene går rundt årsgrensen (1 ↔ 48).</li>" +
-        "<li><b>Årstopp</b> — den løpende (kumulative) summen av ukentlige ankomstscorer, skalert til 0–100 (årets laveste = 0, toppen = 100). Fremhever den delen av året da arten er mest til stede.</li>" +
-        "<li><b>Spredning</b> — gjeldende ukes ankomstscore (x) mot sannsynlighet (y) for topp-artene, med en sorterbar tabell under.</li>" +
+        "<li><b>Zeitverlauf</b> — die Wahrscheinlichkeit jeder Art über alle 48 Wochen.</li>" +
+        "<li><b>Wahrscheinlichkeit</b> — eine Heatmap Art × Woche (rot = niedrig, grün = hoch), gestreckt über die angezeigten Werte.</li>" +
+        "<li><b>Ankünfte</b> — für jede Art und Woche ein Ankunftswert <code>(P[nächste Woche] − P[vorherige Woche]) ÷ max</code>, wobei <code>max</code> die höchste Wochenwahrscheinlichkeit der Art im Jahr ist. Grün = steigend (Ankunft), rot = fallend (Abzug); die Wochen laufen über die Jahresgrenze um (1 ↔ 48).</li>" +
+        "<li><b>Jahreshoch</b> — die kumulative Summe der wöchentlichen Ankunftswerte, auf 0–100 skaliert (Jahrestief = 0, Höhepunkt = 100). Hebt die Zeit des Jahres hervor, in der die Art am stärksten präsent ist.</li>" +
+        "<li><b>Streudiagramm</b> — der Ankunftswert der aktuellen Woche (x-Achse) gegen die Wahrscheinlichkeit (y-Achse) für die wichtigsten Arten, mit einer sortierbaren Tabelle darunter.</li>" +
         "</ul>" +
-        "<h4>Artsliste — kolonnen «Sammenlign med»</h4>" +
+        "<h4>Artenliste — Spalte „Vergleichen mit“</h4>" +
         "<ul>" +
-        "<li><b>Forrige / Neste uke</b> og <b>Årsgjennomsnitt</b> viser endringen Δ = gjeldende sannsynlighet − sammenligningsverdien.</li>" +
-        "<li><b>Årsmaks</b> viser gjeldende uke som en andel av artens årstopp: <code>gjeldende ÷ maks gjennom året</code>. 100% betyr at valgt uke er artens beste uke.</li>" +
+        "<li><b>Vorherige / Nächste Woche</b> und <b>Jahresmittel</b> zeigen die Änderung Δ = aktuelle Wahrscheinlichkeit − Vergleichswert.</li>" +
+        "<li><b>Jahresmaximum</b> zeigt die aktuelle Woche als Anteil am Jahreshöchstwert der Art: <code>aktuell ÷ Maximum im Jahr</code>. 100 % bedeutet, dass die gewählte Woche die beste Woche der Art ist.</li>" +
         "</ul>" +
-        "<h4>Teknologi</h4>" +
-        "<p>AI-modellen kjører <b>helt i nettleseren din</b> — det finnes ingen server, og posisjonen din sendes aldri noe sted. Det nevrale nettverket lastes ned én gang (~7 MB), og alle forutsigelser beregnes på din egen enhet. Bygget med:</p>" +
+        "<h4>Technologie</h4>" +
+        "<p>Das KI-Modell läuft <b>vollständig in Ihrem Browser</b> — es gibt keinen Server und Ihr Standort wird nirgendwohin gesendet. Das neuronale Netz wird einmal heruntergeladen (~7 MB) und alle Vorhersagen werden auf Ihrem eigenen Gerät berechnet. Erstellt mit:</p>" +
         "<ul>" +
-        "<li><b>ONNX Runtime Web</b> (WebAssembly) — kjører det nevrale nettverket i nettleseren.</li>" +
-        "<li><b>Web Workers</b> — beregningen kjøres utenfor hovedtråden så grensesnittet forblir responsivt.</li>" +
-        "<li><b>BirdNET Geomodel</b> — den trente modellen, eksportert til ONNX (FP16, ~7 MB).</li>" +
-        "<li><b>Leaflet</b> med OpenStreetMap-/CARTO-fliser — det interaktive kartet.</li>" +
-        "<li><b>Ren HTML, CSS og JavaScript</b> — ingen rammeverk og ingen byggesteg; servert som en statisk side (GitHub Pages).</li>" +
+        "<li><b>ONNX Runtime Web</b> (WebAssembly) — führt das neuronale Netz im Browser aus.</li>" +
+        "<li><b>Web Workers</b> — die Berechnung läuft außerhalb des Haupt-Threads, damit die Oberfläche reaktionsfähig bleibt.</li>" +
+        "<li><b>BirdNET Geomodel</b> — das trainierte Modell, als ONNX exportiert (FP16, ~7 MB).</li>" +
+        "<li><b>Leaflet</b> mit OpenStreetMap-/CARTO-Kacheln — die interaktive Karte.</li>" +
+        "<li><b>Reines HTML, CSS und JavaScript</b> — kein Framework und kein Build-Schritt; als statische Seite bereitgestellt (GitHub Pages).</li>" +
         "</ul>" +
-        "<h4>Prosjekt &amp; tilbakemelding</h4>" +
-        "<p>Dette verktøyet er gratis å bruke, og tilbakemeldinger er velkomne til <a href=\"mailto:vesmir09@gmail.com\">vesmir09@gmail.com</a>. En Norge-spesifikk habitatmodell er under utvikling, med mål om å bruke rikere norske data enn Google Earth Engine-dataene som brukes i den nåværende modellen. Målet med habitatmodellen er en forbedret app for fuglesanggjenkjenning (A!Birder) (under utvikling). Denne siden er laget for enkel kvalitetskontroll av den modellen.</p>" +
-        "<p class=\"about-note\">Forutsigelser er modellestimater, ikke fasit. Modellvekter © BirdNET-teamet, lisensiert CC BY-SA 4.0; kartfliser © OpenStreetMap-bidragsytere, © CARTO.</p>",
+        "<h4>Projekt &amp; Feedback</h4>" +
+        "<p>Dieses Werkzeug ist kostenlos nutzbar, und Feedback ist willkommen unter <a href=\"mailto:vesmir09@gmail.com\">vesmir09@gmail.com</a>. Ein Norwegen-spezifisches Habitatmodell befindet sich in Entwicklung und soll reichhaltigere norwegische Daten nutzen als die Google-Earth-Engine-Daten des aktuellen Modells. Ziel des Habitatmodells ist eine verbesserte App zur Vogelstimmenerkennung (A!Birder) (in Entwicklung). Diese Seite dient der einfachen Qualitätskontrolle dieses Modells.</p>" +
+        "<p class=\"about-note\">Vorhersagen sind Modellschätzungen, nicht die Wahrheit. Modellgewichte © das BirdNET-Team, lizenziert unter CC BY-SA 4.0; Kartenkacheln © OpenStreetMap-Mitwirkende, © CARTO.</p>",
+    },
+    es: {
+      "app.title": "Explorador de distribución y migración de especies",
+      "app.loading": "Cargando modelo, etiquetas y nombres de especies…",
+      "app.failed": "No se pudo cargar: {msg}",
+      "ctrl.language": "Idioma",
+      "ctrl.mode": "Modo",
+      "ctrl.group": "Grupo de especies",
+      "group.all": "Todos los grupos",
+      "group.aves": "Aves",
+      "group.mammalia": "Mamíferos",
+      "group.amphibia": "Anfibios",
+      "group.insecta": "Insectos",
+      "mode.range": "Área de distribución",
+      "mode.richness": "Riqueza de especies",
+      "mode.list": "Lista de especies (haz clic en el mapa)",
+      "mode.barchart": "Cronología de migración (haz clic en el mapa)",
+      "ctrl.species": "Especie",
+      "ph.species": "Buscar especie…",
+      "ctrl.week": "Semana",
+      "ctrl.bcthreshold": "Rango de probabilidad",
+      "ctrl.compare": "Comparar con",
+      "compare.none": "— ninguno —",
+      "compare.prev": "Semana anterior",
+      "compare.next": "Semana siguiente",
+      "compare.mean": "Media anual",
+      "compare.max": "Máximo anual",
+      "compare.annualtop": "Máximo anual",
+      "ctrl.secondlang": "2.º nombre",
+      "ctrl.savedloc": "Ubicaciones guardadas",
+      "ph.savedloc": "Aún no hay ubicaciones guardadas",
+      "loc.delete": "Eliminar ubicación",
+      "ctrl.hidden": "Especies ocultas",
+      "loc.unhide": "Mostrar de nuevo",
+      "menu.filter": "Filtrar",
+      "menu.hide": "No mostrar",
+      "menu.wiki": "Wikipedia",
+      "menu.macaulay": "Macaulay Library",
+      "btn.saveloc": "★ Guardar",
+      "btn.csv": "⬇ CSV",
+      "btn.play": "▶ Reproducir migración",
+      "btn.pause": "⏸ Pausar",
+      "btn.newchecklist": "＋ Lista",
+      "btn.print": "🖨 Imprimir",
+      "btn.close": "Cerrar",
+      "btn.delete": "Eliminar",
+      "ctrl.checklists": "Listas",
+      "chk.namePrompt": "Nombra esta lista:",
+      "chk.note": "NOTA: Las probabilidades y demás valores de esta lista proceden de un modelo de IA y representan solo una aproximación de las especies que probablemente se encuentren en esta ubicación — no son observaciones confirmadas. Para una referencia autorizada de especies, consulta <a href=\"https://www.avilist.org\">avilist.org</a>.",
+      "status.buildingChecklist": "Generando lista…",
+      "th.change": "Cambio (Δ)",
+      "th.locality": "Localidad",
+      "th.notes": "Notas",
+      "panel.spTitle": "Especies en la ubicación",
+      "panel.bcTitle": "Análisis de la ubicación",
+      "tab.timeline": "Cronología",
+      "tab.prob": "Probabilidad",
+      "tab.arrival": "Llegadas",
+      "tab.focus": "Máximo anual",
+      "tab.scatter": "Dispersión",
+      "analysis.empty": "No hay especies por encima del umbral.",
+      "ctrl.filter": "Filtrar especies",
+      "ph.filter": "Filtrar especies…",
+      "ctrl.topN": "Top N",
+      "ctrl.rankby": "Ordenar por",
+      "rank.arrival": "Llegadas",
+      "rank.prob": "Probabilidad",
+      "rank.both": "Ambos",
+      "ctrl.basemap": "Mapa base",
+      "ctrl.hires": "Alta resolución",
+      "popup.perf": "Área de distribución, Riqueza de especies y ▶ Reproducir migración evalúan el modelo en muchas celdas del mapa, por lo que se recomienda un ordenador moderno con una CPU rápida para un rendimiento fluido.",
+      "popup.ok": "Aceptar",
+      "basemap.dark": "Oscuro",
+      "basemap.light": "Claro",
+      "basemap.streets": "Calles",
+      "basemap.topo": "Topográfico",
+      "basemap.satellite": "Satélite",
+      "scatter.xAxis": "Llegada (semana actual)",
+      "scatter.yAxis": "Probabilidad (semana actual)",
+      "th.rank": "#",
+      "th.species": "Especie",
+      "th.sci": "Nombre científico",
+      "th.prob": "Probabilidad",
+      "th.arrival": "Llegada",
+      "th.delta": "Δ frente a {ref}",
+      "th.ratio": "% de {ref}",
+      "legend.prob": "Probabilidad de presencia",
+      "legend.count": "Número previsto de especies",
+      "status.selectSpecies": "Selecciona una especie para ver su área de distribución prevista.",
+      "status.loadingModel": "Cargando modelo ONNX…",
+      "status.computing": "Calculando {name} – {week} · {n} celdas nuevas [{i}/{total}]…",
+      "status.rangeDone": "{name} – {week} · {n} celdas ({step}°)",
+      "status.rangeCached": "{name} – {week} · {n} celdas ({step}°) [en caché]",
+      "status.richnessDone": "Riqueza de especies – {week} · {n} celdas ({step}°)",
+      "status.richnessCached": "Riqueza de especies – {week} · {n} celdas ({step}°) [en caché]",
+      "status.predicting": "Prediciendo especies en ({lat}, {lon}) semana {week}…",
+      "status.predicting48": "Prediciendo 48 semanas en ({lat}, {lon})…",
+      "status.spResult": "{n} especies por encima del {p}% en ({lat}, {lon})",
+      "status.error": "Error: {msg}",
+      "sp.summary": "{lat}°, {lon}° · Semana {week} · {n} especies por encima del {p}%",
+      "bc.summary": "{lat}°, {lon}° · {n} especies por encima del {p}% de media · normalizado al {max}%",
+      "bc.avg": "{p}% de media",
+      "week.fmt": "Semana {w} ({period} {month})",
+      "loc.savePrompt": "Nombra esta ubicación:",
+      "loc.defaultName": "{lat}, {lon}",
+      "footer.attrib": "Modelo: BirdNET Geomodel (pesos CC BY-SA 4.0). Código de la app MIT. Las predicciones son estimaciones — no la verdad absoluta.",
+      "footer.lastchange": "Último cambio: {t}",
+      "about.title": "ℹ︎ Acerca del modelo y cómo se calculan los valores",
+      "about.html":
+        "<h4>El modelo de hábitat</h4>" +
+        "<p>Esta herramienta ejecuta el <a href=\"https://github.com/birdnet-team/geomodel\" target=\"_blank\" rel=\"noopener\">BirdNET Geomodel</a> — una red neuronal espaciotemporal — íntegramente en tu navegador mediante ONNX Runtime Web. A partir de una <b>latitud</b>, una <b>longitud</b> y una <b>semana del año</b> (1–48; el modelo divide el año en 48 semanas de unos 7,6 días), predice una <b>probabilidad de presencia</b> (0–100%) para cada una de las 12 012 especies entre aves, mamíferos, anfibios e insectos. La probabilidad refleja cuán probable es que una especie esté presente allí en esa época del año, aprendida a partir de registros mundiales de presencia y variables ambientales. Es una estimación modelada — no un recuento de observaciones ni una garantía.</p>" +
+        "<h4>Vistas del mapa</h4>" +
+        "<ul>" +
+        "<li><b>Área de distribución</b> — la probabilidad de una especie elegida sobre el mapa para la semana seleccionada.</li>" +
+        "<li><b>Riqueza de especies</b> — el número de especies cuya probabilidad es de al menos el 5% en cada celda de la cuadrícula, limitado al grupo de especies seleccionado. ▶ Reproducir migración anima el mapa semana a semana.</li>" +
+        "</ul>" +
+        "<p>El mapa se evalúa sobre una cuadrícula de celdas (3° de ancho con la vista alejada, hasta 0,25° con la vista acercada) y se dibuja con suavizado bilineal, de modo que los colores se funden entre los centros de las celdas en lugar de formar bloques marcados. <b>Nota:</b> Área de distribución, Riqueza de especies y ▶ Reproducir migración evalúan el modelo en muchas celdas del mapa, por lo que se recomienda un ordenador moderno con una CPU (procesador) rápida para un rendimiento fluido.</p>" +
+        "<h4>Análisis de la ubicación (haz clic en el mapa)</h4>" +
+        "<ul>" +
+        "<li><b>Cronología</b> — la probabilidad de cada especie a lo largo de las 48 semanas.</li>" +
+        "<li><b>Probabilidad</b> — un mapa de calor especie × semana (rojo = baja, verde = alta), estirado según los valores actualmente en pantalla.</li>" +
+        "<li><b>Llegadas</b> — para cada especie y semana, una puntuación de llegada <code>(P[semana siguiente] − P[semana anterior]) ÷ max</code>, donde <code>max</code> es la probabilidad semanal más alta de esa especie a lo largo del año. Verde = probabilidad en aumento (llegando), rojo = en descenso (partiendo); las semanas se enlazan en el límite del año (1 ↔ 48).</li>" +
+        "<li><b>Máximo anual</b> — la suma acumulada de las puntuaciones de llegada semanales, reescalada a 0–100 (el mínimo del año = 0, su pico = 100). Resalta la parte del año en la que la especie está más presente.</li>" +
+        "<li><b>Dispersión</b> — la puntuación de llegada de la semana actual (eje x) frente a la probabilidad (eje y) para las especies principales, con una tabla ordenable debajo.</li>" +
+        "</ul>" +
+        "<h4>Lista de especies — columna «Comparar con»</h4>" +
+        "<ul>" +
+        "<li><b>Semana anterior / siguiente</b> y <b>Media anual</b> muestran el cambio Δ = probabilidad actual − el valor de comparación.</li>" +
+        "<li><b>Máximo anual</b> muestra la semana actual como fracción del pico anual de la especie: <code>actual ÷ max a lo largo del año</code>. 100% significa que la semana seleccionada es la mejor semana de la especie.</li>" +
+        "</ul>" +
+        "<h4>Tecnología</h4>" +
+        "<p>El modelo de IA se ejecuta <b>íntegramente en tu navegador web</b> — no hay ningún servidor y tu ubicación nunca se envía a ningún sitio. La red neuronal se descarga una sola vez (~7 MB) y todas las predicciones se calculan en tu propio dispositivo. Construido con:</p>" +
+        "<ul>" +
+        "<li><b>ONNX Runtime Web</b> (WebAssembly) — ejecuta la red neuronal en el navegador.</li>" +
+        "<li><b>Web Workers</b> — la inferencia se ejecuta fuera del hilo principal para que la interfaz siga respondiendo.</li>" +
+        "<li><b>BirdNET Geomodel</b> — el modelo entrenado, exportado a ONNX (FP16, ~7 MB).</li>" +
+        "<li><b>Leaflet</b> con teselas de OpenStreetMap / CARTO — el mapa interactivo.</li>" +
+        "<li><b>HTML, CSS y JavaScript puros</b> — sin framework ni paso de compilación; servido como sitio estático (GitHub Pages).</li>" +
+        "</ul>" +
+        "<h4>Proyecto y comentarios</h4>" +
+        "<p>Esta herramienta es de uso gratuito, y los comentarios son bienvenidos en <a href=\"mailto:vesmir09@gmail.com\">vesmir09@gmail.com</a>. Se está desarrollando un modelo de hábitat específico para Noruega, con el objetivo de usar datos noruegos más ricos que los datos de Google Earth Engine empleados en el modelo actual. La meta del modelo de hábitat es una app mejorada de detección del canto de las aves (A!Birder) (en desarrollo). Esta página se ha creado para facilitar el control de calidad de ese modelo.</p>" +
+        "<p class=\"about-note\">Las predicciones son estimaciones del modelo, no la verdad absoluta. Pesos del modelo © el equipo de BirdNET, con licencia CC BY-SA 4.0; teselas del mapa © colaboradores de OpenStreetMap, © CARTO.</p>",
     },
     fr: {
+      "app.title": "Explorateur de répartition et de migration des espèces",
+      "app.loading": "Chargement du modèle, des étiquettes et des noms d'espèces…",
+      "app.failed": "Échec du chargement : {msg}",
+      "ctrl.language": "Langue",
+      "ctrl.mode": "Mode",
+      "ctrl.group": "Groupe d'espèces",
+      "group.all": "Tous les groupes",
+      "group.aves": "Oiseaux",
+      "group.mammalia": "Mammifères",
+      "group.amphibia": "Amphibiens",
+      "group.insecta": "Insectes",
+      "mode.range": "Aire de répartition",
+      "mode.richness": "Richesse spécifique",
+      "mode.list": "Liste d'espèces (cliquez sur la carte)",
+      "mode.barchart": "Chronologie de migration (cliquez sur la carte)",
+      "ctrl.species": "Espèce",
+      "ph.species": "Rechercher une espèce…",
+      "ctrl.week": "Semaine",
+      "ctrl.bcthreshold": "Plage de probabilité",
+      "ctrl.compare": "Comparer à",
+      "compare.none": "— aucun —",
+      "compare.prev": "Semaine précédente",
+      "compare.next": "Semaine suivante",
+      "compare.mean": "Moyenne annuelle",
+      "compare.max": "Maximum annuel",
+      "compare.annualtop": "Pic annuel",
+      "ctrl.secondlang": "2ᵉ nom",
+      "ctrl.savedloc": "Lieux enregistrés",
+      "ph.savedloc": "Aucun lieu enregistré pour l'instant",
+      "loc.delete": "Supprimer le lieu",
+      "ctrl.hidden": "Espèces masquées",
+      "loc.unhide": "Afficher de nouveau",
+      "menu.filter": "Filtrer",
+      "menu.hide": "Ne pas afficher",
+      "menu.wiki": "Wikipédia",
+      "menu.macaulay": "Macaulay Library",
+      "btn.saveloc": "★ Enregistrer",
+      "btn.csv": "⬇ CSV",
+      "btn.play": "▶ Lire la migration",
+      "btn.pause": "⏸ Pause",
+      "btn.newchecklist": "＋ Liste",
+      "btn.print": "🖨 Imprimer",
+      "btn.close": "Fermer",
+      "btn.delete": "Supprimer",
+      "ctrl.checklists": "Listes",
+      "chk.namePrompt": "Nommez cette liste :",
+      "chk.note": "NB : les probabilités et autres valeurs de cette liste sont issues d'un modèle d'IA et ne représentent qu'une approximation des espèces susceptibles d'être présentes à cet endroit — il ne s'agit pas d'observations confirmées. Pour une référence faisant autorité sur les espèces, voir <a href=\"https://www.avilist.org\">avilist.org</a>.",
+      "status.buildingChecklist": "Création de la liste…",
+      "th.change": "Variation (Δ)",
+      "th.locality": "Localité",
+      "th.notes": "Notes",
+      "panel.spTitle": "Espèces à cet endroit",
+      "panel.bcTitle": "Analyse de localisation",
+      "tab.timeline": "Chronologie",
+      "tab.prob": "Probabilité",
+      "tab.arrival": "Arrivées",
+      "tab.focus": "Pic annuel",
+      "tab.scatter": "Nuage de points",
+      "analysis.empty": "Aucune espèce au-dessus du seuil.",
+      "ctrl.filter": "Filtrer les espèces",
+      "ph.filter": "Filtrer les espèces…",
+      "ctrl.topN": "Top N",
+      "ctrl.rankby": "Classer par",
+      "rank.arrival": "Arrivées",
+      "rank.prob": "Probabilité",
+      "rank.both": "Les deux",
+      "ctrl.basemap": "Fond de carte",
+      "ctrl.hires": "Haute résolution",
+      "popup.perf": "L'Aire de répartition, la Richesse spécifique et ▶ Lire la migration évaluent le modèle sur de nombreuses cellules ; un ordinateur moderne doté d'un CPU (processeur) performant est recommandé pour une bonne fluidité.",
+      "popup.ok": "OK",
+      "basemap.dark": "Sombre",
+      "basemap.light": "Clair",
+      "basemap.streets": "Rues",
+      "basemap.topo": "Topographique",
+      "basemap.satellite": "Satellite",
+      "scatter.xAxis": "Arrivée (semaine en cours)",
+      "scatter.yAxis": "Probabilité (semaine en cours)",
+      "th.rank": "#",
+      "th.species": "Espèce",
+      "th.sci": "Nom scientifique",
+      "th.prob": "Probabilité",
+      "th.arrival": "Arrivée",
+      "th.delta": "Δ vs {ref}",
+      "th.ratio": "% de {ref}",
+      "legend.prob": "Probabilité de présence",
+      "legend.count": "Nombre d'espèces prédit",
+      "status.selectSpecies": "Sélectionnez une espèce pour afficher sa carte de répartition prédite.",
+      "status.loadingModel": "Chargement du modèle ONNX…",
+      "status.computing": "Calcul de {name} – {week} · {n} nouvelles cellules [{i}/{total}]…",
+      "status.rangeDone": "{name} – {week} · {n} cellules ({step}°)",
+      "status.rangeCached": "{name} – {week} · {n} cellules ({step}°) [en cache]",
+      "status.richnessDone": "Richesse spécifique – {week} · {n} cellules ({step}°)",
+      "status.richnessCached": "Richesse spécifique – {week} · {n} cellules ({step}°) [en cache]",
+      "status.predicting": "Prédiction des espèces à ({lat}, {lon}) semaine {week}…",
+      "status.predicting48": "Prédiction de 48 semaines à ({lat}, {lon})…",
+      "status.spResult": "{n} espèces au-dessus de {p} % à ({lat}, {lon})",
+      "status.error": "Erreur : {msg}",
+      "sp.summary": "{lat}°, {lon}° · Semaine {week} · {n} espèces au-dessus de {p} %",
+      "bc.summary": "{lat}°, {lon}° · {n} espèces au-dessus de {p} % en moyenne · normalisé à {max} %",
+      "bc.avg": "{p} % en moyenne",
+      "week.fmt": "Semaine {w} ({period} {month})",
+      "loc.savePrompt": "Nommez ce lieu :",
+      "loc.defaultName": "{lat}, {lon}",
+      "footer.attrib": "Modèle : BirdNET Geomodel (poids CC BY-SA 4.0). Code de l'app sous licence MIT. Les prédictions sont des estimations — pas la réalité de terrain.",
+      "footer.lastchange": "Dernière modification : {t}",
       "about.title": "ℹ︎ À propos du modèle et du calcul des valeurs",
       "about.html":
         "<h4>Le modèle d'habitat</h4>" +
@@ -421,44 +783,112 @@ window.GeoI18N = (function () {
         "<p>Cet outil est gratuit, et vos retours sont les bienvenus à <a href=\"mailto:vesmir09@gmail.com\">vesmir09@gmail.com</a>. Un modèle d'habitat spécifique à la Norvège est en cours de développement, visant à utiliser des données norvégiennes plus riches que les données Google Earth Engine du modèle actuel. L'objectif du modèle d'habitat est une meilleure application de détection du chant des oiseaux (A!Birder) (en cours de développement). Cette page est conçue pour faciliter le contrôle qualité de ce modèle.</p>" +
         "<p class=\"about-note\">Les prédictions sont des estimations du modèle, pas la réalité. Poids du modèle © l'équipe BirdNET, sous licence CC BY-SA 4.0 ; tuiles cartographiques © contributeurs OpenStreetMap, © CARTO.</p>",
     },
-    de: {
-      "about.title": "ℹ︎ Über das Modell & wie die Werte berechnet werden",
-      "about.html":
-        "<h4>Das Habitatmodell</h4>" +
-        "<p>Dieses Werkzeug führt das <a href=\"https://github.com/birdnet-team/geomodel\" target=\"_blank\" rel=\"noopener\">BirdNET Geomodel</a> — ein raumzeitliches neuronales Netz — vollständig in Ihrem Browser über ONNX Runtime Web aus. Aus <b>Breitengrad</b>, <b>Längengrad</b> und <b>Woche des Jahres</b> (1–48; das Modell teilt das Jahr in 48 Wochen von etwa 7,6 Tagen) sagt es eine <b>Vorkommenswahrscheinlichkeit</b> (0–100 %) für jede der 12.012 Arten unter Vögeln, Säugetieren, Amphibien und Insekten voraus. Die Wahrscheinlichkeit spiegelt wider, wie wahrscheinlich eine Art dort zu dieser Jahreszeit vorkommt, gelernt aus globalen Fundmeldungen und Umweltvariablen. Es ist eine modellierte Schätzung — keine Beobachtungszählung und keine Garantie.</p>" +
-        "<h4>Kartenansichten</h4>" +
-        "<ul>" +
-        "<li><b>Artverbreitung</b> — die Wahrscheinlichkeit einer ausgewählten Art auf der Karte für die gewählte Woche.</li>" +
-        "<li><b>Artenreichtum</b> — die Anzahl der Arten mit einer Wahrscheinlichkeit von mindestens 5 % in jeder Rasterzelle, begrenzt auf die gewählte Artengruppe. ▶ Migration abspielen animiert die Karte Woche für Woche.</li>" +
-        "</ul>" +
-        "<p>Die Karte wird auf einem Zellraster berechnet (3° herausgezoomt, bis 0,25° herangezoomt) und mit bilinearer Glättung gezeichnet, sodass die Farben zwischen den Zellzentren ineinander übergehen, statt harte Blöcke zu bilden. <b>Hinweis:</b> Artverbreitung, Artenreichtum und ▶ Migration abspielen werten das Modell über viele Kartenzellen aus; für flüssige Leistung wird ein moderner Computer mit schneller CPU (Prozessor) empfohlen.</p>" +
-        "<h4>Standortanalyse (auf die Karte klicken)</h4>" +
-        "<ul>" +
-        "<li><b>Zeitverlauf</b> — die Wahrscheinlichkeit jeder Art über alle 48 Wochen.</li>" +
-        "<li><b>Wahrscheinlichkeit</b> — eine Heatmap Art × Woche (rot = niedrig, grün = hoch), gestreckt über die angezeigten Werte.</li>" +
-        "<li><b>Ankünfte</b> — für jede Art und Woche ein Ankunftswert <code>(P[nächste Woche] − P[vorherige Woche]) ÷ max</code>, wobei <code>max</code> die höchste Wochenwahrscheinlichkeit der Art im Jahr ist. Grün = steigend (Ankunft), rot = fallend (Abzug); die Wochen laufen über die Jahresgrenze um (1 ↔ 48).</li>" +
-        "<li><b>Jahreshoch</b> — die kumulative Summe der wöchentlichen Ankunftswerte, auf 0–100 skaliert (Jahrestief = 0, Höhepunkt = 100). Hebt die Zeit des Jahres hervor, in der die Art am stärksten präsent ist.</li>" +
-        "<li><b>Streudiagramm</b> — der Ankunftswert der aktuellen Woche (x-Achse) gegen die Wahrscheinlichkeit (y-Achse) für die wichtigsten Arten, mit einer sortierbaren Tabelle darunter.</li>" +
-        "</ul>" +
-        "<h4>Artenliste — Spalte „Vergleichen mit“</h4>" +
-        "<ul>" +
-        "<li><b>Vorherige / Nächste Woche</b> und <b>Jahresmittel</b> zeigen die Änderung Δ = aktuelle Wahrscheinlichkeit − Vergleichswert.</li>" +
-        "<li><b>Jahresmaximum</b> zeigt die aktuelle Woche als Anteil am Jahreshöchstwert der Art: <code>aktuell ÷ Maximum im Jahr</code>. 100 % bedeutet, dass die gewählte Woche die beste Woche der Art ist.</li>" +
-        "</ul>" +
-        "<h4>Technologie</h4>" +
-        "<p>Das KI-Modell läuft <b>vollständig in Ihrem Browser</b> — es gibt keinen Server und Ihr Standort wird nirgendwohin gesendet. Das neuronale Netz wird einmal heruntergeladen (~7 MB) und alle Vorhersagen werden auf Ihrem eigenen Gerät berechnet. Erstellt mit:</p>" +
-        "<ul>" +
-        "<li><b>ONNX Runtime Web</b> (WebAssembly) — führt das neuronale Netz im Browser aus.</li>" +
-        "<li><b>Web Workers</b> — die Berechnung läuft außerhalb des Haupt-Threads, damit die Oberfläche reaktionsfähig bleibt.</li>" +
-        "<li><b>BirdNET Geomodel</b> — das trainierte Modell, als ONNX exportiert (FP16, ~7 MB).</li>" +
-        "<li><b>Leaflet</b> mit OpenStreetMap-/CARTO-Kacheln — die interaktive Karte.</li>" +
-        "<li><b>Reines HTML, CSS und JavaScript</b> — kein Framework und kein Build-Schritt; als statische Seite bereitgestellt (GitHub Pages).</li>" +
-        "</ul>" +
-        "<h4>Projekt &amp; Feedback</h4>" +
-        "<p>Dieses Werkzeug ist kostenlos nutzbar, und Feedback ist willkommen unter <a href=\"mailto:vesmir09@gmail.com\">vesmir09@gmail.com</a>. Ein Norwegen-spezifisches Habitatmodell befindet sich in Entwicklung und soll reichhaltigere norwegische Daten nutzen als die Google-Earth-Engine-Daten des aktuellen Modells. Ziel des Habitatmodells ist eine verbesserte App zur Vogelstimmenerkennung (A!Birder) (in Entwicklung). Diese Seite dient der einfachen Qualitätskontrolle dieses Modells.</p>" +
-        "<p class=\"about-note\">Vorhersagen sind Modellschätzungen, nicht die Wahrheit. Modellgewichte © das BirdNET-Team, lizenziert unter CC BY-SA 4.0; Kartenkacheln © OpenStreetMap-Mitwirkende, © CARTO.</p>",
-    },
     nl: {
+      "app.title": "Verkenner voor soortverspreiding & trek",
+      "app.loading": "Model, labels & soortnamen laden…",
+      "app.failed": "Laden mislukt: {msg}",
+      "ctrl.language": "Taal",
+      "ctrl.mode": "Modus",
+      "ctrl.group": "Soortgroep",
+      "group.all": "Alle groepen",
+      "group.aves": "Vogels",
+      "group.mammalia": "Zoogdieren",
+      "group.amphibia": "Amfibieën",
+      "group.insecta": "Insecten",
+      "mode.range": "Verspreiding",
+      "mode.richness": "Soortenrijkdom",
+      "mode.list": "Soortenlijst (klik op de kaart)",
+      "mode.barchart": "Trekverloop (klik op de kaart)",
+      "ctrl.species": "Soort",
+      "ph.species": "Soort zoeken…",
+      "ctrl.week": "Week",
+      "ctrl.bcthreshold": "Waarschijnlijkheidsbereik",
+      "ctrl.compare": "Vergelijken met",
+      "compare.none": "— geen —",
+      "compare.prev": "Vorige week",
+      "compare.next": "Volgende week",
+      "compare.mean": "Jaargemiddelde",
+      "compare.max": "Jaarmaximum",
+      "compare.annualtop": "Jaartop",
+      "ctrl.secondlang": "2e naam",
+      "ctrl.savedloc": "Opgeslagen locaties",
+      "ph.savedloc": "Nog geen opgeslagen locaties",
+      "loc.delete": "Locatie verwijderen",
+      "ctrl.hidden": "Verborgen soorten",
+      "loc.unhide": "Weer tonen",
+      "menu.filter": "Filteren",
+      "menu.hide": "Niet tonen",
+      "menu.wiki": "Wikipedia",
+      "menu.macaulay": "Macaulay Library",
+      "btn.saveloc": "★ Opslaan",
+      "btn.csv": "⬇ CSV",
+      "btn.play": "▶ Trek afspelen",
+      "btn.pause": "⏸ Pauzeren",
+      "btn.newchecklist": "＋ Checklist",
+      "btn.print": "🖨 Afdrukken",
+      "btn.close": "Sluiten",
+      "btn.delete": "Verwijderen",
+      "ctrl.checklists": "Checklists",
+      "chk.namePrompt": "Geef deze checklist een naam:",
+      "chk.note": "Let op: De waarschijnlijkheden en andere waarden in deze checklist zijn afgeleid van een AI-model en vormen slechts een benadering van de soorten die op deze locatie kunnen voorkomen — het zijn geen bevestigde waarnemingen. Voor een gezaghebbende soortenreferentie, zie <a href=\"https://www.avilist.org\">avilist.org</a>.",
+      "status.buildingChecklist": "Checklist samenstellen…",
+      "th.change": "Verandering (Δ)",
+      "th.locality": "Locatie",
+      "th.notes": "Notities",
+      "panel.spTitle": "Soorten op locatie",
+      "panel.bcTitle": "Locatieanalyse",
+      "tab.timeline": "Tijdlijn",
+      "tab.prob": "Waarschijnlijkheid",
+      "tab.arrival": "Aankomsten",
+      "tab.focus": "Jaartop",
+      "tab.scatter": "Spreidingsdiagram",
+      "analysis.empty": "Geen soorten boven de drempel.",
+      "ctrl.filter": "Soorten filteren",
+      "ph.filter": "Soorten filteren…",
+      "ctrl.topN": "Top N",
+      "ctrl.rankby": "Rangschikken op",
+      "rank.arrival": "Aankomsten",
+      "rank.prob": "Waarschijnlijkheid",
+      "rank.both": "Beide",
+      "ctrl.basemap": "Achtergrondkaart",
+      "ctrl.hires": "Hoge resolutie",
+      "popup.perf": "Verspreiding, Soortenrijkdom en ▶ Trek afspelen berekenen het model over veel kaartcellen, dus een moderne computer met een snelle processor (CPU) wordt aanbevolen voor vlotte prestaties.",
+      "popup.ok": "OK",
+      "basemap.dark": "Donker",
+      "basemap.light": "Licht",
+      "basemap.streets": "Straten",
+      "basemap.topo": "Topografisch",
+      "basemap.satellite": "Satelliet",
+      "scatter.xAxis": "Aankomst (huidige week)",
+      "scatter.yAxis": "Waarschijnlijkheid (huidige week)",
+      "th.rank": "#",
+      "th.species": "Soort",
+      "th.sci": "Wetenschappelijke naam",
+      "th.prob": "Waarschijnlijkheid",
+      "th.arrival": "Aankomst",
+      "th.delta": "Δ t.o.v. {ref}",
+      "th.ratio": "% van {ref}",
+      "legend.prob": "Voorkomenswaarschijnlijkheid",
+      "legend.count": "Voorspeld aantal soorten",
+      "status.selectSpecies": "Selecteer een soort om de voorspelde verspreidingskaart te bekijken.",
+      "status.loadingModel": "ONNX-model laden…",
+      "status.computing": "{name} berekenen – {week} · {n} nieuwe cellen [{i}/{total}]…",
+      "status.rangeDone": "{name} – {week} · {n} cellen ({step}°)",
+      "status.rangeCached": "{name} – {week} · {n} cellen ({step}°) [gecachet]",
+      "status.richnessDone": "Soortenrijkdom – {week} · {n} cellen ({step}°)",
+      "status.richnessCached": "Soortenrijkdom – {week} · {n} cellen ({step}°) [gecachet]",
+      "status.predicting": "Soorten voorspellen bij ({lat}, {lon}) week {week}…",
+      "status.predicting48": "48 weken voorspellen bij ({lat}, {lon})…",
+      "status.spResult": "{n} soorten boven {p}% bij ({lat}, {lon})",
+      "status.error": "Fout: {msg}",
+      "sp.summary": "{lat}°, {lon}° · Week {week} · {n} soorten boven {p}%",
+      "bc.summary": "{lat}°, {lon}° · {n} soorten boven {p}% gem. · genormaliseerd naar {max}%",
+      "bc.avg": "{p}% gem.",
+      "week.fmt": "Week {w} ({period} {month})",
+      "loc.savePrompt": "Geef deze locatie een naam:",
+      "loc.defaultName": "{lat}, {lon}",
+      "footer.attrib": "Model: BirdNET Geomodel (gewichten CC BY-SA 4.0). App-code MIT. Voorspellingen zijn schattingen — geen grondwaarheid.",
+      "footer.lastchange": "Laatste wijziging: {t}",
       "about.title": "ℹ︎ Over het model & hoe waarden worden berekend",
       "about.html":
         "<h4>Het habitatmodel</h4>" +
@@ -466,9 +896,9 @@ window.GeoI18N = (function () {
         "<h4>Kaartweergaven</h4>" +
         "<ul>" +
         "<li><b>Verspreiding</b> — de waarschijnlijkheid van één gekozen soort over de kaart voor de geselecteerde week.</li>" +
-        "<li><b>Soortenrijkdom</b> — het aantal soorten met een waarschijnlijkheid van minstens 5% in elke rastercel, beperkt tot de geselecteerde soortgroep. ▶ Migratie afspelen animeert de kaart week voor week.</li>" +
+        "<li><b>Soortenrijkdom</b> — het aantal soorten met een waarschijnlijkheid van minstens 5% in elke rastercel, beperkt tot de geselecteerde soortgroep. ▶ Trek afspelen animeert de kaart week voor week.</li>" +
         "</ul>" +
-        "<p>De kaart wordt berekend op een raster van cellen (3° uitgezoomd, tot 0,25° ingezoomd) en getekend met bilineaire vloeiing, zodat kleuren tussen celcentra in elkaar overvloeien in plaats van harde blokken te vormen. <b>Let op:</b> Verspreiding, Soortenrijkdom en ▶ Migratie afspelen berekenen het model over veel kaartcellen, dus een moderne computer met een snelle CPU (processor) wordt aanbevolen voor vlotte prestaties.</p>" +
+        "<p>De kaart wordt berekend op een raster van cellen (3° uitgezoomd, tot 0,25° ingezoomd) en getekend met bilineaire vloeiing, zodat kleuren tussen celcentra in elkaar overvloeien in plaats van harde blokken te vormen. <b>Let op:</b> Verspreiding, Soortenrijkdom en ▶ Trek afspelen berekenen het model over veel kaartcellen, dus een moderne computer met een snelle processor (CPU) wordt aanbevolen voor vlotte prestaties.</p>" +
         "<h4>Locatieanalyse (klik op de kaart)</h4>" +
         "<ul>" +
         "<li><b>Tijdlijn</b> — de waarschijnlijkheid van elke soort over alle 48 weken.</li>" +
@@ -495,7 +925,254 @@ window.GeoI18N = (function () {
         "<p>Deze tool is gratis te gebruiken en feedback is welkom op <a href=\"mailto:vesmir09@gmail.com\">vesmir09@gmail.com</a>. Een Noorwegen-specifiek habitatmodel is in ontwikkeling, met als doel rijkere Noorse data te gebruiken dan de Google Earth Engine-data van het huidige model. Het doel van het habitatmodel is een verbeterde app voor vogelzangherkenning (A!Birder) (in ontwikkeling). Deze pagina is gemaakt voor eenvoudige kwaliteitscontrole van dat model.</p>" +
         "<p class=\"about-note\">Voorspellingen zijn modelschattingen, geen grondwaarheid. Modelgewichten © het BirdNET-team, gelicentieerd onder CC BY-SA 4.0; kaarttegels © OpenStreetMap-bijdragers, © CARTO.</p>",
     },
+    no: {
+      "app.title": "Utforsker for artsutbredelse og trekk",
+      "app.loading": "Laster modell, etiketter og artsnavn…",
+      "app.failed": "Kunne ikke laste: {msg}",
+      "ctrl.language": "Språk",
+      "ctrl.mode": "Modus",
+      "ctrl.group": "Artsgruppe",
+      "group.all": "Alle grupper",
+      "group.aves": "Fugler",
+      "group.mammalia": "Pattedyr",
+      "group.amphibia": "Amfibier",
+      "group.insecta": "Insekter",
+      "mode.range": "Artsutbredelse",
+      "mode.richness": "Artsrikdom",
+      "mode.list": "Artsliste (klikk på kartet)",
+      "mode.barchart": "Trekkforløp (klikk på kartet)",
+      "ctrl.species": "Art",
+      "ph.species": "Søk art…",
+      "ctrl.week": "Uke",
+      "ctrl.bcthreshold": "Sannsynlighetsintervall",
+      "ctrl.compare": "Sammenlign med",
+      "compare.none": "— ingen —",
+      "compare.prev": "Forrige uke",
+      "compare.next": "Neste uke",
+      "compare.mean": "Årsgjennomsnitt",
+      "compare.max": "Årsmaks",
+      "compare.annualtop": "Årstopp",
+      "ctrl.secondlang": "Andre navn",
+      "ctrl.savedloc": "Lagrede steder",
+      "ph.savedloc": "Ingen lagrede steder ennå",
+      "loc.delete": "Slett sted",
+      "ctrl.hidden": "Skjulte arter",
+      "loc.unhide": "Vis igjen",
+      "menu.filter": "Filtrer",
+      "menu.hide": "Ikke vis",
+      "menu.wiki": "Wikipedia",
+      "menu.macaulay": "Macaulay Library",
+      "btn.saveloc": "★ Lagre",
+      "btn.csv": "⬇ CSV",
+      "btn.play": "▶ Spill av trekk",
+      "btn.pause": "⏸ Pause",
+      "btn.newchecklist": "＋ Sjekkliste",
+      "btn.print": "🖨 Skriv ut",
+      "btn.close": "Lukk",
+      "btn.delete": "Slett",
+      "ctrl.checklists": "Sjekklister",
+      "chk.namePrompt": "Gi sjekklisten et navn:",
+      "chk.note": "NB: Sannsynlighetene og de øvrige verdiene i denne sjekklisten er utledet fra en AI-modell og er bare et estimat på hvilke arter som kan forekomme på dette stedet — de er ikke bekreftede observasjoner. For en autoritativ artsreferanse, se <a href=\"https://www.avilist.org\">avilist.org</a>.",
+      "status.buildingChecklist": "Bygger sjekkliste…",
+      "th.change": "Endring (Δ)",
+      "th.locality": "Lokalitet",
+      "th.notes": "Notater",
+      "panel.spTitle": "Arter på stedet",
+      "panel.bcTitle": "Stedsanalyse",
+      "tab.timeline": "Tidslinje",
+      "tab.prob": "Sannsynlighet",
+      "tab.arrival": "Ankomster",
+      "tab.focus": "Årstopp",
+      "tab.scatter": "Spredning",
+      "analysis.empty": "Ingen arter over terskelen.",
+      "ctrl.filter": "Filtrer arter",
+      "ph.filter": "Filtrer arter…",
+      "ctrl.topN": "Topp N",
+      "ctrl.rankby": "Ranger etter",
+      "rank.arrival": "Ankomster",
+      "rank.prob": "Sannsynlighet",
+      "rank.both": "Begge",
+      "ctrl.basemap": "Bakgrunnskart",
+      "ctrl.hires": "Høy oppløsning",
+      "popup.perf": "Artsutbredelse, Artsrikdom og ▶ Spill av trekk kjører modellen over mange kartceller, så en moderne datamaskin med en rask prosessor (CPU) anbefales for jevn ytelse.",
+      "popup.ok": "OK",
+      "basemap.dark": "Mørk",
+      "basemap.light": "Lys",
+      "basemap.streets": "Gater",
+      "basemap.topo": "Topografisk",
+      "basemap.satellite": "Satellitt",
+      "scatter.xAxis": "Ankomst (gjeldende uke)",
+      "scatter.yAxis": "Sannsynlighet (gjeldende uke)",
+      "th.rank": "#",
+      "th.species": "Art",
+      "th.sci": "Vitenskapelig navn",
+      "th.prob": "Sannsynlighet",
+      "th.arrival": "Ankomst",
+      "th.delta": "Δ mot {ref}",
+      "th.ratio": "% av {ref}",
+      "legend.prob": "Forekomstsannsynlighet",
+      "legend.count": "Forutsagt antall arter",
+      "status.selectSpecies": "Velg en art for å se dens forutsagte utbredelseskart.",
+      "status.loadingModel": "Laster ONNX-modell…",
+      "status.computing": "Beregner {name} – {week} · {n} nye celler [{i}/{total}]…",
+      "status.rangeDone": "{name} – {week} · {n} celler ({step}°)",
+      "status.rangeCached": "{name} – {week} · {n} celler ({step}°) [bufret]",
+      "status.richnessDone": "Artsrikdom – {week} · {n} celler ({step}°)",
+      "status.richnessCached": "Artsrikdom – {week} · {n} celler ({step}°) [bufret]",
+      "status.predicting": "Forutsier arter ved ({lat}, {lon}) uke {week}…",
+      "status.predicting48": "Forutsier 48 uker ved ({lat}, {lon})…",
+      "status.spResult": "{n} arter over {p}% ved ({lat}, {lon})",
+      "status.error": "Feil: {msg}",
+      "sp.summary": "{lat}°, {lon}° · Uke {week} · {n} arter over {p}%",
+      "bc.summary": "{lat}°, {lon}° · {n} arter over {p}% snitt · normalisert til {max}%",
+      "bc.avg": "{p}% snitt",
+      "week.fmt": "Uke {w} ({period} {month})",
+      "loc.savePrompt": "Gi stedet et navn:",
+      "loc.defaultName": "{lat}, {lon}",
+      "footer.attrib": "Modell: BirdNET Geomodel (vekter CC BY-SA 4.0). Appkode MIT. Forutsigelser er estimater — ikke fasit.",
+      "footer.lastchange": "Siste endring: {t}",
+      "about.title": "ℹ︎ Om modellen og hvordan verdiene beregnes",
+      "about.html":
+        "<h4>Habitatmodellen</h4>" +
+        "<p>Dette verktøyet kjører <a href=\"https://github.com/birdnet-team/geomodel\" target=\"_blank\" rel=\"noopener\">BirdNET Geomodel</a> — et spatiotemporalt nevralt nettverk — helt i nettleseren din via ONNX Runtime Web. Ut fra <b>breddegrad</b>, <b>lengdegrad</b> og <b>uke i året</b> (1–48; modellen deler året i 48 uker på omtrent 7,6 dager) forutsier den en <b>forekomstsannsynlighet</b> (0–100%) for hver av 12 012 arter blant fugler, pattedyr, amfibier og insekter. Sannsynligheten gjenspeiler hvor sannsynlig det er at arten finnes der på den tiden av året, lært fra globale funndata og miljøvariabler. Det er et modellert estimat — ikke et observasjonsantall eller en garanti.</p>" +
+        "<h4>Kartvisninger</h4>" +
+        "<ul>" +
+        "<li><b>Artsutbredelse</b> — sannsynligheten for én valgt art over kartet for valgt uke.</li>" +
+        "<li><b>Artsrikdom</b> — antall arter med sannsynlighet på minst 5% i hver rutecelle, begrenset til valgt artsgruppe. ▶ Spill av trekk animerer kartet uke for uke.</li>" +
+        "</ul>" +
+        "<p>Kartet beregnes på et rutenett (3° bredt utzoomet, ned til 0,25° innzoomet) og tegnes med bilineær glatting, slik at fargene tones mellom cellesentre i stedet for å danne harde blokker. <b>Merk:</b> Artsutbredelse, Artsrikdom og ▶ Spill av trekk kjører modellen over mange kartceller, så en moderne datamaskin med en rask prosessor (CPU) anbefales for jevn ytelse.</p>" +
+        "<h4>Stedsanalyse (klikk på kartet)</h4>" +
+        "<ul>" +
+        "<li><b>Tidslinje</b> — hver arts sannsynlighet over alle 48 ukene.</li>" +
+        "<li><b>Sannsynlighet</b> — et varmekart art × uke (rødt = lavt, grønt = høyt), skalert etter verdiene på skjermen.</li>" +
+        "<li><b>Ankomster</b> — for hver art og uke en ankomstscore <code>(P[neste uke] − P[forrige uke]) ÷ maks</code>, der <code>maks</code> er artens høyeste ukesannsynlighet gjennom året. Grønt = stigende (ankommer), rødt = synkende (forlater); ukene går rundt årsgrensen (1 ↔ 48).</li>" +
+        "<li><b>Årstopp</b> — den løpende (kumulative) summen av ukentlige ankomstscorer, skalert til 0–100 (årets laveste = 0, toppen = 100). Fremhever den delen av året da arten er mest til stede.</li>" +
+        "<li><b>Spredning</b> — gjeldende ukes ankomstscore (x) mot sannsynlighet (y) for topp-artene, med en sorterbar tabell under.</li>" +
+        "</ul>" +
+        "<h4>Artsliste — kolonnen «Sammenlign med»</h4>" +
+        "<ul>" +
+        "<li><b>Forrige / Neste uke</b> og <b>Årsgjennomsnitt</b> viser endringen Δ = gjeldende sannsynlighet − sammenligningsverdien.</li>" +
+        "<li><b>Årsmaks</b> viser gjeldende uke som en andel av artens årstopp: <code>gjeldende ÷ maks gjennom året</code>. 100% betyr at valgt uke er artens beste uke.</li>" +
+        "</ul>" +
+        "<h4>Teknologi</h4>" +
+        "<p>AI-modellen kjører <b>helt i nettleseren din</b> — det finnes ingen server, og posisjonen din sendes aldri noe sted. Det nevrale nettverket lastes ned én gang (~7 MB), og alle forutsigelser beregnes på din egen enhet. Bygget med:</p>" +
+        "<ul>" +
+        "<li><b>ONNX Runtime Web</b> (WebAssembly) — kjører det nevrale nettverket i nettleseren.</li>" +
+        "<li><b>Web Workers</b> — beregningen kjøres utenfor hovedtråden så grensesnittet forblir responsivt.</li>" +
+        "<li><b>BirdNET Geomodel</b> — den trente modellen, eksportert til ONNX (FP16, ~7 MB).</li>" +
+        "<li><b>Leaflet</b> med OpenStreetMap-/CARTO-fliser — det interaktive kartet.</li>" +
+        "<li><b>Ren HTML, CSS og JavaScript</b> — ingen rammeverk og ingen byggesteg; servert som en statisk side (GitHub Pages).</li>" +
+        "</ul>" +
+        "<h4>Prosjekt &amp; tilbakemelding</h4>" +
+        "<p>Dette verktøyet er gratis å bruke, og tilbakemeldinger er velkomne til <a href=\"mailto:vesmir09@gmail.com\">vesmir09@gmail.com</a>. En Norge-spesifikk habitatmodell er under utvikling, med mål om å bruke rikere norske data enn Google Earth Engine-dataene som brukes i den nåværende modellen. Målet med habitatmodellen er en forbedret app for fuglesanggjenkjenning (A!Birder) (under utvikling). Denne siden er laget for enkel kvalitetskontroll av den modellen.</p>" +
+        "<p class=\"about-note\">Forutsigelser er modellestimater, ikke fasit. Modellvekter © BirdNET-teamet, lisensiert CC BY-SA 4.0; kartfliser © OpenStreetMap-bidragsytere, © CARTO.</p>",
+    },
     it: {
+      "app.title": "Esploratore di distribuzione e migrazione delle specie",
+      "app.loading": "Caricamento di modello, etichette e nomi delle specie…",
+      "app.failed": "Caricamento non riuscito: {msg}",
+      "ctrl.language": "Lingua",
+      "ctrl.mode": "Modalità",
+      "ctrl.group": "Gruppo di specie",
+      "group.all": "Tutti i gruppi",
+      "group.aves": "Uccelli",
+      "group.mammalia": "Mammiferi",
+      "group.amphibia": "Anfibi",
+      "group.insecta": "Insetti",
+      "mode.range": "Areale della specie",
+      "mode.richness": "Ricchezza di specie",
+      "mode.list": "Elenco delle specie (clicca sulla mappa)",
+      "mode.barchart": "Cronologia della migrazione (clicca sulla mappa)",
+      "ctrl.species": "Specie",
+      "ph.species": "Cerca specie…",
+      "ctrl.week": "Settimana",
+      "ctrl.bcthreshold": "Intervallo di probabilità",
+      "ctrl.compare": "Confronta con",
+      "compare.none": "— nessuno —",
+      "compare.prev": "Settimana precedente",
+      "compare.next": "Settimana successiva",
+      "compare.mean": "Media annuale",
+      "compare.max": "Massimo annuale",
+      "compare.annualtop": "Picco annuale",
+      "ctrl.secondlang": "2° nome",
+      "ctrl.savedloc": "Località salvate",
+      "ph.savedloc": "Nessuna località salvata",
+      "loc.delete": "Elimina località",
+      "ctrl.hidden": "Specie nascoste",
+      "loc.unhide": "Mostra di nuovo",
+      "menu.filter": "Filtra",
+      "menu.hide": "Non mostrare",
+      "menu.wiki": "Wikipedia",
+      "menu.macaulay": "Macaulay Library",
+      "btn.saveloc": "★ Salva",
+      "btn.csv": "⬇ CSV",
+      "btn.play": "▶ Riproduci migrazione",
+      "btn.pause": "⏸ Pausa",
+      "btn.newchecklist": "＋ Lista",
+      "btn.print": "🖨 Stampa",
+      "btn.close": "Chiudi",
+      "btn.delete": "Elimina",
+      "ctrl.checklists": "Liste",
+      "chk.namePrompt": "Assegna un nome a questa lista:",
+      "chk.note": "NB: le probabilità e gli altri valori in questa lista derivano da un modello di IA e rappresentano solo un'approssimazione delle specie che potrebbero comparire in questa località — non sono osservazioni confermate. Per un riferimento autorevole sulle specie, vedi <a href=\"https://www.avilist.org\">avilist.org</a>.",
+      "status.buildingChecklist": "Creazione della lista in corso…",
+      "th.change": "Variazione (Δ)",
+      "th.locality": "Località",
+      "th.notes": "Note",
+      "panel.spTitle": "Specie nella località",
+      "panel.bcTitle": "Analisi della località",
+      "tab.timeline": "Cronologia",
+      "tab.prob": "Probabilità",
+      "tab.arrival": "Arrivi",
+      "tab.focus": "Picco annuale",
+      "tab.scatter": "Dispersione",
+      "analysis.empty": "Nessuna specie sopra la soglia.",
+      "ctrl.filter": "Filtra specie",
+      "ph.filter": "Filtra specie…",
+      "ctrl.topN": "Prime N",
+      "ctrl.rankby": "Ordina per",
+      "rank.arrival": "Arrivi",
+      "rank.prob": "Probabilità",
+      "rank.both": "Entrambi",
+      "ctrl.basemap": "Mappa di base",
+      "ctrl.hires": "Alta risoluzione",
+      "popup.perf": "Areale della specie, Ricchezza di specie e ▶ Riproduci migrazione valutano il modello su molte celle della mappa, quindi per prestazioni fluide si consiglia un computer moderno con una CPU veloce.",
+      "popup.ok": "OK",
+      "basemap.dark": "Scura",
+      "basemap.light": "Chiara",
+      "basemap.streets": "Stradale",
+      "basemap.topo": "Topografica",
+      "basemap.satellite": "Satellitare",
+      "scatter.xAxis": "Arrivo (settimana corrente)",
+      "scatter.yAxis": "Probabilità (settimana corrente)",
+      "th.rank": "#",
+      "th.species": "Specie",
+      "th.sci": "Nome scientifico",
+      "th.prob": "Probabilità",
+      "th.arrival": "Arrivo",
+      "th.delta": "Δ rispetto a {ref}",
+      "th.ratio": "% di {ref}",
+      "legend.prob": "Probabilità di presenza",
+      "legend.count": "Numero di specie previsto",
+      "status.selectSpecies": "Seleziona una specie per visualizzare la mappa del suo areale previsto.",
+      "status.loadingModel": "Caricamento del modello ONNX…",
+      "status.computing": "Calcolo di {name} – {week} · {n} nuove celle [{i}/{total}]…",
+      "status.rangeDone": "{name} – {week} · {n} celle ({step}°)",
+      "status.rangeCached": "{name} – {week} · {n} celle ({step}°) [in cache]",
+      "status.richnessDone": "Ricchezza di specie – {week} · {n} celle ({step}°)",
+      "status.richnessCached": "Ricchezza di specie – {week} · {n} celle ({step}°) [in cache]",
+      "status.predicting": "Previsione delle specie a ({lat}, {lon}) settimana {week}…",
+      "status.predicting48": "Previsione di 48 settimane a ({lat}, {lon})…",
+      "status.spResult": "{n} specie sopra il {p}% a ({lat}, {lon})",
+      "status.error": "Errore: {msg}",
+      "sp.summary": "{lat}°, {lon}° · Settimana {week} · {n} specie sopra il {p}%",
+      "bc.summary": "{lat}°, {lon}° · {n} specie sopra il {p}% medio · normalizzato al {max}%",
+      "bc.avg": "{p}% medio",
+      "week.fmt": "Settimana {w} ({period} {month})",
+      "loc.savePrompt": "Assegna un nome a questa località:",
+      "loc.defaultName": "{lat}, {lon}",
+      "footer.attrib": "Modello: BirdNET Geomodel (pesi CC BY-SA 4.0). Codice dell'app MIT. Le previsioni sono stime — non dati certi.",
+      "footer.lastchange": "Ultima modifica: {t}",
       "about.title": "ℹ︎ Informazioni sul modello e su come si calcolano i valori",
       "about.html":
         "<h4>Il modello di habitat</h4>" +
@@ -512,9 +1189,9 @@ window.GeoI18N = (function () {
         "<li><b>Probabilità</b> — una mappa di calore specie × settimana (rosso = basso, verde = alto), estesa sui valori a schermo.</li>" +
         "<li><b>Arrivi</b> — per ogni specie e settimana, un punteggio di arrivo <code>(P[settimana successiva] − P[settimana precedente]) ÷ max</code>, dove <code>max</code> è la probabilità settimanale più alta della specie nell'anno. Verde = in aumento (arrivo), rosso = in calo (partenza); le settimane si chiudono al confine dell'anno (1 ↔ 48).</li>" +
         "<li><b>Picco annuale</b> — la somma cumulativa dei punteggi di arrivo settimanali, riscalata a 0–100 (minimo dell'anno = 0, picco = 100). Evidenzia il periodo dell'anno in cui la specie è più presente.</li>" +
-        "<li><b>Grafico a dispersione</b> — il punteggio di arrivo della settimana corrente (asse x) rispetto alla probabilità (asse y) per le specie principali, con una tabella ordinabile sotto.</li>" +
+        "<li><b>Dispersione</b> — il punteggio di arrivo della settimana corrente (asse x) rispetto alla probabilità (asse y) per le specie principali, con una tabella ordinabile sotto.</li>" +
         "</ul>" +
-        "<h4>Elenco specie — colonna « Confronta con »</h4>" +
+        "<h4>Elenco delle specie — colonna « Confronta con »</h4>" +
         "<ul>" +
         "<li><b>Settimana precedente / successiva</b> e <b>Media annuale</b> mostrano la variazione Δ = probabilità attuale − il valore di confronto.</li>" +
         "<li><b>Massimo annuale</b> mostra la settimana corrente come frazione del picco annuale della specie: <code>attuale ÷ max nell'anno</code>. 100% significa che la settimana selezionata è la settimana migliore della specie.</li>" +
