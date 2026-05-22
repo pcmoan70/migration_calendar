@@ -79,8 +79,8 @@
 
   // Grid resolution per zoom level (degrees per cell). Finer cells at deeper
   // zoom keep the heatmap detailed without exploding the cell count.
-  var ZOOM_STEP = { 2: 3, 3: 2, 4: 1, 5: 0.5, 6: 0.5, 7: 0.25, 8: 0.25 };
-  var MAX_ZOOM = 8;
+  var ZOOM_STEP = { 2: 3, 3: 2, 4: 1, 5: 0.5, 6: 0.5, 7: 0.25, 8: 0.25, 9: 0.125, 10: 0.0625, 11: 0.03125 };
+  var MAX_ZOOM = 11;
 
   // Perceptual scaling: gamma < 1 stretches low values for visibility
   var DISPLAY_GAMMA = 0.5;
