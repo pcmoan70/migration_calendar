@@ -293,16 +293,41 @@
     return "https://search.macaulaylibrary.org/catalog?q=" + encodeURIComponent(sci);
   }
 
-  // Link to the species' BirdLife DataZone factsheet. We can't build the
-  // factsheet slug directly: BirdLife uses its own taxonomy, so the genus
-  // often differs from eBird's (e.g. Sandhill Crane is Antigone canadensis in
-  // eBird but Grus canadensis on BirdLife), which would 404 or land on the
-  // wrong species. DuckDuckGo's "!ducky" bang does an I'm-Feeling-Lucky jump
-  // to the top hit of a site-restricted search, so it navigates straight to
-  // the correct factsheet (resolving the synonyms) with no extra click.
+  // Best-effort direct factsheet slug (works only when BirdLife's genus matches
+  // eBird's); used as a no-JS fallback href and last resort.
+  function slugify(s) { return String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, ""); }
   function birdlifeUrl(en, sci) {
-    var q = "!ducky " + (en ? en + " " : "") + sci + " site:datazone.birdlife.org/species/factsheet";
-    return "https://duckduckgo.com/?q=" + encodeURIComponent(q);
+    return "https://datazone.birdlife.org/species/factsheet/" + slugify(en) + "-" + slugify(sci);
+  }
+
+  // Open the species' BirdLife DataZone factsheet. BirdLife uses its own
+  // taxonomy (e.g. Sandhill Crane is Grus canadensis there, Antigone canadensis
+  // in eBird), so a slug built from eBird names can 404 / hit the wrong species.
+  // Instead we look up the species' numeric BirdLife ID from Wikidata
+  // (property P5257) and open /species/factsheet/<id>, which redirects to the
+  // correct factsheet. The tab is opened synchronously (user gesture) and its
+  // URL is set once the ID is fetched; falls back to the slug on any failure.
+  function openBirdLife(en, sci) {
+    var w = window.open("about:blank", "_blank");
+    var done = false;
+    var go = function (url) { if (done) return; done = true; if (w) { w.location.href = url; } else { openExternal(url); } };
+    var fallback = birdlifeUrl(en, sci);
+    setTimeout(function () { go(fallback); }, 6000);   // don't leave a blank tab if Wikidata is slow
+    var wd = "https://www.wikidata.org/w/api.php?origin=*&format=json&action=";
+    fetch(wd + "wbsearchentities&type=item&language=en&search=" + encodeURIComponent(sci))
+      .then(function (r) { return r.json(); })
+      .then(function (s) {
+        var qid = s.search && s.search[0] && s.search[0].id;
+        if (!qid) { go(fallback); return; }
+        return fetch(wd + "wbgetclaims&property=P5257&entity=" + qid)
+          .then(function (r) { return r.json(); })
+          .then(function (c) {
+            var cl = c.claims && c.claims.P5257;
+            var v = cl && cl[0] && cl[0].mainsnak.datavalue && cl[0].mainsnak.datavalue.value;
+            go(v ? "https://datazone.birdlife.org/species/factsheet/" + encodeURIComponent(v) : fallback);
+          });
+      })
+      .catch(function () { go(fallback); });
   }
   function isBirdKey(key) { return /^aves$/i.test((taxByCode[key] || {}).class_name || ""); }
 
@@ -377,7 +402,7 @@
       var h = "";
       if (fullUrl) h += '<a href="' + escapeHtml(fullUrl) + '" target="_blank" rel="noopener">' + escapeHtml(t("distmap.download")) + '</a> · ';
       h += '<a class="dm-wiki" data-sci="' + escapeHtml(sci) + '" href="' + escapeHtml(wikipediaUrl(sci)) + '" target="_blank" rel="noopener">Wikipedia</a>';
-      if (bird) h += ' · <a href="' + escapeHtml(birdlifeUrl(en, sci)) + '" target="_blank" rel="noopener">BirdLife</a>';
+      if (bird) h += ' · <a class="dm-birdlife" data-en="' + escapeHtml(en) + '" data-sci="' + escapeHtml(sci) + '" href="' + escapeHtml(birdlifeUrl(en, sci)) + '" target="_blank" rel="noopener">BirdLife</a>';
       return h;
     }
     function showNone() {
@@ -988,10 +1013,14 @@
     document.getElementById("distmap-modal").addEventListener("click", function (e) {
       if (e.target === this) hideDistMap();
     });
-    // Wikipedia links in the pop-up use the locale→English fallback.
+    // Pop-up reference links: Wikipedia uses the locale→English fallback;
+    // BirdLife resolves the factsheet via its numeric ID.
     document.getElementById("distmap-body").addEventListener("click", function (e) {
-      var a = e.target.closest && e.target.closest(".dm-wiki");
-      if (a) { e.preventDefault(); openWikipedia(a.getAttribute("data-sci")); }
+      if (!e.target.closest) return;
+      var wk = e.target.closest(".dm-wiki");
+      if (wk) { e.preventDefault(); openWikipedia(wk.getAttribute("data-sci")); return; }
+      var bl = e.target.closest(".dm-birdlife");
+      if (bl) { e.preventDefault(); openBirdLife(bl.getAttribute("data-en"), bl.getAttribute("data-sci")); }
     });
     document.addEventListener("keydown", function (e) {
       if (e.key === "Escape") { hidePerfModal(); hideDistMap(); }
@@ -1131,7 +1160,7 @@
         if (act === "hide") hideSpecies(menuKey);
         else if (act === "filter") applyNameFilter(menuName);
         else if (act === "wiki") openWikipedia(menuSci || menuName);
-        else if (act === "birdlife") openExternal(birdlifeUrl((labelsByKey[menuKey] && labelsByKey[menuKey].common) || menuName, menuSci || menuName));
+        else if (act === "birdlife") openBirdLife((labelsByKey[menuKey] && labelsByKey[menuKey].common) || menuName, menuSci || menuName);
         else if (act === "macaulay") openExternal(macaulayUrl(menuKey, menuSci || menuName));
         else if (act === "distmap") showDistMap(menuName, menuSci || menuName, menuKey);
         spMenu.style.display = "none";
