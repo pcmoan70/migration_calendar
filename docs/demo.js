@@ -804,7 +804,14 @@
     var view = window.GeoState.get("view", null);
     var center = (view && view.lat != null) ? [view.lat, view.lon] : [30, 0];
     var zoom = (view && view.zoom != null) ? view.zoom : 2;
-    map = L.map("demo-map", { center: center, zoom: zoom, minZoom: 2, maxZoom: MAX_ZOOM });
+    // Constrain to a single world copy so panning can't yield out-of-range
+    // longitudes (e.g. a click returning lon = 635) and the range overlay
+    // always projects onto the visible map.
+    map = L.map("demo-map", {
+      center: center, zoom: zoom, minZoom: 2, maxZoom: MAX_ZOOM,
+      worldCopyJump: true,
+      maxBounds: [[-90, -180], [90, 180]], maxBoundsViscosity: 1.0,
+    });
 
     setBasemap(window.GeoState.get("basemap", "dark"));
 
@@ -1552,11 +1559,17 @@
 
   // ---- Species list --------------------------------------------------------
   function onMapClick(e) {
-    if (currentMode !== "list" && currentMode !== "barchart") return;
+    // List + Range both show the per-point species list on click; Migration
+    // Timeline shows the analysis. (In Range mode the range overlay stays.)
+    if (currentMode !== "list" && currentMode !== "barchart" && currentMode !== "range") return;
     if (marker) map.removeLayer(marker);
-    marker = L.marker([e.latlng.lat, e.latlng.lng]).addTo(map);
-    if (currentMode === "list") renderSpeciesList(e.latlng.lat, e.latlng.lng);
-    else renderAnalysis(e.latlng.lat, e.latlng.lng);
+    // Normalize: latitude clamped to [-90, 90]; longitude wrapped to [-180, 180]
+    // (a click on a panned world-copy can otherwise give e.g. lon = 635).
+    var lat = Math.max(-90, Math.min(90, e.latlng.lat));
+    var lon = wrapLon(e.latlng.lng);
+    marker = L.marker([lat, lon]).addTo(map);
+    if (currentMode === "barchart") renderAnalysis(lat, lon);
+    else renderSpeciesList(lat, lon);
   }
 
   // Compute the per-species comparison probabilities for the "change" column.
