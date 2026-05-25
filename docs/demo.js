@@ -219,6 +219,7 @@
   var currentMode = "range";
   var fieldData = null;       // current probability-ranked species for the field checklist
   var fieldQuery = "";        // fuzzy filter text for the field checklist
+  var fieldPlaceToken = 0;    // guards against stale field-place lookups
   var rendering = false;
   var renderGeneration = 0;
   var moveEndTimer = null;
@@ -2018,6 +2019,27 @@
     });
   }
 
+  // A detailed, specific place name (the actual locality — building/park/road/
+  // neighbourhood, plus the town/city), not the county or country. Cached.
+  var placeDetailCache = {};
+  function detailedPlaceLabel(j) {
+    var a = (j && j.address) || {};
+    var specific = (j && j.name) || a.amenity || a.leisure || a.tourism || a.building ||
+      a.natural || a.water || a.peak || a.road || a.pedestrian || a.neighbourhood ||
+      a.suburb || a.quarter || a.hamlet || a.city_district || a.village || "";
+    var town = a.town || a.city || a.village || a.municipality || "";
+    if (specific && town && specific !== town) return specific + ", " + town;
+    return specific || town || a.county || a.state || a.country || (j && j.display_name) || "";
+  }
+  function detailedPlaceName(lat, lon) {
+    var k = lat.toFixed(4) + "," + lon.toFixed(4);
+    if (placeDetailCache[k] !== undefined) return Promise.resolve(placeDetailCache[k]);
+    return fetch("https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=18&addressdetails=1&lat=" + lat + "&lon=" + lon, { headers: { Accept: "application/json" } })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) { var n = detailedPlaceLabel(j); placeDetailCache[k] = n; return n; })
+      .catch(function () { placeDetailCache[k] = ""; return ""; });
+  }
+
   // ---- Field checklist (mobile live entry) ---------------------------------
   function getFieldEntries() { return window.GeoState.get("fieldEntries", {}) || {}; }
   function saveFieldEntries(e) { window.GeoState.save({ fieldEntries: e }); }
@@ -2047,8 +2069,11 @@
       }
       rows.sort(function (a, b) { return b.prob - a.prob; });
       fieldData = rows;
-      setCoordsWithPlace(document.getElementById("field-coords"), lat, lon,
-        t("sp.summary", { lat: lat.toFixed(4), lon: lon.toFixed(4), week: week, n: rows.length, p: (pmin * 100).toFixed(0) }));
+      // Title = the actual detailed location (resolved async; coords meanwhile).
+      var fcEl = document.getElementById("field-coords");
+      fcEl.textContent = lat.toFixed(4) + "°, " + lon.toFixed(4) + "°";
+      var ptok = ++fieldPlaceToken;
+      detailedPlaceName(lat, lon).then(function (name) { if (ptok === fieldPlaceToken && name) fcEl.textContent = name; });
       document.getElementById("field-page").style.display = "flex";   // full-screen entry page
       hideFcPicker();
       renderFieldList();
