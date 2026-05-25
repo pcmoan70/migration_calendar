@@ -662,16 +662,6 @@
             '<select id="lang-select"></select>' +
           '</div>' +
           '<div class="ctrl-group">' +
-            '<label for="basemap-select" data-i18n="ctrl.basemap">Base map</label>' +
-            '<select id="basemap-select">' +
-              '<option value="dark" data-i18n="basemap.dark">Dark</option>' +
-              '<option value="light" data-i18n="basemap.light">Light</option>' +
-              '<option value="streets" data-i18n="basemap.streets">Streets</option>' +
-              '<option value="topo" data-i18n="basemap.topo">Topographic</option>' +
-              '<option value="satellite" data-i18n="basemap.satellite">Satellite</option>' +
-            '</select>' +
-          '</div>' +
-          '<div class="ctrl-group">' +
             '<label for="group-select" data-i18n="ctrl.group">Species group</label>' +
             '<select id="group-select">' +
               '<option value="all" data-i18n="group.all">All groups</option>' +
@@ -726,9 +716,11 @@
             '<tbody id="sp-tbody"></tbody>' +
           '</table>' +
         '</div>' +
-        '<div id="field-panel" style="display:none">' +
-          '<div class="field-head">' +
-            '<span class="sp-coords" id="field-coords"></span>' +
+        '<div id="field-page" style="display:none">' +
+          '<div class="field-page-bar">' +
+            '<button id="field-back" class="fp-back" title="Back to map">‹</button>' +
+            '<span class="field-place" id="field-coords"></span>' +
+            '<span class="field-seen" id="field-seen"></span>' +
             '<span class="field-actions">' +
               '<button id="field-csv" class="demo-btn" data-i18n="btn.csv" title="Download CSV">⬇ CSV</button>' +
               '<button id="field-clear" class="demo-btn demo-btn-light" data-i18n="btn.clear">Clear</button>' +
@@ -1049,9 +1041,9 @@
         var sel = L.DomUtil.create("select", "maptype-select", c);
         sel.id = "maptype-select";
         sel.title = t("ctrl.basemap");
-        var src = document.getElementById("basemap-select");
-        sel.innerHTML = src ? src.innerHTML : "";
-        sel.value = (src && src.value) || "dark";
+        var opts = [["dark", "basemap.dark"], ["light", "basemap.light"], ["streets", "basemap.streets"], ["topo", "basemap.topo"], ["satellite", "basemap.satellite"]];
+        sel.innerHTML = opts.map(function (o) { return '<option value="' + o[0] + '" data-i18n="' + o[1] + '">' + escapeHtml(t(o[1])) + "</option>"; }).join("");
+        sel.value = document.body.getAttribute("data-basemap") || "dark";
         L.DomEvent.disableClickPropagation(c);
         L.DomEvent.on(sel, "change", function () { setBasemap(sel.value); });
         return c;
@@ -1092,11 +1084,8 @@
     baseLayer.addTo(map);
     baseLayer.bringToBack();
     document.body.setAttribute("data-basemap", which);
-    // Keep both map-type selectors (below-map dropdown + on-map control) in sync.
-    var sel = document.getElementById("basemap-select");
+    var sel = document.getElementById("maptype-select");
     if (sel) sel.value = which;
-    var sel2 = document.getElementById("maptype-select");
-    if (sel2) sel2.value = which;
     window.GeoState.save({ basemap: which });
   }
 
@@ -1170,7 +1159,7 @@
       updateModeVisibility();
       document.getElementById("species-panel").style.display = "none";
       document.getElementById("barchart-panel").style.display = "none";
-      document.getElementById("field-panel").style.display = "none";
+      document.getElementById("field-page").style.display = "none";
       hideCsvBtn();
       hideSaveLocBtn();
       if (cachedRender) clearOverlay();
@@ -1189,9 +1178,6 @@
       rerenderPointList();
     });
 
-    document.getElementById("basemap-select").addEventListener("change", function () {
-      setBasemap(this.value);
-    });
 
     document.getElementById("hires-toggle").addEventListener("change", function () {
       hiRes = this.checked;
@@ -1273,6 +1259,7 @@
         setFieldEntry(key, { act: el.value || null }, mark2);
         if (mark2 && row) { var cb2 = row.querySelector(".fc-seen"); if (cb2) cb2.checked = true; row.classList.add("fc-on"); }
       }
+      updateFieldSeen();
     }
     var fieldList = document.getElementById("field-list");
     fieldList.addEventListener("input", function (e) { fieldRowUpdate(e.target); });
@@ -1282,6 +1269,11 @@
     });
     document.getElementById("field-clear").addEventListener("click", function () {
       saveFieldEntries({}); renderFieldList();
+    });
+    // Back: close the full-screen field page and return to the map.
+    document.getElementById("field-back").addEventListener("click", function () {
+      document.getElementById("field-page").style.display = "none";
+      if (map) map.invalidateSize();
     });
 
     document.getElementById("an-filter").addEventListener("input", function () { renderActiveTab(); });
@@ -2015,9 +2007,7 @@
       fieldData = rows;
       setCoordsWithPlace(document.getElementById("field-coords"), lat, lon,
         t("sp.summary", { lat: lat.toFixed(4), lon: lon.toFixed(4), week: week, n: rows.length, p: (pmin * 100).toFixed(0) }));
-      document.getElementById("field-panel").style.display = "block";
-      document.getElementById("species-panel").style.display = "none";
-      document.getElementById("barchart-panel").style.display = "none";
+      document.getElementById("field-page").style.display = "flex";   // full-screen entry page
       renderFieldList();
       setStatus(t("status.spResult", { n: rows.length, p: (pmin * 100).toFixed(0), lat: lat.toFixed(2), lon: lon.toFixed(2) }));
     } catch (e) { setStatus(t("status.error", { msg: e.message })); console.error(e); }
@@ -2048,6 +2038,16 @@
         "</div>";
     }).join("");
     if (!shown.length) list.innerHTML = '<p class="fc-empty">' + escapeHtml(t("analysis.empty")) + "</p>";
+    updateFieldSeen();
+  }
+
+  // Update the "✓ N" seen-count badge in the field page bar.
+  function updateFieldSeen() {
+    var el = document.getElementById("field-seen");
+    if (!el) return;
+    var entries = getFieldEntries(), n = 0;
+    for (var k in entries) if (entries[k] && entries[k].seen) n++;
+    el.textContent = n ? "✓ " + n : "";
   }
 
   // Update one species' field entry and persist. mark=true also ticks "seen".
