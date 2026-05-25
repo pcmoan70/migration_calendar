@@ -728,6 +728,26 @@
           '</div>' +
           '<input id="field-search" type="text" autocomplete="off" data-i18n-ph="ph.filter" placeholder="Filter species…" />' +
           '<div id="field-list"></div>' +
+          '<div id="fc-picker" style="display:none">' +
+            '<div class="fcp-head"><span id="fcp-name"></span><button type="button" id="fcp-close" aria-label="Close">×</button></div>' +
+            '<div class="fcp-step-row">' +
+              '<button type="button" class="fcp-step" data-fcp="dec" aria-label="−1">−</button>' +
+              '<span class="fcp-val" id="fcp-val">0</span>' +
+              '<button type="button" class="fcp-step" data-fcp="inc" aria-label="+1">+</button>' +
+            '</div>' +
+            '<div class="fcp-nums">' +
+              '<button type="button" class="fcp-num" data-n="1">1</button>' +
+              '<button type="button" class="fcp-num" data-n="2">2</button>' +
+              '<button type="button" class="fcp-num" data-n="3">3</button>' +
+              '<button type="button" class="fcp-num" data-n="4">4</button>' +
+              '<button type="button" class="fcp-num" data-n="5">5</button>' +
+              '<button type="button" class="fcp-num" data-n="6">6</button>' +
+              '<button type="button" class="fcp-num" data-n="7">7</button>' +
+              '<button type="button" class="fcp-num" data-n="8">8</button>' +
+              '<button type="button" class="fcp-num" data-n="9">9</button>' +
+              '<button type="button" class="fcp-num" data-n="10">10</button>' +
+            '</div>' +
+          '</div>' +
         '</div>' +
         '<div id="barchart-panel">' +
           '<h3 id="bc-title" data-i18n="panel.bcTitle">Location analysis</h3>' +
@@ -1249,11 +1269,6 @@
       if (el.classList.contains("fc-seen")) {
         setFieldEntry(key, { seen: el.checked });
         if (row) row.classList.toggle("fc-on", el.checked);
-      } else if (el.classList.contains("fc-count")) {
-        var v = el.value === "" ? null : Math.max(0, parseInt(el.value, 10) || 0);
-        var mark = v != null && v > 0;
-        setFieldEntry(key, { count: v }, mark);
-        if (mark && row) { var cb = row.querySelector(".fc-seen"); if (cb) cb.checked = true; row.classList.add("fc-on"); }
       } else if (el.classList.contains("fc-act")) {
         var mark2 = !!el.value;
         setFieldEntry(key, { act: el.value || null }, mark2);
@@ -1264,6 +1279,32 @@
     var fieldList = document.getElementById("field-list");
     fieldList.addEventListener("input", function (e) { fieldRowUpdate(e.target); });
     fieldList.addEventListener("change", function (e) { fieldRowUpdate(e.target); });
+    // Tap a count → open the quick-select; close it on scroll.
+    fieldList.addEventListener("click", function (e) {
+      var btn = e.target.closest && e.target.closest(".fc-count");
+      if (!btn) return;
+      var row = btn.closest(".fc-row"), nm = row && row.querySelector(".fc-name");
+      openFcPicker(btn.getAttribute("data-key"), nm ? nm.textContent : "");
+    });
+    fieldList.addEventListener("scroll", hideFcPicker);
+    var fcp = document.getElementById("fc-picker");
+    fcp.addEventListener("click", function (e) {
+      var num = e.target.closest && e.target.closest(".fcp-num");
+      if (num) { setFcCount(fcPickerKey, +num.getAttribute("data-n")); hideFcPicker(); return; }
+      if (e.target.id === "fcp-close") hideFcPicker();
+    });
+    fcp.addEventListener("pointerdown", function (e) {
+      var st = e.target.closest && e.target.closest(".fcp-step");
+      if (st) { e.preventDefault(); fcStartHold(st.getAttribute("data-fcp") === "inc" ? 1 : -1); }
+    });
+    document.addEventListener("pointerup", fcStopHold);
+    document.addEventListener("pointercancel", fcStopHold);
+    document.addEventListener("click", function (e) {
+      var p = document.getElementById("fc-picker");
+      if (!p || p.style.display === "none") return;
+      if (e.target.closest("#fc-picker") || e.target.closest(".fc-count")) return;
+      hideFcPicker();
+    });
     document.getElementById("field-csv").addEventListener("click", function () {
       downloadCsv("field_checklist.csv", fieldChecklistCsv());
     });
@@ -1272,6 +1313,7 @@
     });
     // Back: close the full-screen field page and return to the map.
     document.getElementById("field-back").addEventListener("click", function () {
+      hideFcPicker();
       document.getElementById("field-page").style.display = "none";
       if (map) map.invalidateSize();
     });
@@ -2008,6 +2050,7 @@
       setCoordsWithPlace(document.getElementById("field-coords"), lat, lon,
         t("sp.summary", { lat: lat.toFixed(4), lon: lon.toFixed(4), week: week, n: rows.length, p: (pmin * 100).toFixed(0) }));
       document.getElementById("field-page").style.display = "flex";   // full-screen entry page
+      hideFcPicker();
       renderFieldList();
       setStatus(t("status.spResult", { n: rows.length, p: (pmin * 100).toFixed(0), lat: lat.toFixed(2), lon: lon.toFixed(2) }));
     } catch (e) { setStatus(t("status.error", { msg: e.message })); console.error(e); }
@@ -2033,7 +2076,7 @@
       return '<div class="fc-row' + on + '" data-key="' + escapeHtml(r.key) + '">' +
         '<label class="fc-tick"><input type="checkbox" class="fc-seen" data-key="' + escapeHtml(r.key) + '"' + (en.seen ? " checked" : "") + "></label>" +
         '<span class="fc-name">' + escapeHtml(r.name) + "</span>" +
-        '<input type="number" class="fc-count" inputmode="numeric" min="0" placeholder="#" data-key="' + escapeHtml(r.key) + '" value="' + (en.count != null ? en.count : "") + '">' +
+        '<button type="button" class="fc-count' + (en.count != null ? " has-n" : "") + '" data-key="' + escapeHtml(r.key) + '">' + (en.count != null ? en.count : "#") + "</button>" +
         '<select class="fc-act" data-key="' + escapeHtml(r.key) + '">' + actOpts(en.act) + "</select>" +
         "</div>";
     }).join("");
@@ -2048,6 +2091,42 @@
     var entries = getFieldEntries(), n = 0;
     for (var k in entries) if (entries[k] && entries[k].seen) n++;
     el.textContent = n ? "✓ " + n : "";
+  }
+
+  // ---- Count quick-select (field checklist) --------------------------------
+  var fcPickerKey = null, fcHoldTimer = null, fcHoldInt = null;
+  function openFcPicker(key, name) {
+    fcPickerKey = key;
+    document.getElementById("fcp-name").textContent = name || "";
+    document.getElementById("fcp-val").textContent = (getFieldEntries()[key] || {}).count || 0;
+    document.getElementById("fc-picker").style.display = "block";
+  }
+  function hideFcPicker() { fcPickerKey = null; var p = document.getElementById("fc-picker"); if (p) p.style.display = "none"; }
+  // Set the count for a species and reflect it in the row, badge and picker.
+  function setFcCount(key, val) {
+    val = Math.max(0, val | 0);
+    setFieldEntry(key, { count: val > 0 ? val : null }, val > 0);
+    var btn = document.querySelector('#field-list .fc-count[data-key="' + key + '"]');
+    if (btn) {
+      btn.textContent = val > 0 ? val : "#";
+      btn.classList.toggle("has-n", val > 0);
+      var row = btn.closest(".fc-row");
+      if (row) {
+        if (val > 0) { var cb = row.querySelector(".fc-seen"); if (cb) cb.checked = true; }
+        row.classList.toggle("fc-on", (getFieldEntries()[key] || {}).seen === true);
+      }
+    }
+    var v = document.getElementById("fcp-val"); if (v) v.textContent = val;
+    updateFieldSeen();
+  }
+  function fcStep(delta) {
+    if (!fcPickerKey) return;
+    setFcCount(fcPickerKey, ((getFieldEntries()[fcPickerKey] || {}).count || 0) + delta);
+  }
+  function fcStopHold() { clearTimeout(fcHoldTimer); clearInterval(fcHoldInt); fcHoldTimer = fcHoldInt = null; }
+  function fcStartHold(delta) {
+    fcStep(delta);   // immediate step
+    fcHoldTimer = setTimeout(function () { fcHoldInt = setInterval(function () { fcStep(delta); }, 110); }, 400);
   }
 
   // Update one species' field entry and persist. mark=true also ticks "seen".

@@ -1086,9 +1086,31 @@ table.recent-table .rc-who { color: var(--md-default-fg-color--light, #888); whi
 .fc-tick { display: flex; align-items: center; }
 .fc-tick input { width: 24px; height: 24px; }
 .fc-name { flex: 1 1 auto; font-size: 0.95rem; }
-.fc-count { width: 56px; height: 34px; box-sizing: border-box; text-align: center; font-size: 0.95rem;
-  border: 1px solid var(--md-default-fg-color--lightest, #ccc); border-radius: 4px;
-  background: var(--md-default-bg-color, #fff); color: var(--md-default-fg-color, #333); }
+.fc-count { width: 48px; height: 36px; box-sizing: border-box; text-align: center; font-size: 1rem; cursor: pointer;
+  border: 1px solid var(--md-default-fg-color--lightest, #ccc); border-radius: 6px;
+  background: var(--md-default-bg-color, #fff); color: var(--md-default-fg-color--light, #999); }
+.fc-count.has-n { color: #fff; background: var(--md-accent-fg-color, #2f6f4f); border-color: var(--md-accent-fg-color, #2f6f4f); font-weight: 700; }
+
+/* Count quick-select bottom sheet */
+#fc-picker {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 1600; display: none;
+  background: var(--md-default-bg-color, #fff); color: var(--md-default-fg-color, #1c2526);
+  border-top: 1px solid var(--md-default-fg-color--lightest, #ccc);
+  box-shadow: 0 -6px 24px rgba(0,0,0,0.25); padding: 10px 12px calc(14px + env(safe-area-inset-bottom));
+}
+.fcp-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+#fcp-name { font-weight: 600; font-size: 0.95rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#fcp-close { border: none; background: transparent; font-size: 1.4rem; line-height: 1; cursor: pointer; color: var(--md-default-fg-color--light, #666); }
+.fcp-step-row { display: flex; align-items: center; justify-content: center; gap: 18px; margin-bottom: 10px; }
+.fcp-step { width: 56px; height: 48px; font-size: 1.6rem; line-height: 1; border-radius: 8px; cursor: pointer;
+  border: 1px solid var(--md-default-fg-color--lightest, #ccc); background: var(--md-default-bg-color, #fff); color: var(--md-default-fg-color, #333);
+  touch-action: none; -webkit-user-select: none; user-select: none; }
+.fcp-step:active { background: var(--md-code-bg-color, #eee); }
+.fcp-val { min-width: 48px; text-align: center; font-size: 1.5rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.fcp-nums { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.fcp-num { height: 46px; font-size: 1.1rem; border-radius: 8px; cursor: pointer;
+  border: 1px solid var(--md-default-fg-color--lightest, #ccc); background: var(--md-default-bg-color, #fff); color: var(--md-default-fg-color, #333); }
+.fcp-num:active { background: var(--md-accent-fg-color, #2f6f4f); color: #fff; }
 .fc-act { height: 34px; max-width: 130px; font-size: 0.9rem;
   border: 1px solid var(--md-default-fg-color--lightest, #ccc); border-radius: 4px;
   background: var(--md-default-bg-color, #fff); color: var(--md-default-fg-color, #333); }
