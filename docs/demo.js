@@ -842,11 +842,29 @@
       setStatus(t("status.selectSpecies"));
       showLastChange();
       showPerfModal();
+      initOfflineIndicator();
     } catch (e) {
       document.getElementById("demo-loading").innerHTML =
         '<span style="color:red">' + t("app.failed", { msg: e.message }) + '</span>';
       console.error(e);
     }
+  }
+
+  // Small badge shown only while the browser is offline, reassuring the user
+  // the app is running from its cache. Re-localized on language change via the
+  // data-i18n attribute picked up by applyI18n().
+  function initOfflineIndicator() {
+    var badge = document.createElement("div");
+    badge.id = "offline-badge";
+    badge.setAttribute("data-i18n", "status.offline");
+    badge.textContent = t("status.offline");
+    document.body.appendChild(badge);
+    function sync() {
+      badge.classList.toggle("show", !navigator.onLine);
+    }
+    window.addEventListener("online", sync);
+    window.addEventListener("offline", sync);
+    sync();
   }
 
   // ---- Model & labels ------------------------------------------------------

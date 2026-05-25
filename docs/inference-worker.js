@@ -20,9 +20,18 @@
  */
 
 /* global ort */
-var ORT_CDN = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.21.0/dist/";
-importScripts(ORT_CDN + "ort.min.js");
-ort.env.wasm.wasmPaths = ORT_CDN;
+// Vendored locally (wasm execution-provider build only) so the app runs fully
+// offline once cached by the service worker — no CDN dependency at runtime.
+// Absolute URLs (not bare specifiers) so ORT's dynamic import() resolves inside
+// the worker. The wasm "glue" is shipped with a .js extension (not .mjs) so it
+// loads as a module on any host — some static hosts (incl. GitHub Pages) serve
+// .mjs as application/octet-stream, which fails strict module MIME checking.
+var ORT_BASE = new URL("vendor/ort/", self.location.href).href;
+importScripts(ORT_BASE + "ort.wasm.min.js");
+ort.env.wasm.wasmPaths = {
+  mjs: ORT_BASE + "ort-wasm-simd-threaded.mjs.js",
+  wasm: ORT_BASE + "ort-wasm-simd-threaded.wasm",
+};
 
 var session = null;
 
