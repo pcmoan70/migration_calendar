@@ -2071,7 +2071,7 @@
   // Named natural features / reserves / parks / places near a point, from the
   // Overpass API, nearest first (the things reverse-geocoding tends to skip).
   function nearbyPlaces(lat, lon) {
-    var R = 2500;   // metres
+    var R = 1000;   // metres
     var f = "(nwr(around:" + R + "," + lat + "," + lon + ")[name][natural];" +
       'nwr(around:' + R + ',' + lat + ',' + lon + ')[name][leisure~"^(nature_reserve|park)$"];' +
       'nwr(around:' + R + ',' + lat + ',' + lon + ')[name][boundary~"^(protected_area|national_park)$"];' +
