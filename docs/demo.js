@@ -81,8 +81,9 @@
 
   // Grid resolution per zoom level (degrees per cell). Finer cells at deeper
   // zoom keep the heatmap detailed without exploding the cell count.
-  var ZOOM_STEP = { 2: 3, 3: 2, 4: 1, 5: 0.5, 6: 0.5, 7: 0.25, 8: 0.25, 9: 0.125, 10: 0.0625, 11: 0.03125 };
-  var MAX_ZOOM = 11;
+  var ZOOM_STEP = { 2: 3, 3: 2, 4: 1, 5: 0.5, 6: 0.5, 7: 0.25, 8: 0.25, 9: 0.125, 10: 0.0625, 11: 0.03125,
+    12: 0.015625, 13: 0.0078125, 14: 0.00390625, 15: 0.001953125, 16: 0.0009765625, 17: 0.00048828125, 18: 0.000244140625 };
+  var MAX_ZOOM = 18;
 
   // Perceptual scaling: gamma < 1 stretches low values for visibility
   var DISPLAY_GAMMA = 0.5;
@@ -190,6 +191,10 @@
     var pi = (w - 1) % 4;
     return t("week.fmt", { w: w, period: period[pi], month: months[mi] || months[11] });
   }
+
+  // Format a grid step (degrees) for the status line — keep significant digits
+  // for the fine steps used at deep zoom (so it never shows "0°").
+  function fmtStep(s) { return s >= 0.1 ? (Math.round(s * 100) / 100) : +s.toPrecision(2); }
 
   // Current BirdNET week (1–48) for today's date.
   function weekOfToday() {
@@ -573,17 +578,17 @@
   var baseLayer = null;
   var CARTO_ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>';
   var BASEMAPS = {
-    dark:  { url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",  attribution: CARTO_ATTR, subdomains: "abcd" },
-    light: { url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", attribution: CARTO_ATTR, subdomains: "abcd" },
+    dark:  { url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",  attribution: CARTO_ATTR, subdomains: "abcd", maxNativeZoom: 20 },
+    light: { url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", attribution: CARTO_ATTR, subdomains: "abcd", maxNativeZoom: 20 },
     // Street/political (standard OpenStreetMap)
     streets: { url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-               attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors', subdomains: "abc" },
+               attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors', subdomains: "abc", maxNativeZoom: 19 },
     // Topographic / terrain (contours + relief)
     topo:  { url: "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
-             attribution: 'Map data: &copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>, SRTM | &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (CC-BY-SA)', subdomains: "abc" },
+             attribution: 'Map data: &copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>, SRTM | &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (CC-BY-SA)', subdomains: "abc", maxNativeZoom: 17 },
     // Satellite imagery
     satellite: { url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-                 attribution: 'Imagery &copy; <a href="https://www.esri.com">Esri</a>, Maxar, Earthstar Geographics' } };
+                 attribution: 'Imagery &copy; <a href="https://www.esri.com">Esri</a>, Maxar, Earthstar Geographics', maxNativeZoom: 19 } };
 
   // Capture script location at parse time (before DOMContentLoaded fires)
   var SCRIPT_BASE = (document.currentScript && document.currentScript.src)
@@ -1035,6 +1040,24 @@
     });
     map.addControl(new LocateControl());
     map.on("locationerror", function () { setStatus(t("status.locateError")); });
+
+    // On-map map-type selector (mirrors the below-map Base map dropdown).
+    var MapTypeControl = L.Control.extend({
+      options: { position: "topright" },
+      onAdd: function () {
+        var c = L.DomUtil.create("div", "leaflet-bar leaflet-control maptype-control");
+        var sel = L.DomUtil.create("select", "maptype-select", c);
+        sel.id = "maptype-select";
+        sel.title = t("ctrl.basemap");
+        var src = document.getElementById("basemap-select");
+        sel.innerHTML = src ? src.innerHTML : "";
+        sel.value = (src && src.value) || "dark";
+        L.DomEvent.disableClickPropagation(c);
+        L.DomEvent.on(sel, "change", function () { setBasemap(sel.value); });
+        return c;
+      }
+    });
+    map.addControl(new MapTypeControl());
     // After locating, populate the click-driven modes at the current position.
     map.on("locationfound", function (e) {
       if (["list", "barchart", "range", "field"].indexOf(currentMode) >= 0) onMapClick(e);
@@ -1065,12 +1088,15 @@
     if (baseLayer) map.removeLayer(baseLayer);
     // subdomains must not be undefined — Leaflet reads .length even when the
     // URL has no {s} placeholder (e.g. the Esri satellite layer).
-    baseLayer = L.tileLayer(cfg.url, { attribution: cfg.attribution, maxZoom: MAX_ZOOM, subdomains: cfg.subdomains || "abc" });
+    baseLayer = L.tileLayer(cfg.url, { attribution: cfg.attribution, maxZoom: MAX_ZOOM, maxNativeZoom: cfg.maxNativeZoom || MAX_ZOOM, subdomains: cfg.subdomains || "abc" });
     baseLayer.addTo(map);
     baseLayer.bringToBack();
     document.body.setAttribute("data-basemap", which);
+    // Keep both map-type selectors (below-map dropdown + on-map control) in sync.
     var sel = document.getElementById("basemap-select");
     if (sel) sel.value = which;
+    var sel2 = document.getElementById("maptype-select");
+    if (sel2) sel2.value = which;
     window.GeoState.save({ basemap: which });
   }
 
@@ -1677,7 +1703,7 @@
       var nr = normalizeProbs(buildViewportArray(getCellMap(cacheKey(key, selectedWeek), g.step), g));
       cachedRender = { grid: g, probs: nr.probs, maxProb: nr.maxProb };
       paintOverlay();
-      setStatus(t("status.rangeCached", { name: name, week: weekText(selectedWeek), n: totalPoints.toLocaleString(), step: (Math.round(g.step * 100) / 100) }));
+      setStatus(t("status.rangeCached", { name: name, week: weekText(selectedWeek), n: totalPoints.toLocaleString(), step: fmtStep(g.step) }));
       updateLegend();
       updateMapCsv();
       return;
@@ -1716,7 +1742,7 @@
       var nrF = normalizeProbs(buildViewportArray(getCellMap(cacheKey(key, selectedWeek), g.step), g));
       cachedRender = { grid: g, probs: nrF.probs, maxProb: nrF.maxProb };
       paintOverlay();
-      setStatus(t("status.rangeDone", { name: name, week: weekText(selectedWeek), n: totalPoints.toLocaleString(), step: (Math.round(g.step * 100) / 100) }));
+      setStatus(t("status.rangeDone", { name: name, week: weekText(selectedWeek), n: totalPoints.toLocaleString(), step: fmtStep(g.step) }));
       updateLegend();
       updateMapCsv();
     } catch (e) { setStatus(t("status.error", { msg: e.message })); console.error(e); }
@@ -1736,7 +1762,7 @@
         for (var i = 0; i < raw.length; i++) if (raw[i] > maxVal) maxVal = raw[i];
         cachedRender = { grid: g, probs: perceptualNorm(raw, maxVal), maxVal: maxVal, product: "richness" };
         paintOverlay();
-        setStatus(t("status.richnessCached", { week: weekText(week), n: g.nLat * g.nLon, step: (Math.round(g.step * 100) / 100) }));
+        setStatus(t("status.richnessCached", { week: weekText(week), n: g.nLat * g.nLon, step: fmtStep(g.step) }));
         updateLegend();
         updateMapCsv();
       } else { renderRichness(); }
@@ -1750,7 +1776,7 @@
       var nr = normalizeProbs(buildViewportArray(cm2, g));
       cachedRender = { grid: g, probs: nr.probs, maxProb: nr.maxProb };
       paintOverlay();
-      setStatus(t("status.rangeCached", { name: speciesName(labelsByKey[key]), week: weekText(week), n: g.nLat * g.nLon, step: (Math.round(g.step * 100) / 100) }));
+      setStatus(t("status.rangeCached", { name: speciesName(labelsByKey[key]), week: weekText(week), n: g.nLat * g.nLon, step: fmtStep(g.step) }));
       updateLegend();
       updateMapCsv();
     } else { renderRangeMap(); }
@@ -1780,7 +1806,7 @@
       for (var i = 0; i < raw.length; i++) if (raw[i] > maxVal) maxVal = raw[i];
       cachedRender = { grid: g, probs: perceptualNorm(raw, maxVal), maxVal: maxVal, product: "richness" };
       paintOverlay();
-      setStatus(t("status.richnessCached", { week: weekText(selectedWeek), n: totalPoints.toLocaleString(), step: (Math.round(g.step * 100) / 100) }));
+      setStatus(t("status.richnessCached", { week: weekText(selectedWeek), n: totalPoints.toLocaleString(), step: fmtStep(g.step) }));
       updateLegend();
       updateMapCsv();
       return;
@@ -1826,7 +1852,7 @@
       for (var n = 0; n < rawF.length; n++) if (rawF[n] > maxF) maxF = rawF[n];
       cachedRender = { grid: g, probs: perceptualNorm(rawF, maxF), maxVal: maxF, product: "richness" };
       paintOverlay();
-      setStatus(t("status.richnessDone", { week: weekText(selectedWeek), n: totalPoints.toLocaleString(), step: (Math.round(g.step * 100) / 100) }));
+      setStatus(t("status.richnessDone", { week: weekText(selectedWeek), n: totalPoints.toLocaleString(), step: fmtStep(g.step) }));
       updateLegend();
       updateMapCsv();
     } catch (e) { setStatus(t("status.error", { msg: e.message })); console.error(e); }
