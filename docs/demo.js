@@ -220,6 +220,7 @@
   var fieldData = null;       // current probability-ranked species for the field checklist
   var fieldQuery = "";        // fuzzy filter text for the field checklist
   var fieldPlaceToken = 0;    // guards against stale field-place lookups
+  var fieldLat = 0, fieldLon = 0;   // current field-checklist point
   var rendering = false;
   var renderGeneration = 0;
   var moveEndTimer = null;
@@ -721,6 +722,7 @@
           '<div class="field-page-bar">' +
             '<button id="field-back" class="fp-back" title="Back to map">‹</button>' +
             '<input id="field-coords" class="field-place" type="text" autocomplete="off" data-i18n-ph="ph.fieldtitle" placeholder="Location name" />' +
+            '<button id="field-nearby" class="fp-nearby" title="Nearby places" aria-label="Nearby places">▾</button>' +
             '<span class="field-seen" id="field-seen"></span>' +
             '<span class="field-actions">' +
               '<button id="field-csv" class="demo-btn" data-i18n="btn.csv" title="Download CSV">⬇ CSV</button>' +
@@ -748,6 +750,10 @@
               '<button type="button" class="fcp-num" data-n="9">9</button>' +
               '<button type="button" class="fcp-num" data-n="10">10</button>' +
             '</div>' +
+          '</div>' +
+          '<div id="place-picker" style="display:none">' +
+            '<div class="fcp-head"><span data-i18n="place.nearby">Nearby places</span><button type="button" id="place-close" aria-label="Close">×</button></div>' +
+            '<div id="place-list"></div>' +
           '</div>' +
         '</div>' +
         '<div id="barchart-panel">' +
@@ -1312,6 +1318,14 @@
     document.getElementById("field-clear").addEventListener("click", function () {
       saveFieldEntries({}); renderFieldList();
     });
+    // "Nearby places" picker for the title.
+    document.getElementById("field-nearby").addEventListener("click", function (e) { e.stopPropagation(); openPlacePicker(); });
+    document.getElementById("place-close").addEventListener("click", hidePlacePicker);
+    document.getElementById("place-list").addEventListener("click", function (e) {
+      var it = e.target.closest && e.target.closest(".pp-item");
+      if (it) { setFieldTitle(it.getAttribute("data-name")); hidePlacePicker(); }
+    });
+
     // Editable location title — persist per point.
     document.getElementById("field-coords").addEventListener("change", function () {
       var pkey = this.dataset.pkey; if (!pkey) return;
@@ -1323,7 +1337,7 @@
 
     // Back: close the full-screen field page and return to the map.
     document.getElementById("field-back").addEventListener("click", function () {
-      hideFcPicker();
+      hideFcPicker(); hidePlacePicker();
       document.getElementById("field-page").style.display = "none";
       if (map) map.invalidateSize();
     });
@@ -2049,6 +2063,59 @@
       .catch(function () { placeDetailCache[k] = ""; return ""; });
   }
 
+  function haversineKm(la1, lo1, la2, lo2) {
+    var R = 6371, dLa = (la2 - la1) * Math.PI / 180, dLo = (lo2 - lo1) * Math.PI / 180;
+    var a = Math.sin(dLa / 2) * Math.sin(dLa / 2) + Math.cos(la1 * Math.PI / 180) * Math.cos(la2 * Math.PI / 180) * Math.sin(dLo / 2) * Math.sin(dLo / 2);
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+  // Named natural features / reserves / parks / places near a point, from the
+  // Overpass API, nearest first (the things reverse-geocoding tends to skip).
+  function nearbyPlaces(lat, lon) {
+    var R = 2500;   // metres
+    var f = "(nwr(around:" + R + "," + lat + "," + lon + ")[name][natural];" +
+      'nwr(around:' + R + ',' + lat + ',' + lon + ')[name][leisure~"^(nature_reserve|park)$"];' +
+      'nwr(around:' + R + ',' + lat + ',' + lon + ')[name][boundary~"^(protected_area|national_park)$"];' +
+      'nwr(around:' + R + ',' + lat + ',' + lon + ')[name][place];);';
+    var q = "[out:json][timeout:25];" + f + "out tags center 120;";
+    return fetch("https://overpass-api.de/api/interpreter", { method: "POST", body: "data=" + encodeURIComponent(q) })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        var seen = {}, out = [];
+        (j.elements || []).forEach(function (e) {
+          var nm = e.tags && e.tags.name; if (!nm) return;
+          var ela = e.lat != null ? e.lat : (e.center && e.center.lat);
+          var elo = e.lon != null ? e.lon : (e.center && e.center.lon);
+          if (ela == null) return;
+          var d = haversineKm(lat, lon, ela, elo);
+          if (seen[nm] != null) { if (d < seen[nm]) seen[nm] = d; return; }
+          seen[nm] = d; out.push({ name: nm, dist: d });
+        });
+        out.forEach(function (o) { o.dist = seen[o.name]; });
+        out.sort(function (a, b) { return a.dist - b.dist; });
+        return out.slice(0, 30);
+      });
+  }
+  function hidePlacePicker() { var p = document.getElementById("place-picker"); if (p) p.style.display = "none"; }
+  // Set (and persist for this point) the field-checklist title.
+  function setFieldTitle(name) {
+    var fcEl = document.getElementById("field-coords");
+    fcEl.value = name;
+    var pkey = fcEl.dataset.pkey;
+    if (pkey) { var titles = getFieldTitles(); titles[pkey] = name; window.GeoState.save({ fieldTitles: titles }); }
+  }
+  function openPlacePicker() {
+    var p = document.getElementById("place-picker"), list = document.getElementById("place-list");
+    p.style.display = "block";
+    list.innerHTML = '<div class="spinner" style="margin:18px auto"></div>';
+    nearbyPlaces(fieldLat, fieldLon).then(function (rows) {
+      if (!rows.length) { list.innerHTML = '<p class="recent-none">' + escapeHtml(t("place.none")) + "</p>"; return; }
+      list.innerHTML = rows.map(function (r) {
+        var d = r.dist < 1 ? Math.round(r.dist * 1000) + " m" : r.dist.toFixed(1) + " km";
+        return '<button type="button" class="pp-item" data-name="' + escapeHtml(r.name) + '">' + escapeHtml(r.name) + '<span class="pp-dist">' + d + "</span></button>";
+      }).join("");
+    }).catch(function () { list.innerHTML = '<p class="recent-none">' + escapeHtml(t("place.none")) + "</p>"; });
+  }
+
   // ---- Field checklist (mobile live entry) ---------------------------------
   function getFieldEntries() { return window.GeoState.get("fieldEntries", {}) || {}; }
   function saveFieldEntries(e) { window.GeoState.save({ fieldEntries: e }); }
@@ -2080,6 +2147,7 @@
       }
       rows.sort(function (a, b) { return b.prob - a.prob; });
       fieldData = rows;
+      fieldLat = lat; fieldLon = lon;
       // Editable title = the user's saved name for this point, else the actual
       // detailed location (resolved async; coordinates meanwhile).
       var fcEl = document.getElementById("field-coords");
@@ -2094,7 +2162,7 @@
         });
       }
       document.getElementById("field-page").style.display = "flex";   // full-screen entry page
-      hideFcPicker();
+      hideFcPicker(); hidePlacePicker();
       renderFieldList();
       setStatus(t("status.spResult", { n: rows.length, p: (pmin * 100).toFixed(0), lat: lat.toFixed(2), lon: lon.toFixed(2) }));
     } catch (e) { setStatus(t("status.error", { msg: e.message })); console.error(e); }

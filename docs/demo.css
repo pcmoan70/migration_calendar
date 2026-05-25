@@ -1129,3 +1129,26 @@ table.recent-table .rc-who { color: var(--md-default-fg-color--light, #888); whi
   padding: 4px 6px; border-radius: 3px; cursor: pointer; max-width: 150px;
 }
 .maptype-select:focus { outline: none; }
+
+/* Field title: "nearby places" button + picker */
+.fp-nearby {
+  flex: 0 0 auto; width: 30px; height: 32px; border-radius: 6px; cursor: pointer; font-size: 0.9rem;
+  border: 1px solid var(--md-default-fg-color--lightest, #ccc);
+  background: var(--md-default-bg-color, #fff); color: var(--md-default-fg-color, #333);
+}
+#place-picker {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 1600; display: none;
+  max-height: 60vh; overflow-y: auto;
+  background: var(--md-default-bg-color, #fff); color: var(--md-default-fg-color, #1c2526);
+  border-top: 1px solid var(--md-default-fg-color--lightest, #ccc);
+  box-shadow: 0 -6px 24px rgba(0,0,0,0.25); padding: 10px 12px calc(14px + env(safe-area-inset-bottom));
+}
+#place-list { display: flex; flex-direction: column; gap: 4px; }
+.pp-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  width: 100%; text-align: left; padding: 12px 10px; font-size: 1rem; cursor: pointer;
+  border: none; border-bottom: 1px solid var(--md-default-fg-color--lightest, #eee);
+  background: transparent; color: var(--md-default-fg-color, #222);
+}
+.pp-item:active { background: var(--md-code-bg-color, #eee); }
+.pp-dist { flex: 0 0 auto; font-size: 0.8rem; color: var(--md-default-fg-color--light, #888); font-variant-numeric: tabular-nums; }
