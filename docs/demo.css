@@ -738,6 +738,7 @@ table.an-scatter-table td.an-tint { color: #fff; font-weight: 600; text-shadow: 
 }
 button.dd-name { cursor: pointer; }
 button.dd-name:hover { text-decoration: underline; }
+.dd-icon { margin-right: 5px; font-size: 0.9em; }
 .dd-del {
   border: none;
   background: transparent;

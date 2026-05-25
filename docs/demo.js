@@ -221,6 +221,7 @@
   var fieldQuery = "";        // fuzzy filter text for the field checklist
   var fieldPlaceToken = 0;    // guards against stale field-place lookups
   var fieldLat = 0, fieldLon = 0;   // current field-checklist point
+  var fieldKey = null;        // placeKey of the field checklist currently open
   var rendering = false;
   var renderGeneration = 0;
   var moveEndTimer = null;
@@ -1344,13 +1345,9 @@
       if (it) { setFieldTitle(it.getAttribute("data-name")); hidePlacePicker(); }
     });
 
-    // Editable location title — persist per point.
+    // Editable location title — persist into the field-checklist record.
     document.getElementById("field-coords").addEventListener("change", function () {
-      var pkey = this.dataset.pkey; if (!pkey) return;
-      var titles = getFieldTitles();
-      var v = this.value.trim();
-      if (v) titles[pkey] = v; else delete titles[pkey];
-      window.GeoState.save({ fieldTitles: titles });
+      persistFieldTitle(this.value.trim());
     });
 
     // Back: close the full-screen field page and return to the map.
@@ -2116,10 +2113,8 @@
   function hidePlacePicker() { var p = document.getElementById("place-picker"); if (p) p.style.display = "none"; }
   // Set (and persist for this point) the field-checklist title.
   function setFieldTitle(name) {
-    var fcEl = document.getElementById("field-coords");
-    fcEl.value = name;
-    var pkey = fcEl.dataset.pkey;
-    if (pkey) { var titles = getFieldTitles(); titles[pkey] = name; window.GeoState.save({ fieldTitles: titles }); }
+    document.getElementById("field-coords").value = name;
+    persistFieldTitle((name || "").trim());
   }
   function openPlacePicker() {
     var p = document.getElementById("place-picker"), list = document.getElementById("place-list");
@@ -2135,9 +2130,39 @@
   }
 
   // ---- Field checklist (mobile live entry) ---------------------------------
-  function getFieldEntries() { return window.GeoState.get("fieldEntries", {}) || {}; }
-  function saveFieldEntries(e) { window.GeoState.save({ fieldEntries: e }); }
-  // User-edited location titles, keyed by point; persist so they survive reload.
+  // Field checklists are stored per location (keyed by placeKey), each with its
+  // own coordinates, title and species entries — so several can coexist and be
+  // listed/sorted independently.
+  function getFieldChecklists() { return window.GeoState.get("fieldChecklists", {}) || {}; }
+  function saveFieldChecklists(o) { window.GeoState.save({ fieldChecklists: o }); }
+  function getFieldRecord(pkey) { return getFieldChecklists()[pkey] || null; }
+  function newFieldRecord() { return { lat: fieldLat, lon: fieldLon, title: "", createdAt: new Date().toISOString(), entries: {} }; }
+
+  // Species entries of the field checklist currently open.
+  function getFieldEntries() { var r = fieldKey ? getFieldRecord(fieldKey) : null; return (r && r.entries) || {}; }
+  function saveFieldEntries(e) {
+    if (!fieldKey) return;
+    var all = getFieldChecklists();
+    var rec = all[fieldKey] || newFieldRecord();
+    rec.entries = e; rec.lat = fieldLat; rec.lon = fieldLon;
+    // Drop a record that holds neither observations nor a custom title.
+    if (!Object.keys(e).length && !(rec.title || "").trim()) delete all[fieldKey];
+    else all[fieldKey] = rec;
+    saveFieldChecklists(all);
+    refreshChecklists();
+  }
+  // Persist the title for the current field point (creating its record).
+  function persistFieldTitle(v) {
+    if (!fieldKey) return;
+    var all = getFieldChecklists();
+    var rec = all[fieldKey] || newFieldRecord();
+    rec.title = v; rec.lat = fieldLat; rec.lon = fieldLon;
+    if (!v && !Object.keys(rec.entries || {}).length) delete all[fieldKey];
+    else all[fieldKey] = rec;
+    saveFieldChecklists(all);
+    refreshChecklists();
+  }
+  // Old per-point titles (pre per-location records); read-only migration fallback.
   function getFieldTitles() { return window.GeoState.get("fieldTitles", {}) || {}; }
 
   // Subsequence fuzzy match: query chars must appear in order in the name.
@@ -2171,7 +2196,9 @@
       var fcEl = document.getElementById("field-coords");
       var pkey = placeKey(lat, lon);
       fcEl.dataset.pkey = pkey;
-      var saved = getFieldTitles()[pkey];
+      fieldKey = pkey;
+      var rec = getFieldRecord(pkey);
+      var saved = (rec && rec.title) || getFieldTitles()[pkey];
       fcEl.value = saved || (lat.toFixed(4) + "°, " + lon.toFixed(4) + "°");
       var ptok = ++fieldPlaceToken;
       if (!saved) {
@@ -2748,22 +2775,49 @@
     } catch (e) { setStatus(t("status.error", { msg: e.message })); console.error(e); }
   }
 
-  // Dropdown listing saved checklists (open / delete).
+  // Dropdown listing saved checklists (snapshot + field), nearest first.
   function refreshChecklists() {
     var wrap = document.getElementById("checklists-wrap");
     var btnText = document.getElementById("checklists-btn-text");
     var panel = document.getElementById("checklists-panel");
     if (!wrap || !btnText || !panel) return;
-    var cls = getChecklists();
-    wrap.style.display = cls.length ? "" : "none";
-    if (!cls.length) panel.style.display = "none";
-    btnText.textContent = t("ctrl.checklists") + " (" + cls.length + ")";
-    panel.innerHTML = cls.map(function (c) {
-      var n = escapeHtml(c.name);
-      return '<div class="dd-row"><button type="button" class="dd-name dd-open-chk" data-id="' + c.id + '" title="' + n + '">' + n + "</button>" +
-        '<button type="button" class="dd-csv dd-csv-chk" data-id="' + c.id + '" title="' + escapeHtml(t("btn.csv")) + '">⬇</button>' +
-        '<button type="button" class="dd-del dd-del-chk" data-id="' + c.id + '" title="' + escapeHtml(t("btn.delete")) + '">×</button></div>';
+
+    // Build a combined list of both kinds.
+    var items = getChecklists().map(function (c) {
+      return { kind: "snapshot", id: c.id, name: c.name, lat: c.lat, lon: c.lon };
+    });
+    var fcs = getFieldChecklists();
+    Object.keys(fcs).forEach(function (pkey) {
+      var r = fcs[pkey];
+      var has = Object.keys(r.entries || {}).length || (r.title || "").trim();
+      if (!has) return;
+      items.push({ kind: "field", pkey: pkey, name: r.title || (r.lat.toFixed(3) + "°, " + r.lon.toFixed(3) + "°"), lat: r.lat, lon: r.lon });
+    });
+
+    // Sort by distance to the current map centre (the point of interest).
+    var c0 = map ? map.getCenter() : null;
+    if (c0) items.forEach(function (it) {
+      it.dist = (it.lat != null && it.lon != null) ? haversineKm(c0.lat, c0.lng, it.lat, it.lon) : Infinity;
+    });
+    items.sort(function (a, b) { return (a.dist != null ? a.dist : Infinity) - (b.dist != null ? b.dist : Infinity); });
+
+    wrap.style.display = items.length ? "" : "none";
+    if (!items.length) panel.style.display = "none";
+    btnText.textContent = t("ctrl.checklists") + " (" + items.length + ")";
+
+    var fieldTag = '<span class="dd-icon" title="' + escapeHtml(t("mode.field")) + '">🔭</span>';
+    panel.innerHTML = items.map(function (it) {
+      var n = escapeHtml(it.name);
+      var idAttr = it.kind === "field" ? 'data-pkey="' + escapeHtml(it.pkey) + '"' : 'data-id="' + it.id + '"';
+      var openCls = it.kind === "field" ? "dd-open-field" : "dd-open-chk";
+      var csvCls = it.kind === "field" ? "dd-csv-field" : "dd-csv-chk";
+      var delCls = it.kind === "field" ? "dd-del-field" : "dd-del-chk";
+      var icon = it.kind === "field" ? fieldTag : "";
+      return '<div class="dd-row"><button type="button" class="dd-name ' + openCls + '" ' + idAttr + ' title="' + n + '">' + icon + n + "</button>" +
+        '<button type="button" class="dd-csv ' + csvCls + '" ' + idAttr + ' title="' + escapeHtml(t("btn.csv")) + '">⬇</button>' +
+        '<button type="button" class="dd-del ' + delCls + '" ' + idAttr + ' title="' + escapeHtml(t("btn.delete")) + '">×</button></div>';
     }).join("");
+
     panel.querySelectorAll(".dd-open-chk").forEach(function (b) {
       b.addEventListener("click", function () { closeDropdowns(); openChecklist(this.getAttribute("data-id")); });
     });
@@ -2783,6 +2837,51 @@
         refreshChecklists();
       });
     });
+    panel.querySelectorAll(".dd-open-field").forEach(function (b) {
+      b.addEventListener("click", function () { closeDropdowns(); openFieldFromList(this.getAttribute("data-pkey")); });
+    });
+    panel.querySelectorAll(".dd-csv-field").forEach(function (b) {
+      b.addEventListener("click", function (e) {
+        e.stopPropagation();
+        var pkey = this.getAttribute("data-pkey"), r = getFieldRecord(pkey);
+        if (r) downloadCsv("field_" + String(r.title || pkey).replace(/[^\w-]+/g, "_") + ".csv", fieldRecordCsv(pkey));
+      });
+    });
+    panel.querySelectorAll(".dd-del-field").forEach(function (b) {
+      b.addEventListener("click", function (e) {
+        e.stopPropagation();
+        var pkey = this.getAttribute("data-pkey");
+        var all = getFieldChecklists(); delete all[pkey]; saveFieldChecklists(all);
+        if (fieldKey === pkey) { fieldKey = null; document.getElementById("field-page").style.display = "none"; }
+        refreshChecklists();
+      });
+    });
+  }
+
+  // Re-open a field checklist from the list: re-run inference at its point so
+  // its species rows + saved entries (keyed by the same placeKey) are restored.
+  function openFieldFromList(pkey) {
+    var r = getFieldRecord(pkey);
+    if (!r) return;
+    var ms = document.getElementById("mode-select");
+    if (ms && ms.value !== "field") { ms.value = "field"; currentMode = "field"; }
+    renderFieldChecklist(r.lat, r.lon);
+  }
+
+  // CSV for a stored field checklist (works for any record, open or not).
+  function fieldRecordCsv(pkey) {
+    var r = getFieldRecord(pkey); if (!r) return "";
+    var entries = r.entries || {};
+    var esc = function (v) { var s = String(v == null ? "" : v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+    var title = (r.title || "").trim() || (r.lat.toFixed(4) + "°, " + r.lon.toFixed(4) + "°");
+    var lines = ["# " + title + " | " + (r.createdAt || "").slice(0, 10)];
+    lines.push("species,common_name,count,activity");
+    Object.keys(entries).forEach(function (key) {
+      var e = entries[key]; if (!e.seen && (e.count == null || e.count === "") && !e.act) return;
+      var name = (labelsByKey[key] && speciesName(labelsByKey[key])) || key;
+      lines.push([key, esc(name), e.count != null ? e.count : "", e.act ? t("act." + e.act) : ""].join(","));
+    });
+    return lines.join("\n");
   }
 
   function openChecklist(id) {
