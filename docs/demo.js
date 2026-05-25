@@ -720,7 +720,7 @@
         '<div id="field-page" style="display:none">' +
           '<div class="field-page-bar">' +
             '<button id="field-back" class="fp-back" title="Back to map">‹</button>' +
-            '<span class="field-place" id="field-coords"></span>' +
+            '<input id="field-coords" class="field-place" type="text" autocomplete="off" data-i18n-ph="ph.fieldtitle" placeholder="Location name" />' +
             '<span class="field-seen" id="field-seen"></span>' +
             '<span class="field-actions">' +
               '<button id="field-csv" class="demo-btn" data-i18n="btn.csv" title="Download CSV">⬇ CSV</button>' +
@@ -1312,6 +1312,15 @@
     document.getElementById("field-clear").addEventListener("click", function () {
       saveFieldEntries({}); renderFieldList();
     });
+    // Editable location title — persist per point.
+    document.getElementById("field-coords").addEventListener("change", function () {
+      var pkey = this.dataset.pkey; if (!pkey) return;
+      var titles = getFieldTitles();
+      var v = this.value.trim();
+      if (v) titles[pkey] = v; else delete titles[pkey];
+      window.GeoState.save({ fieldTitles: titles });
+    });
+
     // Back: close the full-screen field page and return to the map.
     document.getElementById("field-back").addEventListener("click", function () {
       hideFcPicker();
@@ -2043,6 +2052,8 @@
   // ---- Field checklist (mobile live entry) ---------------------------------
   function getFieldEntries() { return window.GeoState.get("fieldEntries", {}) || {}; }
   function saveFieldEntries(e) { window.GeoState.save({ fieldEntries: e }); }
+  // User-edited location titles, keyed by point; persist so they survive reload.
+  function getFieldTitles() { return window.GeoState.get("fieldTitles", {}) || {}; }
 
   // Subsequence fuzzy match: query chars must appear in order in the name.
   function fuzzyMatch(name, q) {
@@ -2069,11 +2080,19 @@
       }
       rows.sort(function (a, b) { return b.prob - a.prob; });
       fieldData = rows;
-      // Title = the actual detailed location (resolved async; coords meanwhile).
+      // Editable title = the user's saved name for this point, else the actual
+      // detailed location (resolved async; coordinates meanwhile).
       var fcEl = document.getElementById("field-coords");
-      fcEl.textContent = lat.toFixed(4) + "°, " + lon.toFixed(4) + "°";
+      var pkey = placeKey(lat, lon);
+      fcEl.dataset.pkey = pkey;
+      var saved = getFieldTitles()[pkey];
+      fcEl.value = saved || (lat.toFixed(4) + "°, " + lon.toFixed(4) + "°");
       var ptok = ++fieldPlaceToken;
-      detailedPlaceName(lat, lon).then(function (name) { if (ptok === fieldPlaceToken && name) fcEl.textContent = name; });
+      if (!saved) {
+        detailedPlaceName(lat, lon).then(function (name) {
+          if (ptok === fieldPlaceToken && name && !getFieldTitles()[pkey]) fcEl.value = name;
+        });
+      }
       document.getElementById("field-page").style.display = "flex";   // full-screen entry page
       hideFcPicker();
       renderFieldList();
@@ -2170,7 +2189,11 @@
   function fieldChecklistCsv() {
     var entries = getFieldEntries(), esc = function (v) { var s = String(v == null ? "" : v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
     var byKey = {}; (fieldData || []).forEach(function (r) { byKey[r.key] = r; });
-    var lines = ["species,common_name,count,activity"];
+    var titleEl = document.getElementById("field-coords");
+    var title = (titleEl && titleEl.value || "").trim();
+    var lines = [];
+    if (title) lines.push("# " + title + " | " + new Date().toISOString().slice(0, 10));
+    lines.push("species,common_name,count,activity");
     Object.keys(entries).forEach(function (key) {
       var e = entries[key]; if (!e.seen && (e.count == null || e.count === "") && !e.act) return;
       var name = (byKey[key] && byKey[key].name) || (labelsByKey[key] && speciesName(labelsByKey[key])) || key;
