@@ -1052,3 +1052,29 @@ table.recent-table .rc-who { color: var(--md-default-fg-color--light, #888); whi
 /* "Locate me" crosshair control on the map */
 .geo-locate-btn { display: flex; align-items: center; justify-content: center; color: #333; }
 .geo-locate-btn svg { display: block; }
+
+/* ---------- Field checklist (mobile live entry) ---------- */
+#field-panel { margin-top: 12px; }
+.field-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.field-actions { display: flex; gap: 6px; }
+#field-search {
+  width: 100%; box-sizing: border-box; padding: 10px 12px; font-size: 1rem;
+  border: 1px solid var(--md-default-fg-color--lightest, #ccc); border-radius: 6px;
+  background: var(--md-default-bg-color, #fff); color: var(--md-default-fg-color, #333);
+  margin-bottom: 8px;
+}
+.fc-row {
+  display: flex; align-items: center; gap: 8px; padding: 8px 6px;
+  border-bottom: 1px solid var(--md-default-fg-color--lightest, #eee);
+}
+.fc-row.fc-on { background: rgba(47, 111, 79, 0.12); }
+.fc-tick { display: flex; align-items: center; }
+.fc-tick input { width: 24px; height: 24px; }
+.fc-name { flex: 1 1 auto; font-size: 0.95rem; }
+.fc-count { width: 56px; height: 34px; box-sizing: border-box; text-align: center; font-size: 0.95rem;
+  border: 1px solid var(--md-default-fg-color--lightest, #ccc); border-radius: 4px;
+  background: var(--md-default-bg-color, #fff); color: var(--md-default-fg-color, #333); }
+.fc-act { height: 34px; max-width: 130px; font-size: 0.9rem;
+  border: 1px solid var(--md-default-fg-color--lightest, #ccc); border-radius: 4px;
+  background: var(--md-default-bg-color, #fff); color: var(--md-default-fg-color, #333); }
+.fc-empty { font-size: 0.9rem; color: var(--md-default-fg-color--light, #666); padding: 12px 4px; }

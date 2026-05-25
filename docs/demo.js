@@ -212,6 +212,8 @@
   var RENDER_CACHE_MAX = 50;
   var marker = null;
   var currentMode = "range";
+  var fieldData = null;       // current probability-ranked species for the field checklist
+  var fieldQuery = "";        // fuzzy filter text for the field checklist
   var rendering = false;
   var renderGeneration = 0;
   var moveEndTimer = null;
@@ -605,6 +607,7 @@
               '<option value="richness" data-i18n="mode.richness">Species Richness</option>' +
               '<option value="list" data-i18n="mode.list">Species List (click map)</option>' +
               '<option value="barchart" data-i18n="mode.barchart">Migration Timeline (click map)</option>' +
+              '<option value="field" data-i18n="mode.field">Field checklist (click map)</option>' +
             '</select>' +
           '</div>' +
           '<div class="ctrl-group" id="species-search-wrap">' +
@@ -717,6 +720,17 @@
             '<thead><tr><th data-i18n="th.rank">#</th><th data-i18n="th.species">Species</th><th class="name2" id="sp-name2-head"></th><th data-i18n="th.sci">Scientific name</th><th data-i18n="th.prob">Probability</th><th></th><th id="sp-delta-head"></th></tr></thead>' +
             '<tbody id="sp-tbody"></tbody>' +
           '</table>' +
+        '</div>' +
+        '<div id="field-panel" style="display:none">' +
+          '<div class="field-head">' +
+            '<span class="sp-coords" id="field-coords"></span>' +
+            '<span class="field-actions">' +
+              '<button id="field-csv" class="demo-btn" data-i18n="btn.csv" title="Download CSV">⬇ CSV</button>' +
+              '<button id="field-clear" class="demo-btn demo-btn-light" data-i18n="btn.clear">Clear</button>' +
+            '</span>' +
+          '</div>' +
+          '<input id="field-search" type="text" autocomplete="off" data-i18n-ph="ph.filter" placeholder="Filter species…" />' +
+          '<div id="field-list"></div>' +
         '</div>' +
         '<div id="barchart-panel">' +
           '<h3 id="bc-title" data-i18n="panel.bcTitle">Location analysis</h3>' +
@@ -1021,6 +1035,10 @@
     });
     map.addControl(new LocateControl());
     map.on("locationerror", function () { setStatus(t("status.locateError")); });
+    // After locating, populate the click-driven modes at the current position.
+    map.on("locationfound", function (e) {
+      if (["list", "barchart", "range", "field"].indexOf(currentMode) >= 0) onMapClick(e);
+    });
 
     map.on("moveend", function () {
       var c = map.getCenter();
@@ -1068,8 +1086,8 @@
     document.getElementById("compare-wrap").style.display = listish ? "" : "none";
     document.getElementById("secondlang-wrap").style.display = listish ? "" : "none";
     // The probability min–max slider applies to the Species List, the checklist
-    // (derived from it) and the analysis tabs.
-    document.getElementById("barchart-threshold-wrap").style.display = (currentMode === "range" || currentMode === "list" || currentMode === "barchart") ? "" : "none";
+    // (derived from it), the analysis tabs and the field checklist.
+    document.getElementById("barchart-threshold-wrap").style.display = (currentMode === "range" || currentMode === "list" || currentMode === "barchart" || currentMode === "field") ? "" : "none";
     // Week applies in every mode (incl. Migration timeline, where it sets the
     // "current week" used by the Probability / Arrivals / Scatter tabs).
     document.getElementById("week-select-wrap").style.display = "";
@@ -1126,6 +1144,7 @@
       updateModeVisibility();
       document.getElementById("species-panel").style.display = "none";
       document.getElementById("barchart-panel").style.display = "none";
+      document.getElementById("field-panel").style.display = "none";
       hideCsvBtn();
       hideSaveLocBtn();
       if (cachedRender) clearOverlay();
@@ -1207,6 +1226,38 @@
         renderActiveTab();
       });
     }
+    // Field checklist: fuzzy filter, in-row entry, export, clear.
+    document.getElementById("field-search").addEventListener("input", function () {
+      fieldQuery = this.value; renderFieldList();
+    });
+    function fieldRowUpdate(el) {
+      var key = el.getAttribute && el.getAttribute("data-key");
+      if (!key) return;
+      var row = el.closest(".fc-row");
+      if (el.classList.contains("fc-seen")) {
+        setFieldEntry(key, { seen: el.checked });
+        if (row) row.classList.toggle("fc-on", el.checked);
+      } else if (el.classList.contains("fc-count")) {
+        var v = el.value === "" ? null : Math.max(0, parseInt(el.value, 10) || 0);
+        var mark = v != null && v > 0;
+        setFieldEntry(key, { count: v }, mark);
+        if (mark && row) { var cb = row.querySelector(".fc-seen"); if (cb) cb.checked = true; row.classList.add("fc-on"); }
+      } else if (el.classList.contains("fc-act")) {
+        var mark2 = !!el.value;
+        setFieldEntry(key, { act: el.value || null }, mark2);
+        if (mark2 && row) { var cb2 = row.querySelector(".fc-seen"); if (cb2) cb2.checked = true; row.classList.add("fc-on"); }
+      }
+    }
+    var fieldList = document.getElementById("field-list");
+    fieldList.addEventListener("input", function (e) { fieldRowUpdate(e.target); });
+    fieldList.addEventListener("change", function (e) { fieldRowUpdate(e.target); });
+    document.getElementById("field-csv").addEventListener("click", function () {
+      downloadCsv("field_checklist.csv", fieldChecklistCsv());
+    });
+    document.getElementById("field-clear").addEventListener("click", function () {
+      saveFieldEntries({}); renderFieldList();
+    });
+
     document.getElementById("an-filter").addEventListener("input", function () { renderActiveTab(); });
     document.getElementById("an-topn").addEventListener("input", function () {
       if (analysisTab === "scatter") renderActiveTab();
@@ -1787,16 +1838,16 @@
   // changes (compare, 2nd name, group, week, probability range) — applies in
   // both Species List and Species Range mode (both show the list on click).
   function rerenderPointList() {
-    if ((currentMode === "list" || currentMode === "range") && marker) {
-      var ll = marker.getLatLng();
-      renderSpeciesList(ll.lat, ll.lng);
-    }
+    if (!marker) return;
+    var ll = marker.getLatLng();
+    if (currentMode === "list" || currentMode === "range") renderSpeciesList(ll.lat, ll.lng);
+    else if (currentMode === "field") renderFieldChecklist(ll.lat, ll.lng);
   }
 
   function onMapClick(e) {
-    // List + Range both show the per-point species list on click; Migration
-    // Timeline shows the analysis. (In Range mode the range overlay stays.)
-    if (currentMode !== "list" && currentMode !== "barchart" && currentMode !== "range") return;
+    // List + Range show the per-point species list; Migration Timeline the
+    // analysis; Field checklist the mobile entry list. (Range keeps its overlay.)
+    if (["list", "barchart", "range", "field"].indexOf(currentMode) < 0) return;
     if (marker) map.removeLayer(marker);
     // Normalize: latitude clamped to [-90, 90]; longitude wrapped to [-180, 180]
     // (a click on a panned world-copy can otherwise give e.g. lon = 635).
@@ -1804,6 +1855,7 @@
     var lon = wrapLon(e.latlng.lng);
     marker = L.marker([lat, lon]).addTo(map);
     if (currentMode === "barchart") renderAnalysis(lat, lon);
+    else if (currentMode === "field") renderFieldChecklist(lat, lon);
     else renderSpeciesList(lat, lon);
   }
 
@@ -1904,6 +1956,97 @@
       placeCache[k] = name || "";
       if (el.dataset.placeKey === k) apply(placeCache[k]);
     });
+  }
+
+  // ---- Field checklist (mobile live entry) ---------------------------------
+  function getFieldEntries() { return window.GeoState.get("fieldEntries", {}) || {}; }
+  function saveFieldEntries(e) { window.GeoState.save({ fieldEntries: e }); }
+
+  // Subsequence fuzzy match: query chars must appear in order in the name.
+  function fuzzyMatch(name, q) {
+    if (!q) return true;
+    name = name.toLowerCase(); q = q.toLowerCase().replace(/\s+/g, "");
+    var i = 0;
+    for (var c = 0; c < name.length && i < q.length; c++) if (name[c] === q[i]) i++;
+    return i === q.length;
+  }
+
+  // Build the probability-ranked species list for the clicked/located point.
+  async function renderFieldChecklist(lat, lon) {
+    var week = +document.getElementById("week-select").value;
+    var pmin = +document.getElementById("prob-min").value / 100;
+    var pmax = +document.getElementById("prob-max").value / 100;
+    setStatus(t("status.predicting", { lat: lat.toFixed(2), lon: lon.toFixed(2), week: week }));
+    try {
+      var out = await runInference(new Float32Array([lat, lon, week]), 1);
+      var rows = [];
+      for (var i = 0; i < labels.length; i++) {
+        if (out[i] >= pmin && out[i] <= pmax && inGroup(i) && !isHidden(labels[i].key)) {
+          rows.push({ key: labels[i].key, name: speciesName(labels[i]), prob: out[i] });
+        }
+      }
+      rows.sort(function (a, b) { return b.prob - a.prob; });
+      fieldData = rows;
+      setCoordsWithPlace(document.getElementById("field-coords"), lat, lon,
+        t("sp.summary", { lat: lat.toFixed(4), lon: lon.toFixed(4), week: week, n: rows.length, p: (pmin * 100).toFixed(0) }));
+      document.getElementById("field-panel").style.display = "block";
+      document.getElementById("species-panel").style.display = "none";
+      document.getElementById("barchart-panel").style.display = "none";
+      renderFieldList();
+      setStatus(t("status.spResult", { n: rows.length, p: (pmin * 100).toFixed(0), lat: lat.toFixed(2), lon: lon.toFixed(2) }));
+    } catch (e) { setStatus(t("status.error", { msg: e.message })); console.error(e); }
+  }
+
+  // Activity options for the field checklist (value = i18n key).
+  var FIELD_ACTS = ["heard", "flying", "feeding", "resting", "breeding"];
+
+  // Render the (filtered, probability-sorted) field-entry rows.
+  function renderFieldList() {
+    if (!fieldData) return;
+    var entries = getFieldEntries();
+    var list = document.getElementById("field-list");
+    var shown = fieldData.filter(function (r) { return fuzzyMatch(r.name, fieldQuery); });
+    var actOpts = function (sel) {
+      var h = '<option value=""></option>';
+      FIELD_ACTS.forEach(function (a) { h += '<option value="' + a + '"' + (sel === a ? " selected" : "") + ">" + escapeHtml(t("act." + a)) + "</option>"; });
+      return h;
+    };
+    list.innerHTML = shown.map(function (r) {
+      var en = entries[r.key] || {};
+      var on = en.seen ? " fc-on" : "";
+      return '<div class="fc-row' + on + '" data-key="' + escapeHtml(r.key) + '">' +
+        '<label class="fc-tick"><input type="checkbox" class="fc-seen" data-key="' + escapeHtml(r.key) + '"' + (en.seen ? " checked" : "") + "></label>" +
+        '<span class="fc-name">' + escapeHtml(r.name) + "</span>" +
+        '<input type="number" class="fc-count" inputmode="numeric" min="0" placeholder="#" data-key="' + escapeHtml(r.key) + '" value="' + (en.count != null ? en.count : "") + '">' +
+        '<select class="fc-act" data-key="' + escapeHtml(r.key) + '">' + actOpts(en.act) + "</select>" +
+        "</div>";
+    }).join("");
+    if (!shown.length) list.innerHTML = '<p class="fc-empty">' + escapeHtml(t("analysis.empty")) + "</p>";
+  }
+
+  // Update one species' field entry and persist. mark=true also ticks "seen".
+  function setFieldEntry(key, patch, mark) {
+    var entries = getFieldEntries();
+    var en = entries[key] || {};
+    for (var k in patch) en[k] = patch[k];
+    if (mark) en.seen = true;
+    // Drop empty entries to keep storage tidy.
+    if (!en.seen && (en.count == null || en.count === "") && !en.act) delete entries[key];
+    else entries[key] = en;
+    saveFieldEntries(entries);
+    return entries[key];
+  }
+
+  function fieldChecklistCsv() {
+    var entries = getFieldEntries(), esc = function (v) { var s = String(v == null ? "" : v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+    var byKey = {}; (fieldData || []).forEach(function (r) { byKey[r.key] = r; });
+    var lines = ["species,common_name,count,activity"];
+    Object.keys(entries).forEach(function (key) {
+      var e = entries[key]; if (!e.seen && (e.count == null || e.count === "") && !e.act) return;
+      var name = (byKey[key] && byKey[key].name) || (labelsByKey[key] && speciesName(labelsByKey[key])) || key;
+      lines.push([key, esc(name), e.count != null ? e.count : "", e.act ? t("act." + e.act) : ""].join(","));
+    });
+    return lines.join("\n");
   }
 
   async function renderSpeciesList(lat, lon) {
