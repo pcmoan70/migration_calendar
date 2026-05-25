@@ -999,6 +999,29 @@
     setBasemap(window.GeoState.get("basemap", "dark"));
 
     map.on("click", onMapClick);
+
+    // "Locate me" crosshair control — zooms to the device's current location.
+    var LocateControl = L.Control.extend({
+      options: { position: "topleft" },
+      onAdd: function () {
+        var c = L.DomUtil.create("div", "leaflet-bar leaflet-control");
+        var a = L.DomUtil.create("a", "geo-locate-btn", c);
+        a.href = "#";
+        a.title = t("ctrl.locate");
+        a.setAttribute("aria-label", t("ctrl.locate"));
+        a.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">' +
+          '<circle cx="12" cy="12" r="6"/><line x1="12" y1="1" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="23"/>' +
+          '<line x1="1" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="23" y2="12"/></svg>';
+        L.DomEvent.on(a, "click", function (e) {
+          L.DomEvent.preventDefault(e); L.DomEvent.stopPropagation(e);
+          map.locate({ setView: true, maxZoom: 11, enableHighAccuracy: true, timeout: 10000 });
+        });
+        return c;
+      }
+    });
+    map.addControl(new LocateControl());
+    map.on("locationerror", function () { setStatus(t("status.locateError")); });
+
     map.on("moveend", function () {
       var c = map.getCenter();
       window.GeoState.save({ view: { lat: c.lat, lon: c.lng, zoom: map.getZoom() } });
