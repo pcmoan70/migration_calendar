@@ -78,6 +78,22 @@
   // Richness cache key — distinct per group so counts don't collide.
   function richKey() { return "__richness__@" + speciesGroup; }
 
+  // The header (settings) icon reflects the active species group: an animal
+  // emoji per group, and binoculars (SVG — no binoculars emoji exists) for All.
+  var GROUP_EMOJI = { aves: "🦉", mammalia: "🦊", insecta: "🐝", amphibia: "🐸" };
+  function settingsIconHtml(group) {
+    if (GROUP_EMOJI[group]) return '<span class="settings-emoji" aria-hidden="true">' + GROUP_EMOJI[group] + "</span>";
+    return '<svg class="bird-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' +
+      '<circle cx="6.7" cy="14.6" r="4.3"/><circle cx="17.3" cy="14.6" r="4.3"/>' +
+      '<path d="M3.7 11.8 L5.4 5.4 A1.2 1.2 0 0 1 6.6 4.5 H8.6 A1 1 0 0 1 9.6 5.5 V11"/>' +
+      '<path d="M20.3 11.8 L18.6 5.4 A1.2 1.2 0 0 0 17.4 4.5 H15.4 A1 1 0 0 0 14.4 5.5 V11"/>' +
+      '<line x1="9.6" y1="8" x2="14.4" y2="8"/></svg>';
+  }
+  function updateSettingsIcon() {
+    var btn = document.getElementById("settings-toggle");
+    if (btn) btn.innerHTML = settingsIconHtml(speciesGroup);
+  }
+
   // Grid resolution per zoom level (degrees per cell). Finer cells at deeper
   // zoom keep the heatmap detailed without exploding the cell count.
   var ZOOM_STEP = { 2: 3, 3: 2, 4: 1, 5: 0.5, 6: 0.5, 7: 0.25, 8: 0.25, 9: 0.125, 10: 0.0625, 11: 0.03125,
@@ -647,18 +663,7 @@
             '<div id="checklists-panel" class="dd-panel" style="display:none"></div>' +
           '</div>' +
           '<div class="ctrl-group" id="settings-wrap">' +
-            '<button type="button" id="settings-toggle" class="settings-icon-btn" aria-haspopup="true" aria-label="Settings" title="Settings">' +
-              '<svg class="bird-ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false">' +
-                '<g fill="currentColor">' +
-                  '<ellipse cx="13.5" cy="13.8" rx="6.3" ry="4.4" transform="rotate(-18 13.5 13.8)"/>' +
-                  '<circle cx="8.4" cy="9.2" r="3.6"/>' +
-                  '<path d="M5.2 8.4 L1.2 7.5 L5.4 10.8 Z"/>' +
-                  '<path d="M18.6 15.6 L23.2 18.4 L18.9 12.2 Z"/>' +
-                  '<path d="M10.4 17.8 L9.9 21.4 M12.9 18 L13.8 21.4" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" fill="none"/>' +
-                '</g>' +
-                '<circle cx="7.4" cy="8.8" r="0.95" fill="#0b3a3a"/>' +
-              '</svg>' +
-            '</button>' +
+            '<button type="button" id="settings-toggle" class="settings-icon-btn" aria-haspopup="true" aria-label="Settings" title="Settings"></button>' +
             '<div id="settings-panel" class="dd-panel settings-panel" style="display:none">' +
               '<div class="ctrl-group">' +
                 '<label for="lang-select" data-i18n="ctrl.language">Language</label>' +
@@ -1292,6 +1297,7 @@
     document.getElementById("group-select").addEventListener("change", function () {
       speciesGroup = this.value;
       window.GeoState.save({ group: speciesGroup });
+      updateSettingsIcon();
       // Re-render whatever depends on the species set.
       if (currentMode === "richness") triggerRender();
       else if (currentMode === "barchart" && analysisData) renderActiveTab();
@@ -3169,6 +3175,7 @@
 
     speciesGroup = window.GeoState.get("group", "all");
     document.getElementById("group-select").value = speciesGroup;
+    updateSettingsIcon();
 
     // Always start at normal resolution (factor 1) on load.
     hiResFactor = 1;
