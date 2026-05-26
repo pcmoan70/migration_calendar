@@ -94,6 +94,13 @@
     if (btn) btn.innerHTML = settingsIconHtml(speciesGroup);
   }
 
+  // The banner is fixed; publish its height so the page content and the
+  // full-screen overlays (Species List / Checklist) start below it.
+  function syncHeaderHeight() {
+    var h = document.getElementById("site-header");
+    if (h) document.documentElement.style.setProperty("--header-h", h.offsetHeight + "px");
+  }
+
   // Grid resolution per zoom level (degrees per cell). Finer cells at deeper
   // zoom keep the heatmap detailed without exploding the cell count.
   var ZOOM_STEP = { 2: 3, 3: 2, 4: 1, 5: 0.5, 6: 0.5, 7: 0.25, 8: 0.25, 9: 0.125, 10: 0.0625, 11: 0.03125,
@@ -629,7 +636,7 @@
       '<div id="demo-loading"><div class="spinner"></div><span data-i18n="app.loading">Loading\u2026</span></div>' +
       '<div id="demo-app" style="display:none">' +
         '<div id="demo-controls">' +
-          '<div class="ctrl-group">' +
+          '<div class="ctrl-group" id="mode-wrap">' +
             '<label for="mode-select" data-i18n="ctrl.mode">Mode</label>' +
             '<select id="mode-select">' +
               '<option value="range" data-i18n="mode.range">Species Range</option>' +
@@ -863,6 +870,7 @@
         '<div id="last-change"></div>' +
         '<div id="visit-counter"><img src="https://api.visitorbadge.io/api/visitors?path=https%3A%2F%2Fpcmoan70.github.io%2Fmigration_calendar&label=page%20visits&labelColor=%230f1b24&countColor=%232f6f4f" alt="page visits" /></div>' +
         '<div id="perf-modal" style="display:none"><div id="perf-modal-box">' +
+          '<h2 class="perf-title" data-i18n="popup.title">Species distributions and checklists</h2>' +
           '<p data-i18n="popup.perf"></p>' +
           '<p class="perf-attrib" data-i18n="footer.attrib"></p>' +
           '<button id="perf-modal-ok" class="demo-btn" data-i18n="popup.ok">OK</button>' +
@@ -877,10 +885,17 @@
       buildLabelClass();
       document.getElementById("demo-loading").style.display = "none";
       document.getElementById("demo-app").style.display = "block";
-      // Settings live behind the bird icon in the page header (upper-left).
+      // The header banner holds the bird (settings) icon, the Mode dropdown and
+      // the Checklist dropdown.
       var hdr = document.getElementById("site-header");
       var sw = document.getElementById("settings-wrap");
-      if (hdr && sw) hdr.insertBefore(sw, hdr.firstChild);
+      if (hdr && sw) hdr.appendChild(sw);
+      var modeWrap = document.getElementById("mode-wrap");
+      if (hdr && modeWrap) hdr.appendChild(modeWrap);
+      var chkWrap = document.getElementById("checklists-wrap");
+      if (hdr && chkWrap) hdr.appendChild(chkWrap);
+      syncHeaderHeight();
+      window.addEventListener("resize", syncHeaderHeight);
       populateLangSelect();
       populateWeekSelect();
       restoreControls();

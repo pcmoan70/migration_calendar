@@ -337,7 +337,8 @@ input:focus-visible {
 
 /* In Species-List mode the panel is a full-screen page, not an under-map card */
 #species-panel.as-page {
-  position: fixed; inset: 0; z-index: 1500; margin: 0;
+  position: fixed; top: var(--header-h, 60px); left: 0; right: 0; bottom: 0;
+  z-index: 1500; margin: 0;
   max-width: none; border: none; border-radius: 0; box-shadow: none;
   background: var(--page-bg);
   overflow-y: auto; -webkit-overflow-scrolling: touch;
@@ -629,17 +630,41 @@ body {
   background: var(--page-bg);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  /* Room for the fixed banner (its real height is published as --header-h). */
+  padding-top: var(--header-h, 60px);
 }
 
+/* Universal green banner: fixed at top, above the page-like overlays, holding
+   the bird (settings) icon, the Mode dropdown and the Checklist dropdown. */
 #site-header {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 2000;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
-  padding: 12px 20px;
+  gap: 10px;
+  padding: 9px 16px;
   background: linear-gradient(100deg, var(--brand-deep) 0%, #114a44 55%, var(--brand-strong) 100%);
   color: #f3faf7;
   box-shadow: var(--shadow-sm);
 }
+
+/* Mode + Checklist controls in the banner (themed for the dark gradient) */
+#site-header #mode-wrap, #site-header #checklists-wrap { flex: 0 0 auto; margin: 0; }
+#site-header #mode-wrap > label, #site-header #checklists-wrap > label { display: none; }
+#site-header select#mode-select {
+  height: 36px; box-sizing: border-box; padding: 0 10px; font-size: 0.88rem;
+  border: 1px solid rgba(255, 255, 255, 0.32); border-radius: var(--radius-xs);
+  background: rgba(255, 255, 255, 0.14); color: #f3faf7; cursor: pointer;
+}
+#site-header select#mode-select option { color: var(--ink); }
+#site-header .dd-toggle {
+  background: rgba(255, 255, 255, 0.14); color: #f3faf7;
+  border-color: rgba(255, 255, 255, 0.32);
+}
+#site-header .dd-toggle:hover { border-color: rgba(255, 255, 255, 0.55); }
+#site-header .dd-caret { color: #cfe8e0; }
 
 /* Settings, relocated into the header as a bird icon button (upper-left) */
 #site-header #settings-wrap { flex: 0 0 auto; }
@@ -664,14 +689,6 @@ body {
 }
 .bird-ico { width: 24px; height: 24px; display: block; }
 .settings-emoji { font-size: 23px; line-height: 1; }
-
-#site-header h1 {
-  margin: 0;
-  font-size: 1.22rem;
-  font-weight: 700;
-  letter-spacing: 0.01em;
-  line-height: 1.2;
-}
 
 #demo-app {
   max-width: 1280px;
@@ -1263,6 +1280,10 @@ table.chk-table .chk-text { min-width: 100px; }
   box-shadow: var(--shadow-lg);
   text-align: center;
 }
+#perf-modal-box .perf-title {
+  margin: 0 0 14px; font-size: 1.2rem; font-weight: 700; line-height: 1.25;
+  color: var(--brand-deep);
+}
 #perf-modal-box p { margin: 0 0 18px; font-size: 0.95rem; line-height: 1.5; }
 #perf-modal-box .perf-attrib {
   margin: 0 0 18px;
@@ -1353,7 +1374,8 @@ table.recent-table .rc-who { color: var(--md-default-fg-color--light, #888); whi
 
 /* ---------- Field checklist (full-screen mobile live entry) ---------- */
 #field-page {
-  position: fixed; inset: 0; z-index: 1500; display: none; flex-direction: column;
+  position: fixed; top: var(--header-h, 60px); left: 0; right: 0; bottom: 0;
+  z-index: 1500; display: none; flex-direction: column;
   background: var(--md-default-bg-color, #fff); color: var(--md-default-fg-color, var(--ink));
 }
 .field-page-bar {
