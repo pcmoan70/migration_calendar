@@ -2759,6 +2759,7 @@
   // scientific names, probability, and Δ = arrival score (next-prev)/max_year.
   // Stored in localStorage; multiple named lists; rows are checkable + printable.
   var currentChecklistId = null;
+  var chkFilter = "all";   // checklist row filter: "all" | "seen" | "missing"
 
   function getChecklists() { return window.GeoState.get("checklists", []) || []; }
   function saveChecklists(arr) { window.GeoState.save({ checklists: arr }); }
@@ -2996,6 +2997,7 @@
     var cl = getChecklist(id);
     if (!cl) return;
     currentChecklistId = id;
+    chkFilter = "all";
     document.getElementById("species-panel").style.display = "none";
     document.getElementById("barchart-panel").style.display = "none";
     renderChecklistBody(cl);
@@ -3014,6 +3016,11 @@
     var checked = cl.items.filter(function (it) { return it.checked; }).length;
     var html = '<h3 class="chk-title">' + escapeHtml(cl.name) + "</h3>";
     html += '<div class="chk-meta">' + meta + ' · <span id="chk-progress">' + checked + " / " + cl.items.length + "</span></div>";
+    html += '<div class="chk-filter" role="group">' +
+      '<button type="button" class="chk-filter-btn" data-filter="all">' + escapeHtml(t("chk.all")) + "</button>" +
+      '<button type="button" class="chk-filter-btn" data-filter="seen">' + escapeHtml(t("chk.seen")) + "</button>" +
+      '<button type="button" class="chk-filter-btn" data-filter="missing">' + escapeHtml(t("chk.missing")) + "</button>" +
+      "</div>";
     var cmpHead = cl.cmpKind ? "<th>" + escapeHtml(cl.cmpLabel || "") + "</th>" : "";
     var name2Head = cl.lang2 ? "<th>" + escapeHtml(cl.lang2Name || cl.lang2) + "</th>" : "";
     html += '<table class="chk-table"><thead><tr><th class="chk-cb"></th><th>' + escapeHtml(t("th.rank")) + "</th><th>" + escapeHtml(t("th.species")) +
@@ -3043,8 +3050,13 @@
         updateChecklist(c);
         var prog = document.getElementById("chk-progress");
         if (prog) prog.textContent = c.items.filter(function (it) { return it.checked; }).length + " / " + c.items.length;
+        applyChkFilter();   // a newly seen/unseen row may drop out of the filter
       });
     });
+    body.querySelectorAll(".chk-filter-btn").forEach(function (b) {
+      b.addEventListener("click", function () { chkFilter = this.getAttribute("data-filter"); applyChkFilter(); });
+    });
+    applyChkFilter();
     body.querySelectorAll(".chk-text").forEach(function (inp) {
       inp.addEventListener("change", function () {
         var c = getChecklist(currentChecklistId);
@@ -3052,6 +3064,21 @@
         c.items[+this.getAttribute("data-idx")][this.getAttribute("data-field")] = this.value;
         updateChecklist(c);
       });
+    });
+  }
+
+  // Show only rows matching the current All / Seen / Missing toggle.
+  function applyChkFilter() {
+    var body = document.getElementById("chk-body");
+    if (!body) return;
+    body.querySelectorAll(".chk-table tbody tr").forEach(function (tr) {
+      var cb = tr.querySelector(".chk-box");
+      var seen = !!(cb && cb.checked);
+      var show = chkFilter === "all" || (chkFilter === "seen" && seen) || (chkFilter === "missing" && !seen);
+      tr.style.display = show ? "" : "none";
+    });
+    body.querySelectorAll(".chk-filter-btn").forEach(function (b) {
+      b.classList.toggle("is-active", b.getAttribute("data-filter") === chkFilter);
     });
   }
 

@@ -1150,6 +1150,18 @@ button.dd-name:hover { text-decoration: underline; }
 .chk-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
 .chk-title { margin: 0 0 4px; font-size: 1.15rem; }
 .chk-meta { font-size: 0.82rem; color: var(--ink-muted); margin-bottom: 10px; }
+
+/* All / Seen / Missing segmented toggle */
+.chk-filter { display: inline-flex; margin-bottom: 12px; border: 1px solid var(--border); border-radius: var(--radius-xs); overflow: hidden; }
+.chk-filter-btn {
+  border: none; background: var(--surface); color: var(--ink-muted);
+  font: inherit; font-size: 0.82rem; font-weight: 600; padding: 6px 14px; cursor: pointer;
+  border-left: 1px solid var(--border); transition: background .12s, color .12s;
+}
+.chk-filter-btn:first-child { border-left: none; }
+.chk-filter-btn:hover { background: var(--surface-2); }
+.chk-filter-btn.is-active { background: var(--brand); color: #fff; }
+@media print { .chk-filter { display: none !important; } }
 table.chk-table {
   width: 100%;
   border-collapse: collapse;
