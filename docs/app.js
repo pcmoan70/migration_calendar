@@ -270,6 +270,7 @@
   var currentMode = "range";
   var fieldData = null;       // current probability-ranked species for the field checklist
   var fieldQuery = "";        // fuzzy filter text for the field checklist
+  var fieldFilter = "all";    // checklist row filter: "all" | "seen" | "missing"
   var fieldPlaceToken = 0;    // guards against stale field-place lookups
   var fieldLat = 0, fieldLon = 0;   // current field-checklist point
   var fieldKey = null;        // placeKey of the field checklist currently open
@@ -277,6 +278,7 @@
   var renderGeneration = 0;
   var moveEndTimer = null;
   var lastCsvData = null;   // { filename, content } for current data product
+  var lastSpeciesPdf = null;   // { name2Head, cmpHead, rows } for the species-list PDF
 
   // Migration animation state
   var animateAll = false;   // when true, range/richness precompute all 48 weeks
@@ -781,6 +783,7 @@
           '<div class="sp-coords" id="sp-coords"></div>' +
           '<div class="sp-actions">' +
             '<button id="sp-checklist-btn" class="demo-btn" data-i18n="btn.checklist">✓ Checklist</button>' +
+            '<button id="sp-pdf-btn" class="demo-btn demo-btn-light" title="Download PDF">⬇ PDF</button>' +
           '</div>' +
           '<table id="species-list-table">' +
             '<thead><tr><th data-i18n="th.species">Species</th><th class="name2" id="sp-name2-head"></th><th data-i18n="th.sci">Scientific name</th><th data-i18n="th.prob">Probability</th><th></th><th id="sp-delta-head"></th></tr></thead>' +
@@ -800,6 +803,11 @@
             '</span>' +
           '</div>' +
           '<input id="field-search" type="text" autocomplete="off" data-i18n-ph="ph.filter" placeholder="Filter species…" />' +
+          '<div id="field-filter" class="chk-filter">' +
+            '<button type="button" class="chk-filter-btn is-active" data-ffilter="all" data-i18n="chk.all">All</button>' +
+            '<button type="button" class="chk-filter-btn" data-ffilter="seen" data-i18n="chk.seen">Seen</button>' +
+            '<button type="button" class="chk-filter-btn" data-ffilter="missing" data-i18n="chk.missing">Missing</button>' +
+          '</div>' +
           '<div id="field-list"></div>' +
           '<div id="fc-picker" style="display:none">' +
             '<div class="fcp-head"><span id="fcp-name"></span><button type="button" id="fcp-close" aria-label="Close">×</button></div>' +
@@ -1350,6 +1358,14 @@
     document.getElementById("field-search").addEventListener("input", function () {
       fieldQuery = this.value; renderFieldList();
     });
+    // All / Seen / Missing toggle.
+    document.getElementById("field-filter").addEventListener("click", function (e) {
+      var b = e.target.closest && e.target.closest(".chk-filter-btn");
+      if (!b) return;
+      fieldFilter = b.getAttribute("data-ffilter");
+      this.querySelectorAll(".chk-filter-btn").forEach(function (x) { x.classList.toggle("is-active", x === b); });
+      renderFieldList();
+    });
     function fieldRowUpdate(el) {
       var key = el.getAttribute && el.getAttribute("data-key");
       if (!key) return;
@@ -1369,12 +1385,20 @@
     var fieldList = document.getElementById("field-list");
     fieldList.addEventListener("input", function (e) { fieldRowUpdate(e.target); });
     fieldList.addEventListener("change", function (e) { fieldRowUpdate(e.target); });
-    // Tap a count → open the quick-select; close it on scroll.
+    // Tap a count → open the quick-select; tap the row (name) → reveal the
+    // notes field; close the picker on scroll.
     fieldList.addEventListener("click", function (e) {
-      var btn = e.target.closest && e.target.closest(".fc-count");
-      if (!btn) return;
-      var row = btn.closest(".fc-row"), nm = row && row.querySelector(".fc-name");
-      openFcPicker(btn.getAttribute("data-key"), nm ? nm.textContent : "");
+      if (!e.target.closest) return;
+      var btn = e.target.closest(".fc-count");
+      if (btn) {
+        var row0 = btn.closest(".fc-row"), nm = row0 && row0.querySelector(".fc-name");
+        openFcPicker(btn.getAttribute("data-key"), nm ? nm.textContent : "");
+        return;
+      }
+      // Click on the card (not a control) reveals the notes input to write in.
+      if (e.target.closest(".fc-act") || e.target.closest(".fc-tick") || e.target.closest(".fc-note")) return;
+      var row = e.target.closest(".fc-row");
+      if (row) { row.classList.add("fc-note-on"); var note = row.querySelector(".fc-note"); if (note) note.focus(); }
     });
     fieldList.addEventListener("scroll", hideFcPicker);
     var fcp = document.getElementById("fc-picker");
@@ -1512,6 +1536,7 @@
       var ll = marker.getLatLng();
       renderFieldChecklist(ll.lat, ll.lng);
     });
+    document.getElementById("sp-pdf-btn").addEventListener("click", exportSpeciesPdf);
 
     document.getElementById("csv-download-btn").addEventListener("click", function () {
       if (lastCsvData) downloadCsv(lastCsvData.filename, lastCsvData.content);
@@ -2291,6 +2316,10 @@
 
   // Build the probability-ranked species list for the clicked/located point.
   async function renderFieldChecklist(lat, lon) {
+    fieldQuery = ""; fieldFilter = "all";   // fresh filters each open
+    var fs = document.getElementById("field-search"); if (fs) fs.value = "";
+    var ff = document.getElementById("field-filter");
+    if (ff) ff.querySelectorAll(".chk-filter-btn").forEach(function (x) { x.classList.toggle("is-active", x.getAttribute("data-ffilter") === "all"); });
     var week = +document.getElementById("week-select").value;
     var pmin = +document.getElementById("prob-min").value / 100;
     var pmax = +document.getElementById("prob-max").value / 100;
@@ -2426,7 +2455,12 @@
     if (!fieldData) return;
     var entries = getFieldEntries();
     var list = document.getElementById("field-list");
-    var shown = fieldData.filter(function (r) { return fuzzyMatch(r.name, fieldQuery); });
+    var shown = fieldData.filter(function (r) {
+      if (!fuzzyMatch(r.name, fieldQuery)) return false;
+      if (fieldFilter === "all") return true;
+      var seen = !!(entries[r.key] && entries[r.key].seen);
+      return fieldFilter === "seen" ? seen : !seen;
+    });
     var actOpts = function (sel) {
       var h = '<option value=""></option>';
       FIELD_ACTS.forEach(function (a) { h += '<option value="' + a + '"' + (sel === a ? " selected" : "") + ">" + escapeHtml(actName(a)) + "</option>"; });
@@ -2434,7 +2468,7 @@
     };
     list.innerHTML = shown.map(function (r) {
       var en = entries[r.key] || {};
-      var on = en.seen ? " fc-on" : "";
+      var on = (en.seen ? " fc-on" : "") + (en.note ? " fc-note-on" : "");
       return '<div class="fc-row' + on + '" data-key="' + escapeHtml(r.key) + '">' +
         '<label class="fc-tick"><input type="checkbox" class="fc-seen" data-key="' + escapeHtml(r.key) + '"' + (en.seen ? " checked" : "") + "></label>" +
         '<span class="fc-name">' + escapeHtml(r.name) + "</span>" +
@@ -2563,12 +2597,51 @@
       "<table><thead><tr><th>#</th><th>" + esc(t("th.species")) + "</th><th>" + esc(t("chk.count")) +
       "</th><th>" + esc(t("chk.activity")) + "</th><th>" + esc(t("th.notes")) + "</th></tr></thead><tbody>" + body + "</tbody></table>" +
       "</body></html>";
+    openPrintWindow(html);
+  }
+
+  function openPrintWindow(html) {
     var w = window.open("", "_blank");
     if (!w) { setStatus(t("status.error", { msg: "popup blocked" })); return; }
     w.document.write(html);
     w.document.close();
     w.focus();
     setTimeout(function () { try { w.print(); } catch (e) { /* user can print manually */ } }, 300);
+  }
+
+  // Printable PDF of the detailed Species List (same columns as on screen).
+  function exportSpeciesPdf() {
+    if (!lastSpeciesPdf || !lastSpeciesPdf.rows.length) { setStatus(t("status.selectSpecies")); return; }
+    var d = lastSpeciesPdf, esc = escapeHtml;
+    var heading = t("panel.spTitle");
+    var meta = (document.getElementById("sp-coords").textContent || "").trim();
+    var n2 = !!d.name2Head, cmp = !!d.cmpHead;
+    var thead = "<tr><th>#</th><th>" + esc(t("th.species")) + "</th>" +
+      (n2 ? "<th>" + esc(d.name2Head) + "</th>" : "") +
+      "<th>" + esc(t("th.sci")) + "</th><th class='num'>" + esc(t("th.prob")) + "</th>" +
+      (cmp ? "<th class='num'>" + esc(d.cmpHead) + "</th>" : "") + "</tr>";
+    var body = d.rows.map(function (r, i) {
+      return "<tr><td>" + (i + 1) + "</td><td>" + esc(r.name) + "</td>" +
+        (n2 ? "<td>" + esc(r.name2) + "</td>" : "") +
+        "<td class='sci'>" + esc(r.sci) + "</td><td class='num'>" + esc(r.prob) + "</td>" +
+        (cmp ? "<td class='num'>" + esc(r.cmp) + "</td>" : "") + "</tr>";
+    }).join("");
+    var html = '<!doctype html><html><head><meta charset="utf-8"><title>' + esc(heading) + "</title><style>" +
+      "body{font-family:system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:#16302b;margin:32px;}" +
+      "h1{font-size:19px;color:#0b3a3a;margin:0 0 2px;}" +
+      ".meta{color:#5b6f69;font-size:12px;margin-bottom:18px;}" +
+      "table{border-collapse:collapse;width:100%;font-size:13px;}" +
+      "th,td{text-align:left;padding:6px 9px;border-bottom:1px solid #d8e1dd;}" +
+      "th{font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:#5b6f69;}" +
+      "thead th{border-bottom:2px solid #bcccc6;}" +
+      "td:first-child,th:first-child{width:30px;color:#93a39d;}" +
+      "td.sci{font-style:italic;} td.num,th.num{text-align:right;white-space:nowrap;}" +
+      "</style></head><body>" +
+      "<h1>" + esc(heading) + "</h1>" +
+      '<div class="meta">' + esc(meta) + "</div>" +
+      "<table><thead>" + thead + "</thead><tbody>" + body + "</tbody></table>" +
+      "</body></html>";
+    openPrintWindow(html);
   }
 
   async function renderSpeciesList(lat, lon) {
@@ -2639,6 +2712,20 @@
       lastCsvData = {
         filename: "Geomodel_species_list_" + lat.toFixed(2) + "_" + lon.toFixed(2) + "_week" + week + ".csv",
         content: csvLines.join("\n")
+      };
+      // Snapshot the displayed rows/columns for the printable PDF export.
+      lastSpeciesPdf = {
+        name2Head: secondLang ? window.GeoI18N.langByCode(secondLang).name : "",
+        cmpHead: document.getElementById("sp-delta-head").textContent || "",
+        rows: results.map(function (r) {
+          var cmpText = "";
+          if (hasCompare) {
+            cmpText = kind === "ratio" ? Math.round(r.cmpVal * 100) + "%"
+              : kind === "focus" ? (r.cmpVal * 100).toFixed(0) + "%"
+              : (r.cmpVal >= 0 ? "+" : "") + (r.cmpVal * 100).toFixed(1) + "%";
+          }
+          return { name: speciesName(r.label), name2: secondLang ? secondName(r.label) : "", sci: r.label.sci, prob: (r.prob * 100).toFixed(1) + "%", cmp: cmpText };
+        }),
       };
       showCsvBtn();
     } catch (e) { setStatus(t("status.error", { msg: e.message })); console.error(e); }

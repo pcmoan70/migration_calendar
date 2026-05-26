@@ -1433,20 +1433,23 @@ table.recent-table .rc-who { color: var(--md-default-fg-color--light, #888); whi
   border: 1px solid var(--md-default-fg-color--lightest, #ccc); border-radius: 8px;
   background: var(--md-default-bg-color, #fff); color: var(--md-default-fg-color, #333);
 }
+#field-filter { margin: 0 12px 6px; }
 #field-page #field-list { flex: 1 1 auto; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 0 12px 24px; }
 .fc-row {
   display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 6px;
   border-bottom: 1px solid var(--md-default-fg-color--lightest, #eee);
 }
 .fc-row.fc-on { background: var(--brand-soft); }
-/* Free-text Notes — full-width second line, shown once the row is ticked. */
+/* Free-text Notes — full-width second line. Hidden until it has content or the
+   user taps the row; the row name hints it's tappable. */
 .fc-note {
+  display: none;
   flex: 1 0 100%; box-sizing: border-box; margin: 2px 0 2px 32px;
   border: 1px solid var(--border); border-radius: var(--radius-xs);
   padding: 6px 10px; font: inherit; font-size: 0.9rem;
   background: var(--surface); color: var(--ink);
 }
-.fc-row:not(.fc-on) .fc-note { display: none; }
+.fc-row.fc-note-on .fc-note { display: block; }
 .fc-tick { display: flex; align-items: center; }
 .fc-tick input { width: 24px; height: 24px; }
 .fc-name { flex: 1 1 auto; font-size: 0.95rem; }
