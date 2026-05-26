@@ -25,10 +25,10 @@
   --border-strong: #bcccc6;  /* stronger border / hover */
 
   /* Feedback */
-  --danger:        var(--danger);
-  --danger-strong: var(--danger-strong);
+  --danger:        #b42318;
+  --danger-strong: #7a1610;
   --up:            #1a7f37;
-  --down:          var(--danger);
+  --down:          #b42318;
 
   /* Shape & depth */
   --radius:    12px;
@@ -1405,10 +1405,18 @@ table.recent-table .rc-who { color: var(--md-default-fg-color--light, #888); whi
 }
 #field-page #field-list { flex: 1 1 auto; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 0 12px 24px; }
 .fc-row {
-  display: flex; align-items: center; gap: 8px; padding: 8px 6px;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 6px;
   border-bottom: 1px solid var(--md-default-fg-color--lightest, #eee);
 }
 .fc-row.fc-on { background: var(--brand-soft); }
+/* Free-text Notes — full-width second line, shown once the row is ticked. */
+.fc-note {
+  flex: 1 0 100%; box-sizing: border-box; margin: 2px 0 2px 32px;
+  border: 1px solid var(--border); border-radius: var(--radius-xs);
+  padding: 6px 10px; font: inherit; font-size: 0.9rem;
+  background: var(--surface); color: var(--ink);
+}
+.fc-row:not(.fc-on) .fc-note { display: none; }
 .fc-tick { display: flex; align-items: center; }
 .fc-tick input { width: 24px; height: 24px; }
 .fc-name { flex: 1 1 auto; font-size: 0.95rem; }

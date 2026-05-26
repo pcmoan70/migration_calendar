@@ -671,7 +671,7 @@
               '<option value="range" data-i18n="mode.range">Species Range</option>' +
               '<option value="richness" data-i18n="mode.richness">Species Richness</option>' +
               '<option value="list" data-i18n="mode.list">📍 Species List</option>' +
-              '<option value="barchart" data-i18n="mode.barchart">📍 Migration Timeline</option>' +
+              '<option value="barchart" data-i18n="mode.barchart">📍 Migration</option>' +
             '</select>' +
           '</div>' +
           '<div class="ctrl-group" id="species-search-wrap">' +
@@ -681,11 +681,6 @@
           '</div>' +
           '<div class="ctrl-group ctrl-group-btn" id="play-btn-wrap">' +
             '<button id="play-btn" class="demo-btn" data-i18n="btn.play">\u25b6 Play migration</button>' +
-          '</div>' +
-          '<div class="ctrl-group" id="savedloc-wrap">' +
-            '<label data-i18n="ctrl.savedloc">Saved locations</label>' +
-            '<button type="button" id="savedloc-toggle" class="dd-toggle"><span id="savedloc-btn-text"></span><span class="dd-caret" aria-hidden="true">▾</span></button>' +
-            '<div id="savedloc-panel" class="dd-panel" style="display:none"></div>' +
           '</div>' +
           '<div class="ctrl-group" id="hidden-wrap" style="display:none">' +
             '<label data-i18n="ctrl.hidden">Hidden species</label>' +
@@ -784,7 +779,6 @@
           '<div class="sp-coords" id="sp-coords"></div>' +
           '<div class="sp-actions">' +
             '<button id="sp-checklist-btn" class="demo-btn" data-i18n="btn.checklist">✓ Checklist</button>' +
-            '<button id="new-checklist-btn" class="demo-btn demo-btn-light" data-i18n="btn.newchecklist">＋ Snapshot</button>' +
           '</div>' +
           '<table id="species-list-table">' +
             '<thead><tr><th data-i18n="th.species">Species</th><th class="name2" id="sp-name2-head"></th><th data-i18n="th.sci">Scientific name</th><th data-i18n="th.prob">Probability</th><th></th><th id="sp-delta-head"></th></tr></thead>' +
@@ -853,15 +847,6 @@
           '<div class="sp-coords" id="bc-coords"></div>' +
           '<div id="bc-container"></div>' +
         '</div>' +
-        '<div id="checklist-panel" style="display:none">' +
-          '<div class="chk-actions">' +
-            '<button id="chk-print" class="demo-btn" data-i18n="btn.print">Print</button>' +
-            '<button id="chk-csv" class="demo-btn" data-i18n="btn.csv">⬇ CSV</button>' +
-            '<button id="chk-delete" class="demo-btn demo-btn-danger" data-i18n="btn.delete">Delete</button>' +
-            '<button id="chk-close" class="demo-btn demo-btn-light" data-i18n="btn.close">Close</button>' +
-          '</div>' +
-          '<div id="chk-body"></div>' +
-        '</div>' +
         '<div id="sp-menu" style="display:none">' +
           '<button type="button" class="sp-menu-item" data-act="recent" data-i18n="menu.recent">Recent detections</button>' +
           '<button type="button" class="sp-menu-item" data-act="distmap" data-i18n="menu.distmap">Distribution map</button>' +
@@ -886,15 +871,6 @@
           '<button type="button" id="about-close" aria-label="Close">×</button>' +
           '<h3 data-i18n="about.title">About the model &amp; how values are computed</h3>' +
           '<div id="about-body"></div>' +
-        '</div></div>' +
-        '<div id="chk-loc-modal" style="display:none"><div id="chk-loc-box">' +
-          '<button type="button" id="chk-loc-cancel" aria-label="Close">×</button>' +
-          '<h3 data-i18n="chk.namePrompt">Name this checklist:</h3>' +
-          '<div id="chk-loc-list"></div>' +
-          '<div class="chk-loc-new">' +
-            '<input id="chk-loc-input" type="text" autocomplete="off" />' +
-            '<button type="button" id="chk-loc-create" class="demo-btn" data-i18n="chk.createNew">Create new</button>' +
-          '</div>' +
         '</div></div>' +
         '<div id="last-change"></div>' +
         '<div id="visit-counter"><img src="https://api.visitorbadge.io/api/visitors?path=https%3A%2F%2Fpcmoan70.github.io%2Fmigration_calendar&label=page%20visits&labelColor=%230f1b24&countColor=%232f6f4f" alt="page visits" /></div>' +
@@ -933,7 +909,6 @@
       applyI18n();
       initMap();
       bindControls();
-      refreshSavedLocations();
       refreshHiddenUI();
       refreshChecklists();
       setStatus(t("status.selectSpecies"));
@@ -1075,7 +1050,6 @@
     applyI18n();
     populateWeekSelect();   // re-label weeks in the new language
     populateSecondLangSelect();   // re-localize the "(none)" option
-    refreshSavedLocations();
     refreshHiddenUI();      // re-localize hidden-species chip names
     refreshCurrentView();   // re-render species names in the active panel
   }
@@ -1174,19 +1148,6 @@
     });
     map.addControl(new LocateControl());
     map.on("locationerror", function () { setStatus(t("status.locateError")); });
-
-    // Saved-locations dropdown, relocated to the map's lower-right corner.
-    var SavedLocControl = L.Control.extend({
-      options: { position: "bottomright" },
-      onAdd: function () {
-        var wrap = document.getElementById("savedloc-wrap");
-        wrap.classList.add("savedloc-onmap");
-        L.DomEvent.disableClickPropagation(wrap);
-        L.DomEvent.disableScrollPropagation(wrap);
-        return wrap;
-      }
-    });
-    map.addControl(new SavedLocControl());
 
     // After locating, populate the click-driven modes at the current position.
     map.on("locationfound", function (e) {
@@ -1395,6 +1356,8 @@
         var mark2 = !!el.value;
         setFieldEntry(key, { act: el.value || null }, mark2);
         if (mark2 && row) { var cb2 = row.querySelector(".fc-seen"); if (cb2) cb2.checked = true; row.classList.add("fc-on"); }
+      } else if (el.classList.contains("fc-note")) {
+        setFieldEntry(key, { note: el.value.trim() || null });
       }
       updateFieldSeen();
     }
@@ -1522,7 +1485,6 @@
       });
     }
     wireDropdown("hidden-btn", "hidden-panel");
-    wireDropdown("savedloc-toggle", "savedloc-panel");
     wireDropdown("checklists-toggle", "checklists-panel");
     wireDropdown("settings-toggle", "settings-panel");
 
@@ -1539,25 +1501,12 @@
     });
 
     // Checklist actions
-    document.getElementById("new-checklist-btn").addEventListener("click", makeChecklistFromList);
     // Open the tickable Checklist for the current point (from the Species list).
     document.getElementById("sp-checklist-btn").addEventListener("click", function () {
       if (!marker) return;
       var ll = marker.getLatLng();
       renderFieldChecklist(ll.lat, ll.lng);
     });
-    document.getElementById("chk-print").addEventListener("click", function () { window.print(); });
-    document.getElementById("chk-csv").addEventListener("click", function () {
-      var c = getChecklist(currentChecklistId);
-      if (c) downloadCsv("checklist_" + c.name.replace(/[^\w-]+/g, "_") + ".csv", buildChecklistCsv(c));
-    });
-    document.getElementById("chk-delete").addEventListener("click", function () {
-      if (!currentChecklistId) return;
-      var id = currentChecklistId;
-      saveChecklists(getChecklists().filter(function (c) { return c.id !== id; }));
-      closeChecklist(); refreshChecklists(); refreshCurrentView();
-    });
-    document.getElementById("chk-close").addEventListener("click", function () { closeChecklist(); refreshCurrentView(); });
 
     document.getElementById("csv-download-btn").addEventListener("click", function () {
       if (lastCsvData) downloadCsv(lastCsvData.filename, lastCsvData.content);
@@ -2066,8 +2015,7 @@
   }
 
   function onMapClick(e) {
-    // List + Range show the per-point species list; Migration Timeline the
-    // analysis. (Range keeps its overlay.)
+    // List + Range show the per-point species list; Migration the analysis.
     if (["list", "barchart", "range"].indexOf(currentMode) < 0) return;
     if (marker) map.removeLayer(marker);
     // Normalize: latitude clamped to [-90, 90]; longitude wrapped to [-180, 180]
@@ -2078,10 +2026,10 @@
     if (currentMode === "list") {
       // Let the user pick: the Species list, or the (tickable) Checklist.
       bindPointPopup(marker, lat, lon);
+    } else if (currentMode === "barchart") {
+      renderAnalysis(lat, lon);
     } else {
-      bindSavePopup(marker, lat, lon);
-      if (currentMode === "barchart") renderAnalysis(lat, lon);
-      else renderSpeciesList(lat, lon);   // range (inline under map)
+      renderSpeciesList(lat, lon);   // range (inline under map)
     }
   }
 
@@ -2094,23 +2042,12 @@
     return b;
   }
 
-  // A "Save this location" button shown on the map, anchored to the clicked
-  // point's marker (opens automatically). Saving prompts for a name.
-  function bindSavePopup(mk, lat, lon) {
-    var wrap = document.createElement("div");
-    wrap.className = "map-save-pop";
-    wrap.appendChild(makePopupBtn(t("btn.saveloc"), "map-save-btn", function () { saveCurrentLocation(); }));
-    mk.bindPopup(wrap, { closeButton: true, autoClose: false, autoPan: false, className: "save-popup", offset: [0, -8] });
-    mk.openPopup();
-  }
-
-  // Species-List click: choose the Species list or the Checklist (plus Save).
+  // Species-List click: choose the Species list or the (tickable) Checklist.
   function bindPointPopup(mk, lat, lon) {
     var wrap = document.createElement("div");
     wrap.className = "map-choose";
     wrap.appendChild(makePopupBtn(t("mode.list"), "", function () { mk.closePopup(); renderSpeciesList(lat, lon); }));
     wrap.appendChild(makePopupBtn(t("btn.checklist"), "", function () { mk.closePopup(); renderFieldChecklist(lat, lon); }));
-    wrap.appendChild(makePopupBtn(t("btn.saveloc"), "demo-btn-light", function () { saveCurrentLocation(); }));
     mk.bindPopup(wrap, { closeButton: true, autoClose: false, autoPan: true, className: "choose-popup", offset: [0, -8] });
     mk.openPopup();
   }
@@ -2370,8 +2307,98 @@
     } catch (e) { setStatus(t("status.error", { msg: e.message })); console.error(e); }
   }
 
-  // Activity options for the field checklist (value = i18n key).
-  var FIELD_ACTS = ["heard", "flying", "feeding", "resting", "breeding"];
+  // Checklist activity options. Each value is a stable key; ACT holds the label
+  // per language [en, sv, de, es, fr, nl, no, it]. FIELD_ACTS is the dropdown
+  // order — sorted from most to least commonly recorded.
+  var ACT_LANGS = ["en", "sv", "de", "es", "fr", "nl", "no", "it"];
+  var ACT = {
+    // — everyday —
+    stationary: ["Stationary", "Stationär", "Stationär", "Estacionario", "Stationnaire", "Stationair", "Stasjonær", "Stazionario"],
+    resting: ["Resting", "Rastande", "Rastend", "En descanso", "En halte", "Rustend", "Rastende", "In sosta"],
+    foraging: ["Foraging", "Födosökande", "Nahrungssuchend", "Alimentándose", "En quête de nourriture", "Foeragerend", "Næringssøkende", "In foraggiamento"],
+    flyover: ["Flying over", "Överflygande", "Überfliegend", "Sobrevolando", "Survol", "Overvliegend", "Overflygende", "In volo sopra"],
+    song: ["Song/display, not breeding", "Sång/spel, ej häckning", "Gesang/Balz, nicht brütend", "Canto/exhibición, no nidificante", "Chant/parade, hors nidification", "Zang/baltsen, niet broedend", "Sang/spill, ikke hekking", "Canto/parata, non nidificante"],
+    call: ["Call/other sounds", "Lockläte/övriga ljud", "Ruf/sonstige Laute", "Reclamo/otros sonidos", "Cri/autres sons", "Roep/overige geluiden", "Lokkelyd, øvrige lyder", "Richiamo/altri suoni"],
+    migrating: ["Migrating", "Sträckande", "Ziehend", "Migrando", "En migration", "Trekkend", "Trekkende", "In migrazione"],
+    atfeeder: ["At feeder", "Vid matning", "Am Futterplatz", "En comedero", "À la mangeoire", "Bij voederplaats", "Ved fôring", "Alla mangiatoia"],
+    // — breeding —
+    obshab: ["Seen in breeding season, suitable habitat", "Obs. i häckningstid, lämplig biotop", "Beobachtung zur Brutzeit, geeignetes Habitat", "Observación en época de cría, hábitat adecuado", "Observé en période de nidification, habitat favorable", "Waarneming in broedtijd, geschikt biotoop", "Observasjon i hekketid, passende biotop", "Osservazione in periodo riproduttivo, habitat idoneo"],
+    songhab: ["Song/display in breeding season & habitat", "Sång/spel i häckningstid, lämplig biotop", "Gesang/Balz zur Brutzeit, geeignetes Habitat", "Canto/exhibición en época y hábitat de cría", "Chant/parade en période et habitat de nidification", "Zang/baltsen in broedtijd, geschikt biotoop", "Sang/spill i hekketid og passende hekkebiotop", "Canto/parata in periodo e habitat riproduttivo"],
+    pairhab: ["Pair in suitable breeding habitat", "Par i lämplig häckbiotop", "Paar im geeigneten Bruthabitat", "Pareja en hábitat de cría adecuado", "Couple en habitat de nidification favorable", "Paar in geschikt broedbiotoop", "Par i passende hekkebiotop", "Coppia in habitat riproduttivo idoneo"],
+    permterr: ["Permanent territory", "Permanent revir", "Dauerrevier", "Territorio permanente", "Territoire permanent", "Permanent territorium", "Permanent revir", "Territorio permanente"],
+    agitated: ["Agitated behaviour (breeding indication)", "Oroligt beteende (häckningsindikation)", "Erregtes Verhalten (Brutverdacht)", "Comportamiento de alarma (indicio de cría)", "Comportement inquiet (indice de nidification)", "Alarmgedrag (broedindicatie)", "Engstelig adferd, indikasjon på hekking", "Comportamento agitato (indizio di nidificazione)"],
+    courtship: ["Mating/courtship at possible site", "Parning/uppvaktning på möjlig plats", "Paarung/Balz am möglichen Brutplatz", "Cópula/cortejo en posible lugar", "Accouplement/parade sur site possible", "Paring/balts op mogelijke plek", "Paring/kurtise på mulig hekkeplass", "Accoppiamento/corteggiamento su sito possibile"],
+    nestbuild: ["Nest building", "Bobygge", "Nestbau", "Construcción de nido", "Construction du nid", "Nestbouw", "Reirbygging", "Costruzione del nido"],
+    incubating: ["Incubating", "Ruvande", "Brütend", "Incubando", "En incubation", "Broedend", "Rugende", "In cova"],
+    foodyoung: ["Food for young", "Mat till ungar", "Futter für Junge", "Alimento para crías", "Nourriture pour les jeunes", "Voer voor jongen", "Mat til unger", "Cibo per i piccoli"],
+    nesteggsyoung: ["Nest with eggs or young", "Bo med ägg eller ungar", "Nest mit Eiern oder Jungen", "Nido con huevos o crías", "Nid avec œufs ou jeunes", "Nest met eieren of jongen", "Reir med egg eller unger", "Nido con uova o piccoli"],
+    nestyoungheard: ["Nest, young heard", "Bo, ungar hörda", "Nest, Junge gehört", "Nido, crías oídas", "Nid, jeunes entendus", "Nest, jongen gehoord", "Reir, unger hørt", "Nido, piccoli uditi"],
+    fledglings: ["Fledglings outside nest, not full-grown", "Ungar utanför bo, ej flygga", "Junge außerhalb des Nests, nicht flügge", "Pollos fuera del nido, no volantones", "Jeunes hors du nid, non volants", "Jongen buiten nest, niet vliegvlug", "Unger utenfor reir, ikke utvokste", "Giovani fuori dal nido, non involati"],
+    nestinuse: ["Nest in use", "Bo i bruk", "Nest in Benutzung", "Nido en uso", "Nid utilisé", "Nest in gebruik", "Reir i bruk", "Nido in uso"],
+    visitnest: ["Visiting occupied nest", "Besöker bebott bo", "Besucht besetztes Nest", "Visita nido ocupado", "Visite un nid occupé", "Bezoekt bewoond nest", "Besøker bebodd reir", "Visita nido occupato"],
+    nestvisitq: ["Nest visit?", "Bobesök?", "Nestbesuch?", "¿Visita al nido?", "Visite du nid ?", "Nestbezoek?", "Reirbesøk?", "Visita al nido?"],
+    faecalsac: ["Carrying faecal sac", "Bär exkrementsäck", "Kotballen tragend", "Transportando saco fecal", "Transport de sac fécal", "Draagt uitwerpselzakje", "Bar ekskrementpose", "Trasporto sacca fecale"],
+    broodpatch: ["Brood patch", "Ruvfläckar", "Brutfleck", "Placa incubatriz", "Plaque incubatrice", "Broedvlek", "Rugeflekker", "Placca incubatrice"],
+    usednest: ["Used nest", "Använt bo", "Benutztes Nest", "Nido usado", "Ancien nid utilisé", "Gebruikt nest", "Brukt reir", "Nido usato"],
+    eggshell: ["Eggshell", "Äggskal", "Eierschale", "Cáscara de huevo", "Coquille d'œuf", "Eierschaal", "Eggeskall", "Guscio d'uovo"],
+    distraction: ["Distraction display", "Avledningsbeteende", "Ablenkungsverhalten", "Distracción (simula herida)", "Comportement de diversion", "Afleidingsgedrag", "Avledningsmanøver", "Comportamento di distrazione"],
+    failed: ["Failed breeding", "Misslyckad häckning", "Fehlgeschlagene Brut", "Cría fallida", "Nidification échouée", "Mislukte broedpoging", "Mislykket hekking", "Nidificazione fallita"],
+    // — territory / marking —
+    terrnonbreed: ["Territory, not breeding", "Revir, ej häckning", "Revier, nicht brütend", "Territorio, no reproductor", "Territoire, hors nidification", "Territorium, niet broedend", "Revir, ikke hekking", "Territorio, non nidificante"],
+    ringed: ["Ringed", "Ringmärkt", "Beringt", "Anillado", "Bagué", "Geringd", "Ringmerket", "Inanellato"],
+    marked: ["Individually marked (control)", "Individmärkt (kontroll)", "Individuell markiert (Kontrolle)", "Marcado individual (control)", "Marqué individuellement (contrôle)", "Individueel gemerkt (controle)", "Individmerket (kontroll)", "Marcato individualmente (controllo)"],
+    // — migration —
+    migattempt: ["Attempted migration", "Sträckförsök", "Zugversuch", "Intento de migración", "Tentative de migration", "Trekpoging", "Trekkforsøk", "Tentativo di migrazione"],
+    mign: ["Migrating ↑", "Sträckande ↑", "Ziehend ↑", "Migrando ↑", "En migration ↑", "Trekkend ↑", "Trekkende ↑", "In migrazione ↑"],
+    migne: ["Migrating ↗", "Sträckande ↗", "Ziehend ↗", "Migrando ↗", "En migration ↗", "Trekkend ↗", "Trekkende ↗", "In migrazione ↗"],
+    mige: ["Migrating →", "Sträckande →", "Ziehend →", "Migrando →", "En migration →", "Trekkend →", "Trekkende →", "In migrazione →"],
+    migse: ["Migrating ↘", "Sträckande ↘", "Ziehend ↘", "Migrando ↘", "En migration ↘", "Trekkend ↘", "Trekkende ↘", "In migrazione ↘"],
+    migs: ["Migrating ↓", "Sträckande ↓", "Ziehend ↓", "Migrando ↓", "En migration ↓", "Trekkend ↓", "Trekkende ↓", "In migrazione ↓"],
+    migsw: ["Migrating ↙", "Sträckande ↙", "Ziehend ↙", "Migrando ↙", "En migration ↙", "Trekkend ↙", "Trekkende ↙", "In migrazione ↙"],
+    migw: ["Migrating ←", "Sträckande ←", "Ziehend ←", "Migrando ←", "En migration ←", "Trekkend ←", "Trekkende ←", "In migrazione ←"],
+    mignw: ["Migrating ↖", "Sträckande ↖", "Ziehend ↖", "Migrando ↖", "En migration ↖", "Trekkend ↖", "Trekkende ↖", "In migrazione ↖"],
+    // — mortality —
+    sick: ["Sick", "Sjuk", "Krank", "Enfermo", "Malade", "Ziek", "Syk", "Malato"],
+    shot: ["Shot/culled", "Skjuten/avlivad", "Geschossen/getötet", "Disparado/sacrificado", "Tiré/abattu", "Geschoten/gedood", "Skutt/avlivet", "Abbattuto/soppresso"],
+    roadkill: ["Roadkill", "Trafikdödad", "Verkehrsopfer", "Atropellado", "Tué sur la route", "Verkeersslachtoffer", "Trafikkdrept", "Investito su strada"],
+    predator: ["Killed by predator", "Dödad av predator", "Von Prädator getötet", "Muerto por depredador", "Tué par un prédateur", "Gedood door predator", "Drept av predator", "Ucciso da predatore"],
+    disease: ["Died of disease/starvation", "Död av sjukdom/svält", "An Krankheit/Hunger gestorben", "Muerto por enfermedad/inanición", "Mort de maladie/famine", "Gestorven door ziekte/honger", "Død av sykdom/sult", "Morto per malattia/fame"],
+    oil: ["Killed by oil", "Dödad av olja", "Durch Öl getötet", "Muerto por petróleo", "Tué par le pétrole", "Gedood door olie", "Drept av olje", "Ucciso dal petrolio"],
+    electro: ["Electrocuted", "Dödad av elstöt", "Durch Stromschlag getötet", "Electrocutado", "Électrocuté", "Geëlektrocuteerd", "Drept av elektrokusjon (strømslag)", "Folgorato"],
+    net: ["Died in net", "Nätdöd", "Im Netz verendet", "Muerto en red", "Mort dans un filet", "Gestorven in net", "Garndød", "Morto in rete"],
+    fishgear: ["Injured by fishing gear", "Skadad av fiskeredskap", "Durch Fanggerät verletzt", "Herido por arte de pesca", "Blessé par engin de pêche", "Verwond door vistuig", "Skadet av fiskeredskap", "Ferito da attrezzi da pesca"],
+    collwindow: ["Dead – window collision", "Död – kollision med fönster", "Tot – Kollision mit Fenster", "Muerto – colisión con ventana", "Mort – collision avec vitre", "Dood – botsing met raam", "Død - kollisjon med vindu", "Morto – collisione con vetro"],
+    collpower: ["Dead – power line collision", "Död – kollision med kraftledning", "Tot – Kollision mit Stromleitung", "Muerto – colisión con línea eléctrica", "Mort – collision avec ligne électrique", "Dood – botsing met hoogspanningslijn", "Død - kollisjon med kraftledning", "Morto – collisione con linea elettrica"],
+    collturbine: ["Dead – wind turbine collision", "Död – kollision med vindkraftverk", "Tot – Kollision mit Windrad", "Muerto – colisión con aerogenerador", "Mort – collision avec éolienne", "Dood – botsing met windturbine", "Død - kollisjon med vindturbin", "Morto – collisione con turbina eolica"],
+    colllighthouse: ["Dead – lighthouse collision", "Död – kollision med fyr", "Tot – Kollision mit Leuchtturm", "Muerto – colisión con faro", "Mort – collision avec phare", "Dood – botsing met vuurtoren", "Død - kollisjon med fyr", "Morto – collisione con faro"],
+    collaircraft: ["Dead – aircraft collision", "Död – kollision med flygplan", "Tot – Kollision mit Flugzeug", "Muerto – colisión con avión", "Mort – collision avec avion", "Dood – botsing met vliegtuig", "Død - kollisjon med fly", "Morto – collisione con aereo"],
+    collfence: ["Dead – fence collision", "Död – kollision med stängsel", "Tot – Kollision mit Zaun", "Muerto – colisión con valla", "Mort – collision avec clôture", "Dood – botsing met hek", "Død - kollisjon med gjerde", "Morto – collisione con recinzione"],
+    deadunknown: ["Dead – unknown cause", "Död – okänd dödsorsak", "Tot – unbekannte Ursache", "Muerto – causa desconocida", "Mort – cause inconnue", "Dood – onbekende oorzaak", "Død - ukjent dødsårsak", "Morto – causa sconosciuta"],
+    // — traces —
+    tracksfresh: ["Fresh tracks", "Färska spår", "Frische Spuren", "Rastros frescos", "Traces fraîches", "Verse sporen", "Ferske spor", "Tracce fresche"],
+    tracksold: ["Old tracks", "Äldre spår", "Alte Spuren", "Rastros antiguos", "Traces anciennes", "Oude sporen", "Eldre spor", "Tracce vecchie"],
+    droppingsfresh: ["Fresh droppings", "Färsk spillning", "Frischer Kot", "Excrementos frescos", "Crottes fraîches", "Verse uitwerpselen", "Fersk møkk", "Escrementi freschi"],
+    droppingsold: ["Old droppings", "Äldre spillning", "Alter Kot", "Excrementos antiguos", "Crottes anciennes", "Oude uitwerpselen", "Eldre møkk", "Escrementi vecchi"],
+  };
+  // Dropdown order: most → least commonly recorded.
+  var FIELD_ACTS = [
+    "stationary", "resting", "foraging", "flyover", "song", "call", "migrating", "atfeeder",
+    "obshab", "songhab", "pairhab", "permterr", "agitated", "courtship", "nestbuild", "incubating",
+    "foodyoung", "nesteggsyoung", "nestyoungheard", "fledglings", "nestinuse", "visitnest",
+    "nestvisitq", "faecalsac", "broodpatch", "usednest", "eggshell", "distraction", "failed",
+    "terrnonbreed", "ringed", "marked",
+    "migattempt", "mign", "migne", "mige", "migse", "migs", "migsw", "migw", "mignw",
+    "sick", "shot", "roadkill", "predator", "disease", "oil", "electro", "net", "fishgear",
+    "collwindow", "collpower", "collturbine", "colllighthouse", "collaircraft", "collfence", "deadunknown",
+    "tracksfresh", "tracksold", "droppingsfresh", "droppingsold",
+  ];
+  // Localized label for an activity key (current UI language, English fallback).
+  function actName(key) {
+    var a = ACT[key];
+    if (!a) return key;
+    var i = ACT_LANGS.indexOf(lang);
+    return a[i >= 0 ? i : 0] || a[0];
+  }
 
   // Render the (filtered, probability-sorted) field-entry rows.
   function renderFieldList() {
@@ -2381,7 +2408,7 @@
     var shown = fieldData.filter(function (r) { return fuzzyMatch(r.name, fieldQuery); });
     var actOpts = function (sel) {
       var h = '<option value=""></option>';
-      FIELD_ACTS.forEach(function (a) { h += '<option value="' + a + '"' + (sel === a ? " selected" : "") + ">" + escapeHtml(t("act." + a)) + "</option>"; });
+      FIELD_ACTS.forEach(function (a) { h += '<option value="' + a + '"' + (sel === a ? " selected" : "") + ">" + escapeHtml(actName(a)) + "</option>"; });
       return h;
     };
     list.innerHTML = shown.map(function (r) {
@@ -2392,6 +2419,7 @@
         '<span class="fc-name">' + escapeHtml(r.name) + "</span>" +
         '<button type="button" class="fc-count' + (en.count != null ? " has-n" : "") + '" data-key="' + escapeHtml(r.key) + '">' + (en.count != null ? en.count : "#") + "</button>" +
         '<select class="fc-act" data-key="' + escapeHtml(r.key) + '">' + actOpts(en.act) + "</select>" +
+        '<input type="text" class="fc-note" data-key="' + escapeHtml(r.key) + '" placeholder="' + escapeHtml(t("th.notes")) + '" value="' + escapeHtml(en.note || "") + '" />' +
         "</div>";
     }).join("");
     if (!shown.length) list.innerHTML = '<p class="fc-empty">' + escapeHtml(t("analysis.empty")) + "</p>";
@@ -2450,7 +2478,7 @@
     for (var k in patch) en[k] = patch[k];
     if (mark) en.seen = true;
     // Drop empty entries to keep storage tidy.
-    if (!en.seen && (en.count == null || en.count === "") && !en.act) delete entries[key];
+    if (!en.seen && (en.count == null || en.count === "") && !en.act && !en.note) delete entries[key];
     else entries[key] = en;
     saveFieldEntries(entries);
     return entries[key];
@@ -2463,11 +2491,11 @@
     var title = (titleEl && titleEl.value || "").trim();
     var lines = [];
     if (title) lines.push("# " + title + " | " + new Date().toISOString().slice(0, 10));
-    lines.push("species,common_name,count,activity");
+    lines.push("species,common_name,count,activity,notes");
     Object.keys(entries).forEach(function (key) {
-      var e = entries[key]; if (!e.seen && (e.count == null || e.count === "") && !e.act) return;
+      var e = entries[key]; if (!e.seen && (e.count == null || e.count === "") && !e.act && !e.note) return;
       var name = (byKey[key] && byKey[key].name) || (labelsByKey[key] && speciesName(labelsByKey[key])) || key;
-      lines.push([key, esc(name), e.count != null ? e.count : "", e.act ? t("act." + e.act) : ""].join(","));
+      lines.push([key, esc(name), e.count != null ? e.count : "", e.act ? actName(e.act) : "", esc(e.note || "")].join(","));
     });
     return lines.join("\n");
   }
@@ -2479,9 +2507,9 @@
     var byKey = {}; (fieldData || []).forEach(function (r) { byKey[r.key] = r; });
     var rows = [];
     Object.keys(entries).forEach(function (key) {
-      var e = entries[key]; if (!e.seen && (e.count == null || e.count === "") && !e.act) return;
+      var e = entries[key]; if (!e.seen && (e.count == null || e.count === "") && !e.act && !e.note) return;
       var name = (byKey[key] && byKey[key].name) || (labelsByKey[key] && speciesName(labelsByKey[key])) || key;
-      rows.push({ name: name, count: e.count != null ? e.count : "", act: e.act ? t("act." + e.act) : "" });
+      rows.push({ name: name, count: e.count != null ? e.count : "", act: e.act ? actName(e.act) : "", note: e.note || "" });
     });
     rows.sort(function (a, b) { return a.name.localeCompare(b.name); });
     return rows;
@@ -2496,8 +2524,8 @@
     var rows = fieldSeenRows();
     var esc = escapeHtml;
     var body = rows.map(function (r, i) {
-      return "<tr><td>" + (i + 1) + "</td><td>" + esc(r.name) + "</td><td>" + esc(String(r.count)) + "</td><td>" + esc(r.act) + "</td></tr>";
-    }).join("") || '<tr><td></td><td colspan="3">' + esc(t("analysis.empty")) + "</td></tr>";
+      return "<tr><td>" + (i + 1) + "</td><td>" + esc(r.name) + "</td><td>" + esc(String(r.count)) + "</td><td>" + esc(r.act) + "</td><td>" + esc(r.note) + "</td></tr>";
+    }).join("") || '<tr><td></td><td colspan="4">' + esc(t("analysis.empty")) + "</td></tr>";
     var html = '<!doctype html><html><head><meta charset="utf-8"><title>' + esc(title) + "</title><style>" +
       "body{font-family:system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:#16302b;margin:32px;}" +
       "h1{font-size:19px;color:#0b3a3a;margin:0 0 2px;}" +
@@ -2512,7 +2540,7 @@
       "<h1>" + esc(title) + "</h1>" +
       '<div class="meta">' + esc(date) + " &middot; " + rows.length + " " + esc(t("chk.seen").toLowerCase()) + "</div>" +
       "<table><thead><tr><th>#</th><th>" + esc(t("th.species")) + "</th><th>" + esc(t("chk.count")) +
-      "</th><th>" + esc(t("chk.activity")) + "</th></tr></thead><tbody>" + body + "</tbody></table>" +
+      "</th><th>" + esc(t("chk.activity")) + "</th><th>" + esc(t("th.notes")) + "</th></tr></thead><tbody>" + body + "</tbody></table>" +
       "</body></html>";
     var w = window.open("", "_blank");
     if (!w) { setStatus(t("status.error", { msg: "popup blocked" })); return; }
@@ -2871,59 +2899,14 @@
     })();
   }
 
-  // ---- Saved locations -----------------------------------------------------
-  // Saved locations in a dropdown popover: each row navigates on click and
-  // has an × to delete it.
-  function refreshSavedLocations() {
-    var btnText = document.getElementById("savedloc-btn-text");
-    var panel = document.getElementById("savedloc-panel");
-    if (!btnText || !panel) return;
-    var locs = window.GeoState.locations();
-    btnText.textContent = t("ctrl.savedloc") + " (" + locs.length + ")";
-    if (!locs.length) {
-      panel.innerHTML = '<div class="dd-empty">' + escapeHtml(t("ph.savedloc")) + "</div>";
-      return;
-    }
-    panel.innerHTML = locs.map(function (l) {
-      var n = escapeHtml(l.name);
-      return '<div class="dd-row">' +
-        '<button type="button" class="dd-name dd-go" data-id="' + l.id + '" title="' + n + '">' + n + "</button>" +
-        '<button type="button" class="dd-del" data-id="' + l.id + '" title="' + escapeHtml(t("loc.delete")) + '" aria-label="' + escapeHtml(t("loc.delete")) + '">×</button>' +
-        "</div>";
-    }).join("");
-    panel.querySelectorAll(".dd-go").forEach(function (b) {
-      b.addEventListener("click", function () { closeDropdowns(); goToSavedLocation(this.getAttribute("data-id")); });
-    });
-    panel.querySelectorAll(".dd-del").forEach(function (b) {
-      b.addEventListener("click", function (e) {
-        e.stopPropagation();
-        window.GeoState.removeLocation(this.getAttribute("data-id"));
-        refreshSavedLocations();
-      });
-    });
-  }
-
   function closeDropdowns() {
-    ["hidden-panel", "savedloc-panel", "checklists-panel", "settings-panel"].forEach(function (idp) {
+    ["hidden-panel", "checklists-panel", "settings-panel"].forEach(function (idp) {
       var p = document.getElementById(idp);
       if (p) p.style.display = "none";
     });
   }
 
   // ---- Checklists ----------------------------------------------------------
-  // A checklist is a snapshot of the Species List at a location: localized +
-  // scientific names, probability, and Δ = arrival score (next-prev)/max_year.
-  // Stored in localStorage; multiple named lists; rows are checkable + printable.
-  var currentChecklistId = null;
-  var chkFilter = "all";   // checklist row filter: "all" | "seen" | "missing"
-
-  function getChecklists() { return window.GeoState.get("checklists", []) || []; }
-  function saveChecklists(arr) { window.GeoState.save({ checklists: arr }); }
-  function getChecklist(id) { return getChecklists().filter(function (c) { return c.id === id; })[0]; }
-  function updateChecklist(cl) {
-    saveChecklists(getChecklists().map(function (c) { return c.id === cl.id ? cl : c; }));
-  }
-
   // Reverse-geocode to a place name for the header (falls back to coordinates).
   async function reverseGeocode(lat, lon) {
     try {
@@ -2933,130 +2916,20 @@
     return null;
   }
 
-  // Concise name of the closest major place (city/town/…) for naming a saved
-  // location — a single label, not the full comma-separated address.
-  async function majorPlaceName(lat, lon) {
-    try {
-      var r = await fetch("https://nominatim.openstreetmap.org/reverse?format=json&zoom=12&addressdetails=1&lat=" + lat + "&lon=" + lon, { headers: { Accept: "application/json" } });
-      if (r.ok) {
-        var j = await r.json(), a = j.address || {};
-        return a.city || a.town || a.village || a.municipality || a.suburb || a.county || a.state || a.country ||
-          j.name || (j.display_name ? j.display_name.split(",")[0].trim() : null);
-      }
-    } catch (e) { /* offline / blocked — fall back to coordinates */ }
-    return null;
-  }
-
-  // Modal to name a new checklist: offers the 5 nearest saved locations as
-  // one-tap choices, plus a free-text "create new" field. Resolves to the
-  // chosen name, or null if cancelled.
-  function chooseChecklistName(lat, lon, def) {
-    return new Promise(function (resolve) {
-      var modal = document.getElementById("chk-loc-modal");
-      var list = document.getElementById("chk-loc-list");
-      var input = document.getElementById("chk-loc-input");
-      var createBtn = document.getElementById("chk-loc-create");
-      var cancelBtn = document.getElementById("chk-loc-cancel");
-      input.value = def || "";
-      var near = window.GeoState.locations().map(function (l) {
-        return { l: l, d: haversineKm(lat, lon, l.lat, l.lon) };
-      }).sort(function (a, b) { return a.d - b.d; }).slice(0, 5);
-      list.innerHTML = near.map(function (o) {
-        var dist = o.d < 1 ? Math.round(o.d * 1000) + " m" : o.d.toFixed(1) + " km";
-        return '<button type="button" class="chk-loc-item" data-name="' + escapeHtml(o.l.name) + '">' +
-          '<span class="cl-name">' + escapeHtml(o.l.name) + '</span><span class="cl-dist">' + dist + "</span></button>";
-      }).join("");
-      function done(v) {
-        modal.style.display = "none";
-        list.removeEventListener("click", onPick);
-        createBtn.removeEventListener("click", onCreate);
-        cancelBtn.removeEventListener("click", onCancel);
-        modal.removeEventListener("click", onBg);
-        input.removeEventListener("keydown", onKey);
-        resolve(v);
-      }
-      function onPick(e) { var it = e.target.closest && e.target.closest(".chk-loc-item"); if (it) done(it.getAttribute("data-name")); }
-      function onCreate() { done(input.value.trim() || def); }
-      function onCancel() { done(null); }
-      function onBg(e) { if (e.target === modal) done(null); }
-      function onKey(e) { if (e.key === "Enter") onCreate(); else if (e.key === "Escape") onCancel(); }
-      list.addEventListener("click", onPick);
-      createBtn.addEventListener("click", onCreate);
-      cancelBtn.addEventListener("click", onCancel);
-      modal.addEventListener("click", onBg);
-      input.addEventListener("keydown", onKey);
-      modal.style.display = "flex";
-      input.focus();
-    });
-  }
-
-  async function makeChecklistFromList() {
-    if (!marker) return;
-    var ll = marker.getLatLng(), lat = ll.lat, lon = ll.lng;
-    var week = +document.getElementById("week-select").value;
-    var pmin = +document.getElementById("prob-min").value / 100;
-    var pmax = +document.getElementById("prob-max").value / 100;
-    var nSpecies = labels.length, wkIdx = week - 1;
-    setStatus(t("status.buildingChecklist"));
-    try {
-      // 48-week prediction so each species gets a Δ (arrival) value.
-      var inputs = new Float32Array(48 * 3);
-      for (var w = 0; w < 48; w++) { inputs[w * 3] = lat; inputs[w * 3 + 1] = lon; inputs[w * 3 + 2] = w + 1; }
-      var all = await runInference(inputs, 48);   // raw 48 * nSpecies
-      // Optional comparison column mirroring the Species List "Compare to".
-      var cmpMode = document.getElementById("compare-select").value;
-      var scratch = new Float32Array(48);
-      var items = [];
-      for (var i = 0; i < nSpecies; i++) {
-        var cur = all[wkIdx * nSpecies + i];
-        if (cur < pmin || cur > pmax || !inGroup(i) || isHidden(labels[i].key)) continue;
-        var mx = 0;
-        for (var k = 0; k < 48; k++) { var v = all[k * nSpecies + i]; scratch[k] = v; if (v > mx) mx = v; }
-        var prev = all[((wkIdx + 47) % 48) * nSpecies + i], next = all[((wkIdx + 1) % 48) * nSpecies + i];
-        var delta = mx > 1e-6 ? (next - prev) / mx : 0;
-        var cmpVal = null;
-        if (cmpMode === "prev") cmpVal = cur - all[((wkIdx + 47) % 48) * nSpecies + i];
-        else if (cmpMode === "next") cmpVal = cur - all[((wkIdx + 1) % 48) * nSpecies + i];
-        else if (cmpMode === "mean") { var sm = 0; for (var m = 0; m < 48; m++) sm += all[m * nSpecies + i]; cmpVal = cur - sm / 48; }
-        else if (cmpMode === "annualmax") cmpVal = mx > 0 ? cur / mx : 0;
-        else if (cmpMode === "annualtop") cmpVal = window.GeoAnalysis.focusSeries(scratch, mx)[wkIdx];
-        items.push({ key: labels[i].key, sci: labels[i].sci, name: speciesName(labels[i]), name2: secondName(labels[i]), prob: cur, delta: delta, cmp: cmpVal, checked: false, locality: "", notes: "" });
-      }
-      items.sort(function (a, b) { return b.prob - a.prob; });
-      // Column kind/label for the comparison value (if any).
-      var cmpKind = (cmpMode === "annualmax") ? "ratio" : (cmpMode === "annualtop") ? "focus" : (cmpMode === "" ? null : "delta");
-      var cmpLabel = cmpMode === "prev" ? weekText(week - 1 < 1 ? 48 : week - 1)
-        : cmpMode === "next" ? weekText(week + 1 > 48 ? 1 : week + 1)
-        : cmpMode === "mean" ? t("compare.mean")
-        : cmpMode === "annualmax" ? t("compare.max")
-        : cmpMode === "annualtop" ? t("compare.annualtop") : "";
-      var place = (await reverseGeocode(lat, lon)) || (lat.toFixed(3) + ", " + lon.toFixed(3));
-      var nm = await chooseChecklistName(lat, lon, place);
-      if (nm === null) { setStatus(""); return; }
-      var cl = { id: "chk-" + Date.now(), name: nm.trim() || place, place: place, lat: lat, lon: lon, week: week, lang: lang, lang2: secondLang, lang2Name: secondLang ? window.GeoI18N.langByCode(secondLang).name : "", createdAt: new Date().toISOString(), cmpKind: cmpKind, cmpLabel: cmpLabel, items: items };
-      var arr = getChecklists(); arr.push(cl); saveChecklists(arr);
-      refreshChecklists();
-      openChecklist(cl.id);
-    } catch (e) { setStatus(t("status.error", { msg: e.message })); console.error(e); }
-  }
-
-  // Dropdown listing saved checklists (snapshot + field), nearest first.
+  // Dropdown listing the saved Checklists, nearest first.
   function refreshChecklists() {
     var wrap = document.getElementById("checklists-wrap");
     var btnText = document.getElementById("checklists-btn-text");
     var panel = document.getElementById("checklists-panel");
     if (!wrap || !btnText || !panel) return;
 
-    // Build a combined list of both kinds.
-    var items = getChecklists().map(function (c) {
-      return { kind: "snapshot", id: c.id, name: c.name, lat: c.lat, lon: c.lon };
-    });
     var fcs = getFieldChecklists();
+    var items = [];
     Object.keys(fcs).forEach(function (pkey) {
       var r = fcs[pkey];
       var has = Object.keys(r.entries || {}).length || (r.title || "").trim();
       if (!has) return;
-      items.push({ kind: "field", pkey: pkey, name: r.title || (r.lat.toFixed(3) + "°, " + r.lon.toFixed(3) + "°"), lat: r.lat, lon: r.lon });
+      items.push({ pkey: pkey, name: r.title || (r.lat.toFixed(3) + "°, " + r.lon.toFixed(3) + "°"), lat: r.lat, lon: r.lon });
     });
 
     // Sort by distance to the current map centre (the point of interest).
@@ -3070,39 +2943,13 @@
     if (!items.length) panel.style.display = "none";
     btnText.textContent = t("ctrl.checklists") + " (" + items.length + ")";
 
-    var fieldTag = '<span class="dd-icon" title="' + escapeHtml(t("btn.checklist")) + '">' +
-      '<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8.5 L6.5 12 L13 4.5"/></svg></span>';
     panel.innerHTML = items.map(function (it) {
       var n = escapeHtml(it.name);
-      var idAttr = it.kind === "field" ? 'data-pkey="' + escapeHtml(it.pkey) + '"' : 'data-id="' + it.id + '"';
-      var openCls = it.kind === "field" ? "dd-open-field" : "dd-open-chk";
-      var csvCls = it.kind === "field" ? "dd-csv-field" : "dd-csv-chk";
-      var delCls = it.kind === "field" ? "dd-del-field" : "dd-del-chk";
-      var icon = it.kind === "field" ? fieldTag : "";
-      return '<div class="dd-row"><button type="button" class="dd-name ' + openCls + '" ' + idAttr + ' title="' + n + '">' + icon + n + "</button>" +
-        '<button type="button" class="dd-csv ' + csvCls + '" ' + idAttr + ' title="' + escapeHtml(t("btn.csv")) + '">⬇</button>' +
-        '<button type="button" class="dd-del ' + delCls + '" ' + idAttr + ' title="' + escapeHtml(t("btn.delete")) + '">×</button></div>';
+      return '<div class="dd-row"><button type="button" class="dd-name dd-open-field" data-pkey="' + escapeHtml(it.pkey) + '" title="' + n + '">' + n + "</button>" +
+        '<button type="button" class="dd-csv dd-csv-field" data-pkey="' + escapeHtml(it.pkey) + '" title="' + escapeHtml(t("btn.csv")) + '">⬇</button>' +
+        '<button type="button" class="dd-del dd-del-field" data-pkey="' + escapeHtml(it.pkey) + '" title="' + escapeHtml(t("btn.delete")) + '">×</button></div>';
     }).join("");
 
-    panel.querySelectorAll(".dd-open-chk").forEach(function (b) {
-      b.addEventListener("click", function () { closeDropdowns(); openChecklist(this.getAttribute("data-id")); });
-    });
-    panel.querySelectorAll(".dd-csv-chk").forEach(function (b) {
-      b.addEventListener("click", function (e) {
-        e.stopPropagation();
-        var c = getChecklist(this.getAttribute("data-id"));
-        if (c) downloadCsv("checklist_" + c.name.replace(/[^\w-]+/g, "_") + ".csv", buildChecklistCsv(c));
-      });
-    });
-    panel.querySelectorAll(".dd-del-chk").forEach(function (b) {
-      b.addEventListener("click", function (e) {
-        e.stopPropagation();
-        var id = this.getAttribute("data-id");
-        saveChecklists(getChecklists().filter(function (c) { return c.id !== id; }));
-        if (currentChecklistId === id) closeChecklist();
-        refreshChecklists();
-      });
-    });
     panel.querySelectorAll(".dd-open-field").forEach(function (b) {
       b.addEventListener("click", function () { closeDropdowns(); openFieldFromList(this.getAttribute("data-pkey")); });
     });
@@ -3110,7 +2957,7 @@
       b.addEventListener("click", function (e) {
         e.stopPropagation();
         var pkey = this.getAttribute("data-pkey"), r = getFieldRecord(pkey);
-        if (r) downloadCsv("field_" + String(r.title || pkey).replace(/[^\w-]+/g, "_") + ".csv", fieldRecordCsv(pkey));
+        if (r) downloadCsv("checklist_" + String(r.title || pkey).replace(/[^\w-]+/g, "_") + ".csv", fieldRecordCsv(pkey));
       });
     });
     panel.querySelectorAll(".dd-del-field").forEach(function (b) {
@@ -3139,117 +2986,11 @@
     var esc = function (v) { var s = String(v == null ? "" : v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
     var title = (r.title || "").trim() || (r.lat.toFixed(4) + "°, " + r.lon.toFixed(4) + "°");
     var lines = ["# " + title + " | " + (r.createdAt || "").slice(0, 10)];
-    lines.push("species,common_name,count,activity");
+    lines.push("species,common_name,count,activity,notes");
     Object.keys(entries).forEach(function (key) {
-      var e = entries[key]; if (!e.seen && (e.count == null || e.count === "") && !e.act) return;
+      var e = entries[key]; if (!e.seen && (e.count == null || e.count === "") && !e.act && !e.note) return;
       var name = (labelsByKey[key] && speciesName(labelsByKey[key])) || key;
-      lines.push([key, esc(name), e.count != null ? e.count : "", e.act ? t("act." + e.act) : ""].join(","));
-    });
-    return lines.join("\n");
-  }
-
-  function openChecklist(id) {
-    var cl = getChecklist(id);
-    if (!cl) return;
-    currentChecklistId = id;
-    chkFilter = "all";
-    document.getElementById("species-panel").style.display = "none";
-    document.getElementById("barchart-panel").style.display = "none";
-    renderChecklistBody(cl);
-    document.getElementById("checklist-panel").style.display = "block";
-  }
-
-  function closeChecklist() {
-    currentChecklistId = null;
-    document.getElementById("checklist-panel").style.display = "none";
-  }
-
-  function renderChecklistBody(cl) {
-    var body = document.getElementById("chk-body");
-    var date = (cl.createdAt || "").slice(0, 10);
-    var meta = escapeHtml(cl.place || (cl.lat.toFixed(3) + ", " + cl.lon.toFixed(3))) + " · " + escapeHtml(weekText(cl.week)) + " · " + escapeHtml(date);
-    var checked = cl.items.filter(function (it) { return it.checked; }).length;
-    var html = '<h3 class="chk-title">' + escapeHtml(cl.name) + "</h3>";
-    html += '<div class="chk-meta">' + meta + ' · <span id="chk-progress">' + checked + " / " + cl.items.length + "</span></div>";
-    html += '<div class="chk-filter" role="group">' +
-      '<button type="button" class="chk-filter-btn" data-filter="all">' + escapeHtml(t("chk.all")) + "</button>" +
-      '<button type="button" class="chk-filter-btn" data-filter="seen">' + escapeHtml(t("chk.seen")) + "</button>" +
-      '<button type="button" class="chk-filter-btn" data-filter="missing">' + escapeHtml(t("chk.missing")) + "</button>" +
-      "</div>";
-    var cmpHead = cl.cmpKind ? "<th>" + escapeHtml(cl.cmpLabel || "") + "</th>" : "";
-    var name2Head = cl.lang2 ? "<th>" + escapeHtml(cl.lang2Name || cl.lang2) + "</th>" : "";
-    html += '<table class="chk-table"><thead><tr><th class="chk-cb"></th><th>' + escapeHtml(t("th.rank")) + "</th><th>" + escapeHtml(t("th.species")) +
-      "</th>" + name2Head + "<th>" + escapeHtml(t("th.sci")) + "</th><th>" + escapeHtml(t("th.prob")) + "</th><th>" + escapeHtml(t("th.change")) +
-      "</th>" + cmpHead + "<th>" + escapeHtml(t("th.locality")) + "</th><th>" + escapeHtml(t("th.notes")) + "</th></tr></thead><tbody>";
-    cl.items.forEach(function (it, idx) {
-      var dcls = it.delta > 0.001 ? "delta-up" : (it.delta < -0.001 ? "delta-down" : "delta-flat");
-      var cmpCell = !cl.cmpKind ? "" : (it.cmp == null ? "<td></td>"
-        : cl.cmpKind === "ratio" ? ratioCell(it.cmp)
-        : cl.cmpKind === "focus" ? focusCell(it.cmp)
-        : deltaCell(it.cmp));
-      var name2Cell = cl.lang2 ? "<td>" + escapeHtml(it.name2 || "") + "</td>" : "";
-      html += '<tr><td class="chk-cb"><input type="checkbox" class="chk-box" data-idx="' + idx + '"' + (it.checked ? " checked" : "") + "></td>" +
-        "<td>" + (idx + 1) + "</td><td>" + escapeHtml(it.name) + "</td>" + name2Cell + '<td style="font-style:italic">' + escapeHtml(it.sci) + "</td>" +
-        "<td>" + (it.prob * 100).toFixed(1) + '%</td><td class="' + dcls + '">' + (it.delta * 100).toFixed(1) + "%</td>" + cmpCell +
-        '<td><input type="text" class="chk-text" data-idx="' + idx + '" data-field="locality" value="' + escapeHtml(it.locality || "") + '"></td>' +
-        '<td><input type="text" class="chk-text" data-idx="' + idx + '" data-field="notes" value="' + escapeHtml(it.notes || "") + '"></td></tr>';
-    });
-    html += "</tbody></table>";
-    html += '<p class="chk-note">' + t("chk.note") + "</p>";
-    body.innerHTML = html;
-    body.querySelectorAll(".chk-box").forEach(function (cb) {
-      cb.addEventListener("change", function () {
-        var c = getChecklist(currentChecklistId);
-        if (!c) return;
-        c.items[+this.getAttribute("data-idx")].checked = this.checked;
-        updateChecklist(c);
-        var prog = document.getElementById("chk-progress");
-        if (prog) prog.textContent = c.items.filter(function (it) { return it.checked; }).length + " / " + c.items.length;
-        applyChkFilter();   // a newly seen/unseen row may drop out of the filter
-      });
-    });
-    body.querySelectorAll(".chk-filter-btn").forEach(function (b) {
-      b.addEventListener("click", function () { chkFilter = this.getAttribute("data-filter"); applyChkFilter(); });
-    });
-    applyChkFilter();
-    body.querySelectorAll(".chk-text").forEach(function (inp) {
-      inp.addEventListener("change", function () {
-        var c = getChecklist(currentChecklistId);
-        if (!c) return;
-        c.items[+this.getAttribute("data-idx")][this.getAttribute("data-field")] = this.value;
-        updateChecklist(c);
-      });
-    });
-  }
-
-  // Show only rows matching the current All / Seen / Missing toggle.
-  function applyChkFilter() {
-    var body = document.getElementById("chk-body");
-    if (!body) return;
-    body.querySelectorAll(".chk-table tbody tr").forEach(function (tr) {
-      var cb = tr.querySelector(".chk-box");
-      var seen = !!(cb && cb.checked);
-      var show = chkFilter === "all" || (chkFilter === "seen" && seen) || (chkFilter === "missing" && !seen);
-      tr.style.display = show ? "" : "none";
-    });
-    body.querySelectorAll(".chk-filter-btn").forEach(function (b) {
-      b.classList.toggle("is-active", b.getAttribute("data-filter") === chkFilter);
-    });
-  }
-
-  function buildChecklistCsv(cl) {
-    var esc = function (v) { var s = String(v == null ? "" : v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
-    var cmpCol = cl.cmpKind ? "," + (cl.cmpKind === "ratio" ? "fraction_of_" : cl.cmpKind === "focus" ? "annual_top_" : "delta_vs_") + String(cl.cmpLabel || "").replace(/[",\s]+/g, "_") : "";
-    var name2Col = cl.lang2 ? ",common_name_" + cl.lang2 : "";
-    var lines = ["# " + cl.name + " | " + (cl.place || "") + " | week " + cl.week + " | " + (cl.createdAt || "").slice(0, 10)];
-    lines.push("checked,rank,common_name" + name2Col + ",scientific_name,probability,change" + cmpCol + ",locality,notes");
-    cl.items.forEach(function (it, idx) {
-      var row = [it.checked ? 1 : 0, idx + 1, esc(it.name)];
-      if (cl.lang2) row.push(esc(it.name2 || ""));
-      row.push(esc(it.sci), it.prob.toFixed(6), it.delta.toFixed(6));
-      if (cl.cmpKind) row.push(it.cmp == null ? "" : it.cmp.toFixed(6));
-      row.push(esc(it.locality || ""), esc(it.notes || ""));
-      lines.push(row.join(","));
+      lines.push([key, esc(name), e.count != null ? e.count : "", e.act ? actName(e.act) : "", esc(e.note || "")].join(","));
     });
     return lines.join("\n");
   }
@@ -3274,35 +3015,6 @@
     panel.querySelectorAll(".dd-del").forEach(function (b) {
       b.addEventListener("click", function (e) { e.stopPropagation(); unhideSpecies(this.getAttribute("data-key")); });
     });
-  }
-
-  async function saveCurrentLocation() {
-    if (!marker) return;
-    var ll = marker.getLatLng();
-    var coords = t("loc.defaultName", { lat: ll.lat.toFixed(3), lon: ll.lng.toFixed(3) });
-    // Default to the closest major place name; fall back to coordinates offline.
-    var def = (await majorPlaceName(ll.lat, ll.lng)) || coords;
-    var name = window.prompt(t("loc.savePrompt"), def);
-    if (name === null) return;
-    window.GeoState.addLocation(name.trim() || def, ll.lat, ll.lng);
-    if (marker && marker.closePopup) marker.closePopup();
-    refreshSavedLocations();
-  }
-
-  function goToSavedLocation(id) {
-    if (!id) return;
-    var loc = window.GeoState.locations().filter(function (l) { return l.id === id; })[0];
-    if (!loc) return;
-    if (currentMode !== "list" && currentMode !== "barchart") {
-      currentMode = "list";
-      document.getElementById("mode-select").value = "list";
-      updateModeVisibility();
-    }
-    map.setView([loc.lat, loc.lon], Math.max(map.getZoom(), 3));
-    if (marker) map.removeLayer(marker);
-    marker = L.marker([loc.lat, loc.lon]).addTo(map);
-    if (currentMode === "barchart") renderAnalysis(loc.lat, loc.lon);
-    else renderSpeciesList(loc.lat, loc.lon);
   }
 
   // ---- Restore persisted control values ------------------------------------
