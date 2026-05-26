@@ -60,8 +60,7 @@
   // ---- Species-group filter (taxonomic class) ------------------------------
   // Groups present in the model: aves, mammalia, amphibia, insecta.
   var speciesGroup = "all";   // "all" or a class_name value
-  var hiRes = false;          // high-resolution grid for range/richness
-  var hiResFactor = 3;        // points-per-axis multiplier when hiRes is on
+  var hiResFactor = 1;        // points-per-axis multiplier for range/richness (1 = normal)
   var distMapToken = 0;       // guards against stale distribution-map fetches
   var recentToken = 0;        // guards against stale recent-detections fetches
   var labelClass = [];        // class_name per label index (built after load)
@@ -645,10 +644,17 @@
             '<button id="saveloc-btn" class="demo-btn" data-i18n="btn.saveloc">\u2605 Save</button>' +
           '</div>' +
           '<div class="ctrl-group" id="settings-wrap">' +
-            '<button type="button" id="settings-toggle" class="dd-toggle" aria-haspopup="true">' +
-              '<span class="settings-gear" aria-hidden="true">\u2699</span>' +
-              '<span data-i18n="ctrl.settings">Settings</span>' +
-              '<span class="dd-caret" aria-hidden="true">\u25be</span>' +
+            '<button type="button" id="settings-toggle" class="settings-icon-btn" aria-haspopup="true" aria-label="Settings" title="Settings">' +
+              '<svg class="bird-ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false">' +
+                '<g fill="currentColor">' +
+                  '<ellipse cx="13.5" cy="13.8" rx="6.3" ry="4.4" transform="rotate(-18 13.5 13.8)"/>' +
+                  '<circle cx="8.4" cy="9.2" r="3.6"/>' +
+                  '<path d="M5.2 8.4 L1.2 7.5 L5.4 10.8 Z"/>' +
+                  '<path d="M18.6 15.6 L23.2 18.4 L18.9 12.2 Z"/>' +
+                  '<path d="M10.4 17.8 L9.9 21.4 M12.9 18 L13.8 21.4" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" fill="none"/>' +
+                '</g>' +
+                '<circle cx="7.4" cy="8.8" r="0.95" fill="#0b3a3a"/>' +
+              '</svg>' +
             '</button>' +
             '<div id="settings-panel" class="dd-panel settings-panel" style="display:none">' +
               '<div class="ctrl-group">' +
@@ -684,6 +690,12 @@
                   '<option value="annualtop" data-i18n="compare.annualtop">Annual Top</option>' +
                 '</select>' +
               '</div>' +
+              '<div class="ctrl-group" id="hires-wrap" style="display:none">' +
+                '<label for="hires-factor" data-i18n="ctrl.hires">High resolution</label>' +
+                '<select id="hires-factor" title="Resolution factor (points per axis)">' +
+                  '<option value="1" selected>1</option><option value="2">2</option><option value="3">3</option><option value="5">5</option><option value="7">7</option><option value="9">9</option><option value="11">11</option>' +
+                '</select>' +
+              '</div>' +
               '<div class="settings-divider"></div>' +
               '<button type="button" id="about-open" class="settings-about" data-i18n="ctrl.about">About &amp; how it works</button>' +
             '</div>' +
@@ -700,14 +712,6 @@
           '<div id="demo-legend"></div>' +
         '</div>' +
         '<div id="map-controls">' +
-          '<div class="ctrl-group" id="hires-wrap" style="display:none">' +
-            '<div class="hires-row">' +
-              '<label class="hires-label"><input type="checkbox" id="hires-toggle" /> <span data-i18n="ctrl.hires">High resolution</span></label>' +
-              '<select id="hires-factor" title="Resolution factor (points per axis)">' +
-                '<option>1</option><option>2</option><option selected>3</option><option>5</option><option>7</option><option>9</option><option>11</option>' +
-              '</select>' +
-            '</div>' +
-          '</div>' +
           '<div class="ctrl-group" id="barchart-threshold-wrap" style="display:none">' +
             '<label data-i18n="ctrl.bcthreshold">Probability range</label>' +
             '<div id="prob-range">' +
@@ -841,6 +845,10 @@
       buildLabelClass();
       document.getElementById("demo-loading").style.display = "none";
       document.getElementById("demo-app").style.display = "block";
+      // Settings live behind the bird icon in the page header (upper-left).
+      var hdr = document.getElementById("site-header");
+      var sw = document.getElementById("settings-wrap");
+      if (hdr && sw) hdr.insertBefore(sw, hdr.firstChild);
       populateLangSelect();
       populateWeekSelect();
       restoreControls();
@@ -1159,12 +1167,16 @@
     document.getElementById("compare-wrap").style.display = listish ? "" : "none";
     document.getElementById("secondlang-wrap").style.display = listish ? "" : "none";
     // The probability min–max slider applies to the Species List, the checklist
-    // (derived from it), the analysis tabs and the field checklist.
-    document.getElementById("barchart-threshold-wrap").style.display = (currentMode === "range" || currentMode === "list" || currentMode === "barchart" || currentMode === "field") ? "" : "none";
+    // (derived from it), the analysis tabs and the field checklist. It is the
+    // only control left in the below-map bar, so hide that bar when it's hidden.
+    var probVisible = (currentMode === "range" || currentMode === "list" || currentMode === "barchart" || currentMode === "field");
+    document.getElementById("barchart-threshold-wrap").style.display = probVisible ? "" : "none";
+    document.getElementById("map-controls").style.display = probVisible ? "" : "none";
     // Week applies in every mode (incl. Migration timeline, where it sets the
     // "current week" used by the Probability / Arrivals / Scatter tabs).
     document.getElementById("week-select-wrap").style.display = "";
     document.getElementById("play-btn-wrap").style.display = isMap ? "" : "none";
+    // High-resolution only affects the range/richness map overlays.
     document.getElementById("hires-wrap").style.display = isMap ? "" : "none";
     relocateCsvButton();
   }
@@ -1237,16 +1249,10 @@
     });
 
 
-    document.getElementById("hires-toggle").addEventListener("change", function () {
-      hiRes = this.checked;
-      window.GeoState.save({ hiRes: hiRes });
-      if (currentMode === "range" || currentMode === "richness") { clearOverlay(); triggerRender(); }
-    });
-
     document.getElementById("hires-factor").addEventListener("change", function () {
       hiResFactor = +this.value || 1;
       window.GeoState.save({ hiResFactor: hiResFactor });
-      if (hiRes && (currentMode === "range" || currentMode === "richness")) { clearOverlay(); triggerRender(); }
+      if (currentMode === "range" || currentMode === "richness") { clearOverlay(); triggerRender(); }
     });
 
     document.getElementById("perf-modal-ok").addEventListener("click", hidePerfModal);
@@ -1695,9 +1701,9 @@
     else { west = wrapLon(west); east = wrapLon(east); if (east <= west) east += 360; }
     if (north - south < 0.1) north = south + 0.1;
     if (east - west < 0.1) east = west + 0.1;
-    // High-resolution mode multiplies the points per axis by hiResFactor
-    // (1/hiResFactor the cell size).
-    var step = (ZOOM_STEP[map.getZoom()] || 3) / (hiRes ? hiResFactor : 1);
+    // High-resolution multiplies the points per axis by hiResFactor
+    // (1/hiResFactor the cell size); factor 1 = normal resolution.
+    var step = (ZOOM_STEP[map.getZoom()] || 3) / hiResFactor;
     south = Math.max(Math.floor(south / step) * step, -90);
     north = Math.min(Math.ceil(north / step) * step, 90);
     west = Math.floor(west / step) * step;
@@ -3057,11 +3063,9 @@
     speciesGroup = window.GeoState.get("group", "all");
     document.getElementById("group-select").value = speciesGroup;
 
-    // Always start with high resolution off; remember the chosen factor.
-    hiRes = false;
-    document.getElementById("hires-toggle").checked = false;
-    hiResFactor = +window.GeoState.get("hiResFactor", 3) || 3;
-    document.getElementById("hires-factor").value = String(hiResFactor);
+    // Always start at normal resolution (factor 1) on load.
+    hiResFactor = 1;
+    document.getElementById("hires-factor").value = "1";
 
     // Always start with the full probability range 5%–100% on load.
     document.getElementById("prob-min").value = 5;

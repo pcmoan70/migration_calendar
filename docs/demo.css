@@ -567,21 +567,34 @@ body {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 15px 22px;
+  padding: 12px 20px;
   background: linear-gradient(100deg, var(--brand-deep) 0%, #114a44 55%, var(--brand-strong) 100%);
   color: #f3faf7;
   box-shadow: var(--shadow-sm);
 }
 
-/* App mark in the header (set via background-image to the bundled icon) */
-#site-header::before {
-  content: "";
-  flex: 0 0 auto;
-  width: 30px;
-  height: 30px;
-  background: url("icon.svg") center / contain no-repeat;
-  filter: drop-shadow(0 1px 2px rgba(0,0,0,.35));
+/* Settings, relocated into the header as a bird icon button (upper-left) */
+#site-header #settings-wrap { flex: 0 0 auto; }
+
+#settings-toggle.settings-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.10);
+  color: #f3faf7;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
 }
+#settings-toggle.settings-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.20);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+.bird-ico { width: 24px; height: 24px; display: block; }
 
 #site-header h1 {
   margin: 0;
@@ -901,14 +914,12 @@ button.dd-name:hover { text-decoration: underline; }
 .dd-csv:hover { color: var(--brand-strong); }
 
 /* ===== Settings dropdown (Week, Language, 2nd name, Compare, Species group, About) ===== */
-#settings-wrap { margin-left: auto; }          /* push to the right of the bar */
-.settings-gear { font-size: 1rem; line-height: 1; }
 #settings-panel.settings-panel {
-  min-width: 240px;
-  max-height: min(78vh, 520px);
+  min-width: 250px;
+  max-height: min(80vh, 560px);
   padding: 12px 14px;
-  left: auto;
-  right: 0;          /* button sits at the right end of the bar */
+  left: 0;           /* drops down from the header bird icon (upper-left) */
+  right: auto;
 }
 .settings-panel .ctrl-group {
   display: flex;
@@ -1178,10 +1189,6 @@ table.chk-table .chk-text { min-width: 100px; }
   color: var(--ink);
 }
 
-/* High-resolution toggle */
-#hires-wrap .hires-label { display: flex; align-items: center; gap: 6px; height: 34px; font-weight: 600; font-size: 0.82rem; white-space: nowrap; cursor: pointer; }
-#hires-wrap input { width: 16px; height: 16px; }
-
 /* Performance note modal (shown on page load) */
 #perf-modal {
   position: fixed;
@@ -1204,9 +1211,6 @@ table.chk-table .chk-text { min-width: 100px; }
 }
 #perf-modal-box p { margin: 0 0 18px; font-size: 0.95rem; line-height: 1.5; }
 
-/* High-resolution factor row */
-.hires-row { display: flex; align-items: center; gap: 8px; height: 34px; }
-#hires-factor { height: 30px; padding: 0 6px; }
 
 /* "Last change" line in the footer */
 #last-change { padding: 0 16px 2px; font-size: 0.72rem; opacity: 0.6; }
