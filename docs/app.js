@@ -1051,6 +1051,8 @@
     populateWeekSelect();   // re-label weeks in the new language
     populateSecondLangSelect();   // re-localize the "(none)" option
     refreshHiddenUI();      // re-localize hidden-species chip names
+    refreshChecklists();    // re-localize the "Checklist (N)" button text
+    if (document.getElementById("field-page").style.display === "flex") renderFieldList();  // re-localize activity labels if open
     refreshCurrentView();   // re-render species names in the active panel
   }
 
