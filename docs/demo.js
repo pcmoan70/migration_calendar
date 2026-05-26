@@ -303,6 +303,12 @@
     return "https://search.macaulaylibrary.org/catalog?q=" + encodeURIComponent(sci);
   }
 
+  // Xeno-canto audio recordings — search by scientific name (graceful for any
+  // taxon, vs. a species page that would 404 on a naming mismatch).
+  function xenoCantoUrl(sci) {
+    return "https://xeno-canto.org/explore?query=" + encodeURIComponent(String(sci || "").trim());
+  }
+
   // Best-effort direct factsheet slug (works only when BirdLife's genus matches
   // eBird's); used as a no-JS fallback href and last resort.
   function slugify(s) { return String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, ""); }
@@ -817,6 +823,7 @@
           '<button type="button" class="sp-menu-item" data-act="wiki" data-i18n="menu.wiki">Wikipedia</button>' +
           '<button type="button" class="sp-menu-item" data-act="birdlife" data-i18n="menu.birdlife">BirdLife</button>' +
           '<button type="button" class="sp-menu-item" data-act="macaulay" data-i18n="menu.macaulay">Macaulay Library</button>' +
+          '<button type="button" class="sp-menu-item" data-act="xeno" data-i18n="menu.xeno">Xeno-canto (audio)</button>' +
           '<button type="button" class="sp-menu-item" data-act="filter" data-i18n="menu.filter">Filter</button>' +
           '<button type="button" class="sp-menu-item" data-act="hide" data-i18n="menu.hide">Do not show</button>' +
         '</div>' +
@@ -1502,6 +1509,7 @@
         else if (act === "wiki") openWikipedia(menuSci || menuName);
         else if (act === "birdlife") openBirdLife((labelsByKey[menuKey] && labelsByKey[menuKey].common) || menuName, menuSci || menuName);
         else if (act === "macaulay") openExternal(macaulayUrl(menuKey, menuSci || menuName));
+        else if (act === "xeno") openExternal(xenoCantoUrl(menuSci || menuName));
         else if (act === "distmap") showDistMap(menuName, menuSci || menuName, menuKey);
         else if (act === "recent") { var rl = marker ? marker.getLatLng() : map.getCenter(); showRecent(menuName, menuSci || menuName, rl.lat, rl.lng); }
         spMenu.style.display = "none";
