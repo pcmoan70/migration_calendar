@@ -762,6 +762,7 @@
             '<button id="field-nearby" class="fp-nearby" title="Nearby places" aria-label="Nearby places">▾</button>' +
             '<span class="field-seen" id="field-seen"></span>' +
             '<span class="field-actions">' +
+              '<button id="field-pdf" class="demo-btn" title="Download PDF">⬇ PDF</button>' +
               '<button id="field-csv" class="demo-btn" data-i18n="btn.csv" title="Download CSV">⬇ CSV</button>' +
               '<button id="field-clear" class="demo-btn demo-btn-light" data-i18n="btn.clear">Clear</button>' +
             '</span>' +
@@ -1385,6 +1386,7 @@
     document.getElementById("field-csv").addEventListener("click", function () {
       downloadCsv("field_checklist.csv", fieldChecklistCsv());
     });
+    document.getElementById("field-pdf").addEventListener("click", exportFieldPdf);
     document.getElementById("field-clear").addEventListener("click", function () {
       saveFieldEntries({}); renderFieldList();
     });
@@ -2424,6 +2426,56 @@
       lines.push([key, esc(name), e.count != null ? e.count : "", e.act ? t("act." + e.act) : ""].join(","));
     });
     return lines.join("\n");
+  }
+
+  // The recorded (seen / counted / activity) species of the open checklist,
+  // alphabetical — shared by the PDF export.
+  function fieldSeenRows() {
+    var entries = getFieldEntries();
+    var byKey = {}; (fieldData || []).forEach(function (r) { byKey[r.key] = r; });
+    var rows = [];
+    Object.keys(entries).forEach(function (key) {
+      var e = entries[key]; if (!e.seen && (e.count == null || e.count === "") && !e.act) return;
+      var name = (byKey[key] && byKey[key].name) || (labelsByKey[key] && speciesName(labelsByKey[key])) || key;
+      rows.push({ name: name, count: e.count != null ? e.count : "", act: e.act ? t("act." + e.act) : "" });
+    });
+    rows.sort(function (a, b) { return a.name.localeCompare(b.name); });
+    return rows;
+  }
+
+  // Open a clean, print-ready page of the seen birds in a new tab and trigger
+  // the print dialog (where the browser offers "Save as PDF"). No PDF library
+  // needed — works offline.
+  function exportFieldPdf() {
+    var title = (document.getElementById("field-coords").value || "").trim() || t("btn.checklist").replace(/^[^\wÀ-ɏ]+\s*/, "");
+    var date = new Date().toISOString().slice(0, 10);
+    var rows = fieldSeenRows();
+    var esc = escapeHtml;
+    var body = rows.map(function (r, i) {
+      return "<tr><td>" + (i + 1) + "</td><td>" + esc(r.name) + "</td><td>" + esc(String(r.count)) + "</td><td>" + esc(r.act) + "</td></tr>";
+    }).join("") || '<tr><td></td><td colspan="3">' + esc(t("analysis.empty")) + "</td></tr>";
+    var html = '<!doctype html><html><head><meta charset="utf-8"><title>' + esc(title) + "</title><style>" +
+      "body{font-family:system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:#16302b;margin:32px;}" +
+      "h1{font-size:19px;color:#0b3a3a;margin:0 0 2px;}" +
+      ".meta{color:#5b6f69;font-size:12px;margin-bottom:18px;}" +
+      "table{border-collapse:collapse;width:100%;font-size:13px;}" +
+      "th,td{text-align:left;padding:6px 9px;border-bottom:1px solid #d8e1dd;}" +
+      "th{font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:#5b6f69;}" +
+      "thead th{border-bottom:2px solid #bcccc6;}" +
+      "td:first-child,th:first-child{width:30px;color:#93a39d;}" +
+      "td:nth-child(3),th:nth-child(3){text-align:right;width:64px;}" +
+      "</style></head><body>" +
+      "<h1>" + esc(title) + "</h1>" +
+      '<div class="meta">' + esc(date) + " &middot; " + rows.length + " " + esc(t("chk.seen").toLowerCase()) + "</div>" +
+      "<table><thead><tr><th>#</th><th>" + esc(t("th.species")) + "</th><th>" + esc(t("chk.count")) +
+      "</th><th>" + esc(t("chk.activity")) + "</th></tr></thead><tbody>" + body + "</tbody></table>" +
+      "</body></html>";
+    var w = window.open("", "_blank");
+    if (!w) { setStatus(t("status.error", { msg: "popup blocked" })); return; }
+    w.document.write(html);
+    w.document.close();
+    w.focus();
+    setTimeout(function () { try { w.print(); } catch (e) { /* user can print manually */ } }, 300);
   }
 
   async function renderSpeciesList(lat, lon) {
