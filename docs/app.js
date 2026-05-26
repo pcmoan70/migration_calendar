@@ -759,6 +759,8 @@
           '</div>' +
         '</div>' +
         '<div id="demo-status">&nbsp;</div>' +
+        '<div id="range-species" style="display:none"></div>' +
+        '<div id="play-progress" style="display:none"><div class="pp-fill"></div><div class="pp-marker"></div><div class="pp-months"></div></div>' +
         '<div id="demo-map-wrap">' +
           '<div id="demo-map"></div>' +
           '<div id="demo-computing" style="display:none">' +
@@ -1211,6 +1213,7 @@
     document.getElementById("play-btn-wrap").style.display = isMap ? "" : "none";
     // High-resolution only affects the range/richness map overlays.
     document.getElementById("hires-wrap").style.display = isMap ? "" : "none";
+    updateRangeSpecies();   // clickable species name above the map (range only)
     relocateCsvButton();
   }
 
@@ -1827,8 +1830,24 @@
   }
 
   // ---- Range map -----------------------------------------------------------
+  // The selected species' name shown above the map in Range mode — clickable
+  // (same context menu as a species-list name).
+  function updateRangeSpecies() {
+    var el = document.getElementById("range-species");
+    if (!el) return;
+    var key = document.getElementById("species-search").dataset.selectedKey;
+    if (currentMode === "range" && key && labelsByKey[key]) {
+      el.innerHTML = nameLinkHtml(labelsByKey[key]);
+      el.style.display = "block";
+    } else {
+      el.innerHTML = "";
+      el.style.display = "none";
+    }
+  }
+
   async function renderRangeMap() {
     var key = document.getElementById("species-search").dataset.selectedKey;
+    updateRangeSpecies();
     if (!key || !labelsByKey[key]) return;
     if (rendering) { renderGeneration++; return; }
     var gen = ++renderGeneration;
@@ -2866,11 +2885,33 @@
     if (b) b.textContent = playing ? t("btn.pause") : t("btn.play");
   }
 
+  // Month-divided progress bar (map width) shown during migration playback,
+  // marking which week the displayed frame represents.
+  function showPlayProgress(on) {
+    var el = document.getElementById("play-progress");
+    if (!el) return;
+    if (on) {
+      var ms = window.GeoI18N.months(lang);
+      el.querySelector(".pp-months").innerHTML = ms.map(function (m) {
+        return "<span>" + escapeHtml(String(m).slice(0, 3)) + "</span>";
+      }).join("");
+    }
+    el.style.display = on ? "block" : "none";
+  }
+  function updatePlayProgress(week) {
+    var el = document.getElementById("play-progress");
+    if (!el || el.style.display === "none") return;
+    var pct = (week / 48) * 100;
+    el.querySelector(".pp-fill").style.width = pct + "%";
+    el.querySelector(".pp-marker").style.left = pct + "%";
+  }
+
   function stopAnimation() {
     animating = false;
     animateAll = false;
     if (animTimer) { clearTimeout(animTimer); animTimer = null; }
     setPlayBtn(false);
+    showPlayProgress(false);
   }
 
   async function toggleAnimation() {
@@ -2881,6 +2922,7 @@
     }
     animating = true;
     setPlayBtn(true);
+    showPlayProgress(true);
 
     // Precompute every week for the current viewport.
     animateAll = true;
@@ -2896,6 +2938,7 @@
       if (!animating) return;
       wsel.value = w;
       showCachedWeek();
+      updatePlayProgress(w);
       w = (w % 48) + 1;
       animTimer = setTimeout(step, ANIM_INTERVAL);
     })();
