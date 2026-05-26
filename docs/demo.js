@@ -623,10 +623,6 @@
             '<input id="species-search" type="text" autocomplete="off" data-i18n-ph="ph.species" placeholder="Search species\u2026" />' +
             '<div id="species-results"></div>' +
           '</div>' +
-          '<div class="ctrl-group" id="week-select-wrap">' +
-            '<label for="week-select" data-i18n="ctrl.week">Week</label>' +
-            '<select id="week-select"></select>' +
-          '</div>' +
           '<div class="ctrl-group ctrl-group-btn" id="play-btn-wrap">' +
             '<button id="play-btn" class="demo-btn" data-i18n="btn.play">\u25b6 Play migration</button>' +
           '</div>' +
@@ -648,6 +644,50 @@
           '<div class="ctrl-group ctrl-group-btn" id="saveloc-btn-wrap" style="display:none">' +
             '<button id="saveloc-btn" class="demo-btn" data-i18n="btn.saveloc">\u2605 Save</button>' +
           '</div>' +
+          '<div class="ctrl-group" id="settings-wrap">' +
+            '<button type="button" id="settings-toggle" class="dd-toggle" aria-haspopup="true">' +
+              '<span class="settings-gear" aria-hidden="true">\u2699</span>' +
+              '<span data-i18n="ctrl.settings">Settings</span>' +
+              '<span class="dd-caret" aria-hidden="true">\u25be</span>' +
+            '</button>' +
+            '<div id="settings-panel" class="dd-panel settings-panel" style="display:none">' +
+              '<div class="ctrl-group">' +
+                '<label for="lang-select" data-i18n="ctrl.language">Language</label>' +
+                '<select id="lang-select"></select>' +
+              '</div>' +
+              '<div class="ctrl-group" id="secondlang-wrap" style="display:none">' +
+                '<label for="secondlang-select" data-i18n="ctrl.secondlang">2nd name</label>' +
+                '<select id="secondlang-select"></select>' +
+              '</div>' +
+              '<div class="ctrl-group">' +
+                '<label for="group-select" data-i18n="ctrl.group">Species group</label>' +
+                '<select id="group-select">' +
+                  '<option value="all" data-i18n="group.all">All groups</option>' +
+                  '<option value="aves" data-i18n="group.aves">Birds</option>' +
+                  '<option value="mammalia" data-i18n="group.mammalia">Mammals</option>' +
+                  '<option value="amphibia" data-i18n="group.amphibia">Amphibians</option>' +
+                  '<option value="insecta" data-i18n="group.insecta">Insects</option>' +
+                '</select>' +
+              '</div>' +
+              '<div class="ctrl-group" id="week-select-wrap">' +
+                '<label for="week-select" data-i18n="ctrl.week">Week</label>' +
+                '<select id="week-select"></select>' +
+              '</div>' +
+              '<div class="ctrl-group" id="compare-wrap" style="display:none">' +
+                '<label for="compare-select" data-i18n="ctrl.compare">Compare to</label>' +
+                '<select id="compare-select">' +
+                  '<option value="" data-i18n="compare.none">\u2014 none \u2014</option>' +
+                  '<option value="prev" selected data-i18n="compare.prev">Previous week</option>' +
+                  '<option value="next" data-i18n="compare.next">Next week</option>' +
+                  '<option value="mean" data-i18n="compare.mean">Annual mean</option>' +
+                  '<option value="annualmax" data-i18n="compare.max">Annual max</option>' +
+                  '<option value="annualtop" data-i18n="compare.annualtop">Annual Top</option>' +
+                '</select>' +
+              '</div>' +
+              '<div class="settings-divider"></div>' +
+              '<button type="button" id="about-open" class="settings-about" data-i18n="ctrl.about">About &amp; how it works</button>' +
+            '</div>' +
+          '</div>' +
         '</div>' +
         '<div id="demo-status">&nbsp;</div>' +
         '<div id="demo-map-wrap">' +
@@ -660,20 +700,6 @@
           '<div id="demo-legend"></div>' +
         '</div>' +
         '<div id="map-controls">' +
-          '<div class="ctrl-group">' +
-            '<label for="lang-select" data-i18n="ctrl.language">Language</label>' +
-            '<select id="lang-select"></select>' +
-          '</div>' +
-          '<div class="ctrl-group">' +
-            '<label for="group-select" data-i18n="ctrl.group">Species group</label>' +
-            '<select id="group-select">' +
-              '<option value="all" data-i18n="group.all">All groups</option>' +
-              '<option value="aves" data-i18n="group.aves">Birds</option>' +
-              '<option value="mammalia" data-i18n="group.mammalia">Mammals</option>' +
-              '<option value="amphibia" data-i18n="group.amphibia">Amphibians</option>' +
-              '<option value="insecta" data-i18n="group.insecta">Insects</option>' +
-            '</select>' +
-          '</div>' +
           '<div class="ctrl-group" id="hires-wrap" style="display:none">' +
             '<div class="hires-row">' +
               '<label class="hires-label"><input type="checkbox" id="hires-toggle" /> <span data-i18n="ctrl.hires">High resolution</span></label>' +
@@ -681,21 +707,6 @@
                 '<option>1</option><option>2</option><option selected>3</option><option>5</option><option>7</option><option>9</option><option>11</option>' +
               '</select>' +
             '</div>' +
-          '</div>' +
-          '<div class="ctrl-group" id="secondlang-wrap" style="display:none">' +
-            '<label for="secondlang-select" data-i18n="ctrl.secondlang">2nd name</label>' +
-            '<select id="secondlang-select"></select>' +
-          '</div>' +
-          '<div class="ctrl-group" id="compare-wrap" style="display:none">' +
-            '<label for="compare-select" data-i18n="ctrl.compare">Compare to</label>' +
-            '<select id="compare-select">' +
-              '<option value="" data-i18n="compare.none">— none —</option>' +
-              '<option value="prev" selected data-i18n="compare.prev">Previous week</option>' +
-              '<option value="next" data-i18n="compare.next">Next week</option>' +
-              '<option value="mean" data-i18n="compare.mean">Annual mean</option>' +
-              '<option value="annualmax" data-i18n="compare.max">Annual max</option>' +
-              '<option value="annualtop" data-i18n="compare.annualtop">Annual Top</option>' +
-            '</select>' +
           '</div>' +
           '<div class="ctrl-group" id="barchart-threshold-wrap" style="display:none">' +
             '<label data-i18n="ctrl.bcthreshold">Probability range</label>' +
@@ -808,10 +819,11 @@
           '<h3 id="recent-title"></h3>' +
           '<div id="recent-body"></div>' +
         '</div></div>' +
-        '<details id="about-panel">' +
-          '<summary data-i18n="about.title">About the model &amp; how values are computed</summary>' +
+        '<div id="about-modal" style="display:none"><div id="about-box">' +
+          '<button type="button" id="about-close" aria-label="Close">×</button>' +
+          '<h3 data-i18n="about.title">About the model &amp; how values are computed</h3>' +
           '<div id="about-body"></div>' +
-        '</details>' +
+        '</div></div>' +
         '<div id="demo-footer" data-i18n="footer.attrib"></div>' +
         '<div id="last-change"></div>' +
         '<div id="visit-counter"><img src="https://api.visitorbadge.io/api/visitors?path=https%3A%2F%2Fpcmoan70.github.io%2Fmigration_calendar&label=page%20visits&labelColor=%230f1b24&countColor=%232f6f4f" alt="page visits" /></div>' +
@@ -1421,6 +1433,19 @@
     wireDropdown("hidden-btn", "hidden-panel");
     wireDropdown("savedloc-toggle", "savedloc-panel");
     wireDropdown("checklists-toggle", "checklists-panel");
+    wireDropdown("settings-toggle", "settings-panel");
+
+    // About (model & methodology) opens from the Settings dropdown as a modal.
+    document.getElementById("about-open").addEventListener("click", function () {
+      closeDropdowns();
+      document.getElementById("about-modal").style.display = "flex";
+    });
+    document.getElementById("about-close").addEventListener("click", function () {
+      document.getElementById("about-modal").style.display = "none";
+    });
+    document.getElementById("about-modal").addEventListener("click", function (e) {
+      if (e.target === this) this.style.display = "none";
+    });
 
     // Checklist actions
     document.getElementById("new-checklist-btn").addEventListener("click", makeChecklistFromList);
@@ -2697,7 +2722,7 @@
   }
 
   function closeDropdowns() {
-    ["hidden-panel", "savedloc-panel", "checklists-panel"].forEach(function (idp) {
+    ["hidden-panel", "savedloc-panel", "checklists-panel", "settings-panel"].forEach(function (idp) {
       var p = document.getElementById(idp);
       if (p) p.style.display = "none";
     });
