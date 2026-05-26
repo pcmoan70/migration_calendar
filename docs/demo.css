@@ -688,7 +688,6 @@ body {
   border-color: rgba(255, 255, 255, 0.5);
 }
 .bird-ico { width: 24px; height: 24px; display: block; }
-.settings-emoji { font-size: 23px; line-height: 1; }
 
 #demo-app {
   max-width: 1280px;
@@ -971,7 +970,7 @@ table.an-scatter-table td.an-tint { color: #fff; font-weight: 600; text-shadow: 
 }
 button.dd-name { cursor: pointer; }
 button.dd-name:hover { text-decoration: underline; }
-.dd-icon { margin-right: 5px; font-size: 0.9em; }
+.dd-icon { margin-right: 5px; font-size: 0.9em; color: var(--brand); vertical-align: -2px; }
 .dd-del {
   border: none;
   background: transparent;

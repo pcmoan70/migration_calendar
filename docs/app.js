@@ -78,16 +78,45 @@
   // Richness cache key — distinct per group so counts don't collide.
   function richKey() { return "__richness__@" + speciesGroup; }
 
-  // The header (settings) icon reflects the active species group: an animal
-  // emoji per group, and binoculars (SVG — no binoculars emoji exists) for All.
-  var GROUP_EMOJI = { aves: "🦉", mammalia: "🦊", insecta: "🐝", amphibia: "🐸" };
-  function settingsIconHtml(group) {
-    if (GROUP_EMOJI[group]) return '<span class="settings-emoji" aria-hidden="true">' + GROUP_EMOJI[group] + "</span>";
-    return '<svg class="bird-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' +
+  // The header (settings) icon reflects the active species group. All icons are
+  // monochrome SVGs in one style (currentColor; small details in deep teal),
+  // not emoji — so they match the app palette.
+  var EYE = "#0b3a3a";   // deep-teal detail (eyes/nose) on the white silhouette
+  var GROUP_ICON = {
+    // Binoculars (All) — line style.
+    all: '<g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' +
       '<circle cx="6.7" cy="14.6" r="4.3"/><circle cx="17.3" cy="14.6" r="4.3"/>' +
       '<path d="M3.7 11.8 L5.4 5.4 A1.2 1.2 0 0 1 6.6 4.5 H8.6 A1 1 0 0 1 9.6 5.5 V11"/>' +
       '<path d="M20.3 11.8 L18.6 5.4 A1.2 1.2 0 0 0 17.4 4.5 H15.4 A1 1 0 0 0 14.4 5.5 V11"/>' +
-      '<line x1="9.6" y1="8" x2="14.4" y2="8"/></svg>';
+      '<line x1="9.6" y1="8" x2="14.4" y2="8"/></g>',
+    // Owl (Birds) — body + ear tufts, big eyes, beak.
+    aves: '<g fill="currentColor"><polygon points="5,3 8.6,7.6 4,8.4"/><polygon points="19,3 15.4,7.6 20,8.4"/>' +
+      '<ellipse cx="12" cy="13.2" rx="7.4" ry="8"/></g>' +
+      '<circle cx="9" cy="11" r="2.2" fill="' + EYE + '"/><circle cx="15" cy="11" r="2.2" fill="' + EYE + '"/>' +
+      '<circle cx="9" cy="11" r="0.8" fill="currentColor"/><circle cx="15" cy="11" r="0.8" fill="currentColor"/>' +
+      '<polygon points="12,12.4 10.7,14.4 13.3,14.4" fill="' + EYE + '"/>',
+    // Fox (Mammals) — pointed ears + triangular face, eyes + nose.
+    mammalia: '<g fill="currentColor"><polygon points="3,4 9.2,9 5.2,11"/><polygon points="21,4 14.8,9 18.8,11"/>' +
+      '<path d="M5,8.6 H19 L12,21 Z"/></g>' +
+      '<circle cx="9" cy="12" r="1.15" fill="' + EYE + '"/><circle cx="15" cy="12" r="1.15" fill="' + EYE + '"/>' +
+      '<circle cx="12" cy="17.4" r="1.3" fill="' + EYE + '"/>',
+    // Bee (Insects) — head + antennae + wings + striped abdomen (3 bars).
+    insecta: '<g fill="currentColor"><circle cx="12" cy="6.3" r="2.4"/>' +
+      '<path d="M10.4 4.7 L8.8 2.6 M13.6 4.7 L15.2 2.6" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" fill="none"/>' +
+      '<ellipse cx="7.4" cy="10.2" rx="2.4" ry="3.2" transform="rotate(-28 7.4 10.2)"/>' +
+      '<ellipse cx="16.6" cy="10.2" rx="2.4" ry="3.2" transform="rotate(28 16.6 10.2)"/>' +
+      '<rect x="8.4" y="9.6" width="7.2" height="2.4" rx="1.2"/>' +
+      '<rect x="8.4" y="13" width="7.2" height="2.4" rx="1.2"/>' +
+      '<rect x="9.6" y="16.4" width="4.8" height="2.4" rx="1.2"/></g>',
+    // Frog (Amphibians) — two eye bumps on top + wide body + front legs.
+    amphibia: '<g fill="currentColor"><circle cx="8.4" cy="7" r="3"/><circle cx="15.6" cy="7" r="3"/>' +
+      '<path d="M3 15.5 a9 7 0 0 1 18 0 q0 3 -3 3 H6 q-3 0 -3 -3 Z"/>' +
+      '<path d="M6.5 18 l-2 3 M17.5 18 l2 3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" fill="none"/></g>' +
+      '<circle cx="8.4" cy="7" r="1.15" fill="' + EYE + '"/><circle cx="15.6" cy="7" r="1.15" fill="' + EYE + '"/>',
+  };
+  function settingsIconHtml(group) {
+    return '<svg class="bird-ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false">' +
+      (GROUP_ICON[group] || GROUP_ICON.all) + "</svg>";
   }
   function updateSettingsIcon() {
     var btn = document.getElementById("settings-toggle");
@@ -3041,7 +3070,8 @@
     if (!items.length) panel.style.display = "none";
     btnText.textContent = t("ctrl.checklists") + " (" + items.length + ")";
 
-    var fieldTag = '<span class="dd-icon" title="' + escapeHtml(t("btn.checklist")) + '">🔭</span>';
+    var fieldTag = '<span class="dd-icon" title="' + escapeHtml(t("btn.checklist")) + '">' +
+      '<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8.5 L6.5 12 L13 4.5"/></svg></span>';
     panel.innerHTML = items.map(function (it) {
       var n = escapeHtml(it.name);
       var idAttr = it.kind === "field" ? 'data-pkey="' + escapeHtml(it.pkey) + '"' : 'data-id="' + it.id + '"';
