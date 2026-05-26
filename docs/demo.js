@@ -714,6 +714,15 @@
                   '<option value="1" selected>1</option><option value="2">2</option><option value="3">3</option><option value="5">5</option><option value="7">7</option><option value="9">9</option><option value="11">11</option>' +
                 '</select>' +
               '</div>' +
+              '<div class="ctrl-group" id="barchart-threshold-wrap" style="display:none">' +
+                '<label data-i18n="ctrl.bcthreshold">Probability range</label>' +
+                '<div id="prob-range">' +
+                  '<div class="pr-track"></div>' +
+                  '<input type="range" id="prob-min" min="0" max="100" step="1" value="5" />' +
+                  '<input type="range" id="prob-max" min="0" max="100" step="1" value="100" />' +
+                '</div>' +
+                '<div id="prob-range-vals"><span id="prob-min-val">5%</span> – <span id="prob-max-val">100%</span></div>' +
+              '</div>' +
               '<div class="settings-divider"></div>' +
               '<button type="button" id="about-open" class="settings-about" data-i18n="ctrl.about">About &amp; how it works</button>' +
             '</div>' +
@@ -728,17 +737,6 @@
             '<div id="computing-progress-wrap"><div id="computing-progress-bar"></div></div>' +
           '</div>' +
           '<div id="demo-legend"></div>' +
-        '</div>' +
-        '<div id="map-controls">' +
-          '<div class="ctrl-group" id="barchart-threshold-wrap" style="display:none">' +
-            '<label data-i18n="ctrl.bcthreshold">Probability range</label>' +
-            '<div id="prob-range">' +
-              '<div class="pr-track"></div>' +
-              '<input type="range" id="prob-min" min="0" max="100" step="1" value="5" />' +
-              '<input type="range" id="prob-max" min="0" max="100" step="1" value="100" />' +
-            '</div>' +
-            '<div id="prob-range-vals"><span id="prob-min-val">5%</span> – <span id="prob-max-val">100%</span></div>' +
-          '</div>' +
         '</div>' +
         '<div id="csv-btn-wrap" style="display:none">' +
           '<button id="csv-download-btn" class="demo-btn" data-i18n="btn.csv" title="Download CSV">\u2b07 CSV</button>' +
@@ -859,11 +857,11 @@
             '<button type="button" id="chk-loc-create" class="demo-btn" data-i18n="chk.createNew">Create new</button>' +
           '</div>' +
         '</div></div>' +
-        '<div id="demo-footer" data-i18n="footer.attrib"></div>' +
         '<div id="last-change"></div>' +
         '<div id="visit-counter"><img src="https://api.visitorbadge.io/api/visitors?path=https%3A%2F%2Fpcmoan70.github.io%2Fmigration_calendar&label=page%20visits&labelColor=%230f1b24&countColor=%232f6f4f" alt="page visits" /></div>' +
         '<div id="perf-modal" style="display:none"><div id="perf-modal-box">' +
           '<p data-i18n="popup.perf"></p>' +
+          '<p class="perf-attrib" data-i18n="footer.attrib"></p>' +
           '<button id="perf-modal-ok" class="demo-btn" data-i18n="popup.ok">OK</button>' +
         '</div></div>' +
       '</div>';
@@ -1193,12 +1191,10 @@
     var listish = currentMode === "list" || currentMode === "range";
     document.getElementById("compare-wrap").style.display = listish ? "" : "none";
     document.getElementById("secondlang-wrap").style.display = listish ? "" : "none";
-    // The probability min–max slider applies to the Species List, the checklist
-    // (derived from it), the analysis tabs and the field checklist. It is the
-    // only control left in the below-map bar, so hide that bar when it's hidden.
+    // The probability min–max slider (in Settings) applies to the Species List,
+    // the checklist (derived from it), the analysis tabs and the field checklist.
     var probVisible = (currentMode === "range" || currentMode === "list" || currentMode === "barchart" || currentMode === "field");
     document.getElementById("barchart-threshold-wrap").style.display = probVisible ? "" : "none";
-    document.getElementById("map-controls").style.display = probVisible ? "" : "none";
     // Week applies in every mode (incl. Migration timeline, where it sets the
     // "current week" used by the Probability / Arrivals / Scatter tabs).
     document.getElementById("week-select-wrap").style.display = "";
@@ -1240,7 +1236,9 @@
       var sa = document.querySelector("#species-panel .sp-actions");
       if (sa && wrap.parentNode !== sa) sa.appendChild(wrap);
     } else {
-      var anchor = document.getElementById("map-controls");
+      // Below the map (the map-controls bar was removed when its controls
+      // moved into Settings).
+      var anchor = document.getElementById("demo-map-wrap");
       if (anchor && wrap.previousElementSibling !== anchor) {
         anchor.parentNode.insertBefore(wrap, anchor.nextSibling);
       }

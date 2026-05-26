@@ -81,8 +81,7 @@ input:focus-visible {
   box-shadow: var(--shadow-sm);
 }
 
-#demo-controls label,
-#map-controls label {
+#demo-controls label {
   font-size: 0.7rem;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -680,15 +679,6 @@ body {
   padding: 0 12px 24px;
 }
 
-#demo-footer {
-  margin-top: 18px;
-  padding: 12px 16px;
-  font-size: 0.78rem;
-  color: var(--ink-muted);
-  border-top: 1px solid var(--border);
-  line-height: 1.5;
-}
-
 /* Content panels rendered as cards for a consistent surface treatment */
 #species-panel,
 #barchart-panel,
@@ -886,18 +876,15 @@ table.an-scatter-table td.an-tint { color: #fff; font-weight: 600; text-shadow: 
 }
 #demo-controls select { padding: 0 10px; }
 
-/* Shared look for the dropdown/text controls in both control bars */
+/* Shared look for the dropdown/text controls */
 #demo-controls select,
-#map-controls select,
 #species-search,
 #an-filter {
   transition: border-color .15s, box-shadow .15s;
 }
 #demo-controls select:hover,
-#map-controls select:hover,
 .dd-toggle:hover { border-color: var(--border-strong); }
 #demo-controls select:focus,
-#map-controls select:focus,
 #species-search:focus,
 #an-filter:focus {
   outline: none;
@@ -1211,7 +1198,7 @@ table.chk-table .chk-cb { width: 28px; text-align: center; }
 /* ===== Print: show only the open checklist ===== */
 @media print {
   #site-header, #demo-controls, #demo-status, #demo-map-wrap,
-  #species-panel, #barchart-panel, #about-modal, #demo-footer, #sp-menu {
+  #species-panel, #barchart-panel, #about-modal, #sp-menu {
     display: none !important;
   }
   #checklist-panel { display: block !important; margin: 0; }
@@ -1256,27 +1243,6 @@ table.chk-table .chk-text { min-width: 100px; }
 /* Timeline: highlight the current-week bar */
 .bc-bar.bc-cur { background: #d32f2f !important; opacity: 1 !important; }
 
-/* Language + Base map controls relocated below the map */
-#map-controls {
-  display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end;
-  margin: 0 0 14px; padding: 14px 16px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-sm);
-}
-#map-controls .ctrl-group { display: flex; flex-direction: column; }
-#map-controls select {
-  height: 36px;
-  box-sizing: border-box;
-  padding: 0 10px;
-  font-size: 0.88rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xs);
-  background: var(--surface);
-  color: var(--ink);
-}
-
 /* Performance note modal (shown on page load) */
 #perf-modal {
   position: fixed;
@@ -1298,6 +1264,14 @@ table.chk-table .chk-text { min-width: 100px; }
   text-align: center;
 }
 #perf-modal-box p { margin: 0 0 18px; font-size: 0.95rem; line-height: 1.5; }
+#perf-modal-box .perf-attrib {
+  margin: 0 0 18px;
+  font-size: 0.76rem;
+  line-height: 1.45;
+  color: var(--ink-muted);
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
 
 
 /* "Last change" line in the footer */
