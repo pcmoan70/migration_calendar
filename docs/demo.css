@@ -185,7 +185,9 @@ input:focus-visible {
 /* ---------- Map ---------- */
 #demo-map {
   width: 100%;
-  height: 600px;
+  /* Keep the map from filling the viewport so the controls/panels below are
+     easy to scroll to. */
+  height: min(560px, 62vh);
   border-radius: var(--radius);
   border: 1px solid var(--border);
   box-shadow: var(--shadow-md);
@@ -223,6 +225,15 @@ input:focus-visible {
 .leaflet-popup.save-popup .leaflet-popup-content { margin: 9px 12px; }
 .leaflet-popup.save-popup .leaflet-popup-content-wrapper { border-radius: var(--radius-sm); box-shadow: var(--shadow-md); }
 .map-save-btn { font-size: 0.82rem; padding: 6px 12px; }
+
+/* Saved-locations dropdown relocated onto the map (bottom-right corner) */
+#savedloc-wrap.savedloc-onmap { margin: 0; }
+#savedloc-wrap.savedloc-onmap > label { display: none; }   /* button already labelled */
+#savedloc-wrap.savedloc-onmap .dd-toggle { box-shadow: var(--shadow-md); }
+#savedloc-wrap.savedloc-onmap .dd-panel {   /* open upward, above the button */
+  top: auto; bottom: 100%; left: auto; right: 0;
+  margin: 0 0 4px;
+}
 
 /* New-checklist location chooser modal (nearest saved locations + create new) */
 #chk-loc-modal {
@@ -319,6 +330,23 @@ input:focus-visible {
   margin: 0 0 6px;
   font-size: 1rem;
 }
+
+/* Species-List page bar (back button + title), shown only as a full-screen page */
+.sp-page-bar { display: flex; align-items: center; gap: 10px; }
+.sp-page-bar h3 { margin: 0; }
+#sp-back { display: none; }   /* hidden in the inline (range-mode) card */
+
+/* In Species-List mode the panel is a full-screen page, not an under-map card */
+#species-panel.as-page {
+  position: fixed; inset: 0; z-index: 1500; margin: 0;
+  max-width: none; border: none; border-radius: 0; box-shadow: none;
+  background: var(--page-bg);
+  overflow-y: auto; -webkit-overflow-scrolling: touch;
+  padding: 12px 16px calc(28px + env(safe-area-inset-bottom));
+}
+#species-panel.as-page #sp-back { display: inline-flex; }
+#species-panel.as-page .sp-page-bar { margin-bottom: 6px; }
+#species-panel.as-page #species-list-table { background: var(--surface); }
 
 #species-panel .sp-coords {
   font-size: 0.8rem;

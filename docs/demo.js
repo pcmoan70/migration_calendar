@@ -744,7 +744,10 @@
           '<button id="csv-download-btn" class="demo-btn" data-i18n="btn.csv" title="Download CSV">\u2b07 CSV</button>' +
         '</div>' +
         '<div id="species-panel">' +
-          '<h3 id="sp-title" data-i18n="panel.spTitle">Species at location</h3>' +
+          '<div class="sp-page-bar">' +
+            '<button id="sp-back" class="fp-back" title="Back to map">‹</button>' +
+            '<h3 id="sp-title" data-i18n="panel.spTitle">Species at location</h3>' +
+          '</div>' +
           '<div class="sp-coords" id="sp-coords"></div>' +
           '<div class="sp-actions"><button id="new-checklist-btn" class="demo-btn" data-i18n="btn.newchecklist">＋ Checklist</button></div>' +
           '<table id="species-list-table">' +
@@ -1127,6 +1130,19 @@
     map.addControl(new LocateControl());
     map.on("locationerror", function () { setStatus(t("status.locateError")); });
 
+    // Saved-locations dropdown, relocated to the map's lower-right corner.
+    var SavedLocControl = L.Control.extend({
+      options: { position: "bottomright" },
+      onAdd: function () {
+        var wrap = document.getElementById("savedloc-wrap");
+        wrap.classList.add("savedloc-onmap");
+        L.DomEvent.disableClickPropagation(wrap);
+        L.DomEvent.disableScrollPropagation(wrap);
+        return wrap;
+      }
+    });
+    map.addControl(new SavedLocControl());
+
     // After locating, populate the click-driven modes at the current position.
     map.on("locationfound", function (e) {
       if (["list", "barchart", "range", "field"].indexOf(currentMode) >= 0) onMapClick(e);
@@ -1238,7 +1254,9 @@
       currentMode = modeEl.value;
       window.GeoState.save({ mode: currentMode });
       updateModeVisibility();
-      document.getElementById("species-panel").style.display = "none";
+      var spPanel = document.getElementById("species-panel");
+      spPanel.classList.remove("as-page");
+      spPanel.style.display = "none";
       document.getElementById("barchart-panel").style.display = "none";
       document.getElementById("field-page").style.display = "none";
       hideCsvBtn();
@@ -1387,6 +1405,14 @@
     document.getElementById("field-back").addEventListener("click", function () {
       hideFcPicker(); hidePlacePicker();
       document.getElementById("field-page").style.display = "none";
+      if (map) map.invalidateSize();
+    });
+
+    // Back from the full-screen Species-List page to the map.
+    document.getElementById("sp-back").addEventListener("click", function () {
+      var sp = document.getElementById("species-panel");
+      sp.classList.remove("as-page");
+      sp.style.display = "none";
       if (map) map.invalidateSize();
     });
 
@@ -2420,7 +2446,12 @@
                escapeHtml(r.label.sci) + '</td><td>' + (r.prob * 100).toFixed(1) + '%</td><td class="prob-bar-cell"><div class="prob-bar" style="width:' +
                Math.round(r.prob * 100) + '%"></div></td>' + cmpCell + '</tr>';
       }).join("");
-      document.getElementById("species-panel").style.display = "block";
+      var sp = document.getElementById("species-panel");
+      // In Species-List mode show the list as a full-screen page; in Range mode
+      // keep it as an inline card under the map.
+      sp.classList.toggle("as-page", currentMode === "list");
+      sp.style.display = "block";
+      if (currentMode === "list") sp.scrollTop = 0;
       document.getElementById("barchart-panel").style.display = "none";
       setStatus(t("status.spResult", { n: results.length, p: (pmin * 100).toFixed(0), lat: lat.toFixed(2), lon: lon.toFixed(2) }));
 
