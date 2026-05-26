@@ -640,9 +640,6 @@
             '<button type="button" id="checklists-toggle" class="dd-toggle"><span id="checklists-btn-text"></span><span class="dd-caret" aria-hidden="true">▾</span></button>' +
             '<div id="checklists-panel" class="dd-panel" style="display:none"></div>' +
           '</div>' +
-          '<div class="ctrl-group ctrl-group-btn" id="saveloc-btn-wrap" style="display:none">' +
-            '<button id="saveloc-btn" class="demo-btn" data-i18n="btn.saveloc">\u2605 Save</button>' +
-          '</div>' +
           '<div class="ctrl-group" id="settings-wrap">' +
             '<button type="button" id="settings-toggle" class="settings-icon-btn" aria-haspopup="true" aria-label="Settings" title="Settings">' +
               '<svg class="bird-ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false">' +
@@ -827,6 +824,15 @@
           '<button type="button" id="about-close" aria-label="Close">×</button>' +
           '<h3 data-i18n="about.title">About the model &amp; how values are computed</h3>' +
           '<div id="about-body"></div>' +
+        '</div></div>' +
+        '<div id="chk-loc-modal" style="display:none"><div id="chk-loc-box">' +
+          '<button type="button" id="chk-loc-cancel" aria-label="Close">×</button>' +
+          '<h3 data-i18n="chk.namePrompt">Name this checklist:</h3>' +
+          '<div id="chk-loc-list"></div>' +
+          '<div class="chk-loc-new">' +
+            '<input id="chk-loc-input" type="text" autocomplete="off" />' +
+            '<button type="button" id="chk-loc-create" class="demo-btn" data-i18n="chk.createNew">Create new</button>' +
+          '</div>' +
         '</div></div>' +
         '<div id="demo-footer" data-i18n="footer.attrib"></div>' +
         '<div id="last-change"></div>' +
@@ -1231,7 +1237,6 @@
       document.getElementById("barchart-panel").style.display = "none";
       document.getElementById("field-page").style.display = "none";
       hideCsvBtn();
-      hideSaveLocBtn();
       if (cachedRender) clearOverlay();
       if (marker) { map.removeLayer(marker); marker = null; }
       updateLegend();
@@ -1423,8 +1428,6 @@
     document.addEventListener("visibilitychange", function () {
       if (document.hidden && animating) stopAnimation();
     });
-
-    document.getElementById("saveloc-btn").addEventListener("click", saveCurrentLocation);
 
     // Dropdown popovers (Hidden species, Saved locations).
     function wireDropdown(btnId, panelId) {
@@ -1984,9 +1987,26 @@
     var lat = Math.max(-90, Math.min(90, e.latlng.lat));
     var lon = wrapLon(e.latlng.lng);
     marker = L.marker([lat, lon]).addTo(map);
+    bindSavePopup(marker, lat, lon);
     if (currentMode === "barchart") renderAnalysis(lat, lon);
     else if (currentMode === "field") renderFieldChecklist(lat, lon);
     else renderSpeciesList(lat, lon);
+  }
+
+  // A "Save this location" button shown on the map, anchored to the clicked
+  // point's marker (opens automatically). Saving prompts for a name.
+  function bindSavePopup(mk, lat, lon) {
+    var wrap = document.createElement("div");
+    wrap.className = "map-save-pop";
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "demo-btn map-save-btn";
+    btn.textContent = t("btn.saveloc");
+    btn.addEventListener("click", function () { saveCurrentLocation(); });
+    wrap.appendChild(btn);
+    mk.bindPopup(wrap, { closeButton: true, autoClose: false, autoPan: false, className: "save-popup", offset: [0, -8] });
+    // Don't steal focus from the map in the full-screen field mode.
+    if (currentMode !== "field") mk.openPopup();
   }
 
   // Compute the per-species comparison probabilities for the "change" column.
@@ -2411,7 +2431,6 @@
         content: csvLines.join("\n")
       };
       showCsvBtn();
-      showSaveLocBtn();
     } catch (e) { setStatus(t("status.error", { msg: e.message })); console.error(e); }
   }
 
@@ -2534,7 +2553,6 @@
       document.getElementById("barchart-panel").style.display = "block";
       updateAnalysisControls();
       renderActiveTab();
-      showSaveLocBtn();
     } catch (e) { setStatus(t("status.error", { msg: e.message })); console.error(e); }
     finally { showComputingOverlay(false); }
   }
@@ -2693,9 +2711,6 @@
   }
 
   // ---- Saved locations -----------------------------------------------------
-  function showSaveLocBtn() { document.getElementById("saveloc-btn-wrap").style.display = ""; }
-  function hideSaveLocBtn() { document.getElementById("saveloc-btn-wrap").style.display = "none"; }
-
   // Saved locations in a dropdown popover: each row navigates on click and
   // has an × to delete it.
   function refreshSavedLocations() {
@@ -2756,6 +2771,49 @@
     return null;
   }
 
+  // Modal to name a new checklist: offers the 5 nearest saved locations as
+  // one-tap choices, plus a free-text "create new" field. Resolves to the
+  // chosen name, or null if cancelled.
+  function chooseChecklistName(lat, lon, def) {
+    return new Promise(function (resolve) {
+      var modal = document.getElementById("chk-loc-modal");
+      var list = document.getElementById("chk-loc-list");
+      var input = document.getElementById("chk-loc-input");
+      var createBtn = document.getElementById("chk-loc-create");
+      var cancelBtn = document.getElementById("chk-loc-cancel");
+      input.value = def || "";
+      var near = window.GeoState.locations().map(function (l) {
+        return { l: l, d: haversineKm(lat, lon, l.lat, l.lon) };
+      }).sort(function (a, b) { return a.d - b.d; }).slice(0, 5);
+      list.innerHTML = near.map(function (o) {
+        var dist = o.d < 1 ? Math.round(o.d * 1000) + " m" : o.d.toFixed(1) + " km";
+        return '<button type="button" class="chk-loc-item" data-name="' + escapeHtml(o.l.name) + '">' +
+          '<span class="cl-name">' + escapeHtml(o.l.name) + '</span><span class="cl-dist">' + dist + "</span></button>";
+      }).join("");
+      function done(v) {
+        modal.style.display = "none";
+        list.removeEventListener("click", onPick);
+        createBtn.removeEventListener("click", onCreate);
+        cancelBtn.removeEventListener("click", onCancel);
+        modal.removeEventListener("click", onBg);
+        input.removeEventListener("keydown", onKey);
+        resolve(v);
+      }
+      function onPick(e) { var it = e.target.closest && e.target.closest(".chk-loc-item"); if (it) done(it.getAttribute("data-name")); }
+      function onCreate() { done(input.value.trim() || def); }
+      function onCancel() { done(null); }
+      function onBg(e) { if (e.target === modal) done(null); }
+      function onKey(e) { if (e.key === "Enter") onCreate(); else if (e.key === "Escape") onCancel(); }
+      list.addEventListener("click", onPick);
+      createBtn.addEventListener("click", onCreate);
+      cancelBtn.addEventListener("click", onCancel);
+      modal.addEventListener("click", onBg);
+      input.addEventListener("keydown", onKey);
+      modal.style.display = "flex";
+      input.focus();
+    });
+  }
+
   async function makeChecklistFromList() {
     if (!marker) return;
     var ll = marker.getLatLng(), lat = ll.lat, lon = ll.lng;
@@ -2797,7 +2855,7 @@
         : cmpMode === "annualmax" ? t("compare.max")
         : cmpMode === "annualtop" ? t("compare.annualtop") : "";
       var place = (await reverseGeocode(lat, lon)) || (lat.toFixed(3) + ", " + lon.toFixed(3));
-      var nm = window.prompt(t("chk.namePrompt"), place);
+      var nm = await chooseChecklistName(lat, lon, place);
       if (nm === null) { setStatus(""); return; }
       var cl = { id: "chk-" + Date.now(), name: nm.trim() || place, place: place, lat: lat, lon: lon, week: week, lang: lang, lang2: secondLang, lang2Name: secondLang ? window.GeoI18N.langByCode(secondLang).name : "", createdAt: new Date().toISOString(), cmpKind: cmpKind, cmpLabel: cmpLabel, items: items };
       var arr = getChecklists(); arr.push(cl); saveChecklists(arr);
@@ -3024,6 +3082,7 @@
     var name = window.prompt(t("loc.savePrompt"), def);
     if (name === null) return;
     window.GeoState.addLocation(name.trim() || def, ll.lat, ll.lng);
+    if (marker && marker.closePopup) marker.closePopup();
     refreshSavedLocations();
   }
 

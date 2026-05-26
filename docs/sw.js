@@ -14,7 +14,7 @@
  *
  * Bump VERSION to invalidate all caches on the next deploy.
  */
-var VERSION = "v1";
+var VERSION = "v2";
 var SHELL_CACHE = "shell-" + VERSION;   // app code + small assets
 var DATA_CACHE = "data-" + VERSION;     // model / labels / taxonomy / vendor libs
 var TILE_CACHE = "tiles-" + VERSION;    // map tiles
@@ -147,8 +147,12 @@ function cacheFirst(req, cacheName) {
 }
 
 function networkFirst(req, cacheName) {
+  // Bypass the browser HTTP cache for the network attempt ("no-store") so a
+  // fresh deploy is picked up immediately — GitHub Pages' max-age would
+  // otherwise let the SW serve a stale copy even though we try the network
+  // first. We keep our own copy in CacheStorage for the offline fallback.
   return caches.open(cacheName).then(function (cache) {
-    return fetch(req)
+    return fetch(new Request(req.url, { cache: "no-store" }))
       .then(function (res) {
         if (res && res.ok) cache.put(req, res.clone());
         return res;
