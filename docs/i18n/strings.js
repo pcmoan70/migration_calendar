@@ -74,7 +74,7 @@ window.GeoI18N = (function () {
   // {key} placeholders are filled by GeoI18N.t(key, vars).
   var STRINGS = {
     en: {
-      "app.title": "Species Distribution & Migration Explorer",
+      "app.title": "Species & Checklists",
       "app.loading": "Loading model, labels & species names…",
       "app.failed": "Failed to load: {msg}",
       "ctrl.language": "Language",
@@ -240,7 +240,7 @@ window.GeoI18N = (function () {
         "<p class=\"about-note\">Predictions are model estimates, not ground truth. Model weights © the BirdNET team, licensed CC BY-SA 4.0; map tiles © OpenStreetMap contributors, © CARTO.</p>",
     },
     sv: {
-      "app.title": "Utforskare för artutbredning & migration",
+      "app.title": "Arter & Checklistor",
       "app.loading": "Laddar modell, etiketter & artnamn…",
       "app.failed": "Kunde inte ladda: {msg}",
       "ctrl.language": "Språk",
@@ -406,7 +406,7 @@ window.GeoI18N = (function () {
         "<p class=\"about-note\">Förutsägelser är modelluppskattningar, inte sanning. Modellvikter © BirdNET-teamet, licens CC BY-SA 4.0; kartrutor © OpenStreetMap-bidragsgivare, © CARTO.</p>",
     },
     de: {
-      "app.title": "Explorer für Artverbreitung & Wanderung",
+      "app.title": "Arten & Checklisten",
       "app.loading": "Lade Modell, Bezeichnungen & Artnamen…",
       "app.failed": "Laden fehlgeschlagen: {msg}",
       "ctrl.language": "Sprache",
@@ -572,7 +572,7 @@ window.GeoI18N = (function () {
         "<p class=\"about-note\">Vorhersagen sind Modellschätzungen, nicht die Wahrheit. Modellgewichte © das BirdNET-Team, lizenziert unter CC BY-SA 4.0; Kartenkacheln © OpenStreetMap-Mitwirkende, © CARTO.</p>",
     },
     es: {
-      "app.title": "Explorador de distribución y migración de especies",
+      "app.title": "Especies y listas",
       "app.loading": "Cargando modelo, etiquetas y nombres de especies…",
       "app.failed": "No se pudo cargar: {msg}",
       "ctrl.language": "Idioma",
@@ -738,7 +738,7 @@ window.GeoI18N = (function () {
         "<p class=\"about-note\">Las predicciones son estimaciones del modelo, no la verdad absoluta. Pesos del modelo © el equipo de BirdNET, con licencia CC BY-SA 4.0; teselas del mapa © colaboradores de OpenStreetMap, © CARTO.</p>",
     },
     fr: {
-      "app.title": "Explorateur de répartition et de migration des espèces",
+      "app.title": "Espèces et listes",
       "app.loading": "Chargement du modèle, des étiquettes et des noms d'espèces…",
       "app.failed": "Échec du chargement : {msg}",
       "ctrl.language": "Langue",
@@ -903,7 +903,7 @@ window.GeoI18N = (function () {
         "<p class=\"about-note\">Les prédictions sont des estimations du modèle, pas la réalité. Poids du modèle © l'équipe BirdNET, sous licence CC BY-SA 4.0 ; tuiles cartographiques © contributeurs OpenStreetMap, © CARTO.</p>",
     },
     nl: {
-      "app.title": "Verkenner voor soortverspreiding & trek",
+      "app.title": "Soorten & checklists",
       "app.loading": "Model, labels & soortnamen laden…",
       "app.failed": "Laden mislukt: {msg}",
       "ctrl.language": "Taal",
@@ -1070,7 +1070,7 @@ window.GeoI18N = (function () {
         "<p class=\"about-note\">Voorspellingen zijn modelschattingen, geen grondwaarheid. Modelgewichten © het BirdNET-team, gelicentieerd onder CC BY-SA 4.0; kaarttegels © OpenStreetMap-bijdragers, © CARTO.</p>",
     },
     no: {
-      "app.title": "Utforsker for artsutbredelse og trekk",
+      "app.title": "Arter og sjekklister",
       "app.loading": "Laster modell, etiketter og artsnavn…",
       "app.failed": "Kunne ikke laste: {msg}",
       "ctrl.language": "Språk",
@@ -1236,7 +1236,7 @@ window.GeoI18N = (function () {
         "<p class=\"about-note\">Forutsigelser er modellestimater, ikke fasit. Modellvekter © BirdNET-teamet, lisensiert CC BY-SA 4.0; kartfliser © OpenStreetMap-bidragsytere, © CARTO.</p>",
     },
     it: {
-      "app.title": "Esploratore di distribuzione e migrazione delle specie",
+      "app.title": "Specie e liste",
       "app.loading": "Caricamento di modello, etichette e nomi delle specie…",
       "app.failed": "Caricamento non riuscito: {msg}",
       "ctrl.language": "Lingua",
