@@ -699,7 +699,9 @@ body {
 /* Settings, relocated into the header as a bird icon button (upper-left) */
 #site-header #settings-wrap { flex: 0 0 auto; }
 
-#settings-toggle.settings-icon-btn {
+#settings-toggle.settings-icon-btn,
+.hdr-icon-btn {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -713,9 +715,17 @@ body {
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s;
 }
-#settings-toggle.settings-icon-btn:hover {
+#settings-toggle.settings-icon-btn:hover,
+.hdr-icon-btn:hover {
   background: rgba(255, 255, 255, 0.20);
   border-color: rgba(255, 255, 255, 0.5);
+}
+/* Small count badge on the checklist list icon */
+.hdr-count {
+  position: absolute; top: -5px; right: -5px;
+  min-width: 16px; height: 16px; padding: 0 4px; box-sizing: border-box;
+  border-radius: 999px; background: var(--brand-mint); color: var(--brand-deep);
+  font-size: 0.62rem; font-weight: 700; line-height: 16px; text-align: center;
 }
 .bird-ico { width: 24px; height: 24px; display: block; }
 

@@ -690,8 +690,11 @@
             '<div id="hidden-panel" class="dd-panel" style="display:none"></div>' +
           '</div>' +
           '<div class="ctrl-group" id="checklists-wrap" style="display:none">' +
-            '<label data-i18n="ctrl.checklists">Checklists</label>' +
-            '<button type="button" id="checklists-toggle" class="dd-toggle"><span id="checklists-btn-text"></span><span class="dd-caret" aria-hidden="true">▾</span></button>' +
+            '<button type="button" id="checklists-toggle" class="hdr-icon-btn" aria-haspopup="true" title="Checklists" aria-label="Checklists">' +
+              '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+                '<path d="M9 5h11M9 12h11M9 19h11"/><path d="M4 5l1 1 2-2M4 12l1 1 2-2M4 19l1 1 2-2"/></svg>' +
+              '<span id="checklists-btn-text" class="hdr-count"></span>' +
+            '</button>' +
             '<div id="checklists-panel" class="dd-panel" style="display:none"></div>' +
           '</div>' +
           '<div class="ctrl-group" id="settings-wrap">' +
@@ -3073,7 +3076,8 @@
 
     wrap.style.display = items.length ? "" : "none";
     if (!items.length) panel.style.display = "none";
-    btnText.textContent = t("ctrl.checklists") + " (" + items.length + ")";
+    btnText.textContent = items.length;   // small count badge on the list icon
+    document.getElementById("checklists-toggle").title = t("ctrl.checklists") + " (" + items.length + ")";
 
     panel.innerHTML = items.map(function (it) {
       var n = escapeHtml(it.name);
