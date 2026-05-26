@@ -618,9 +618,9 @@
             '<select id="mode-select">' +
               '<option value="range" data-i18n="mode.range">Species Range</option>' +
               '<option value="richness" data-i18n="mode.richness">Species Richness</option>' +
-              '<option value="list" data-i18n="mode.list">Species List (click map)</option>' +
-              '<option value="barchart" data-i18n="mode.barchart">Migration Timeline (click map)</option>' +
-              '<option value="field" data-i18n="mode.field">Field checklist (click map)</option>' +
+              '<option value="list" data-i18n="mode.list">📍 Species List</option>' +
+              '<option value="barchart" data-i18n="mode.barchart">📍 Migration Timeline</option>' +
+              '<option value="field" data-i18n="mode.field">📍 Field checklist</option>' +
             '</select>' +
           '</div>' +
           '<div class="ctrl-group" id="species-search-wrap">' +
