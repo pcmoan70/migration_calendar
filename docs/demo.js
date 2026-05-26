@@ -2776,6 +2776,20 @@
     return null;
   }
 
+  // Concise name of the closest major place (city/town/…) for naming a saved
+  // location — a single label, not the full comma-separated address.
+  async function majorPlaceName(lat, lon) {
+    try {
+      var r = await fetch("https://nominatim.openstreetmap.org/reverse?format=json&zoom=12&addressdetails=1&lat=" + lat + "&lon=" + lon, { headers: { Accept: "application/json" } });
+      if (r.ok) {
+        var j = await r.json(), a = j.address || {};
+        return a.city || a.town || a.village || a.municipality || a.suburb || a.county || a.state || a.country ||
+          j.name || (j.display_name ? j.display_name.split(",")[0].trim() : null);
+      }
+    } catch (e) { /* offline / blocked — fall back to coordinates */ }
+    return null;
+  }
+
   // Modal to name a new checklist: offers the 5 nearest saved locations as
   // one-tap choices, plus a free-text "create new" field. Resolves to the
   // chosen name, or null if cancelled.
@@ -3080,10 +3094,12 @@
     });
   }
 
-  function saveCurrentLocation() {
+  async function saveCurrentLocation() {
     if (!marker) return;
     var ll = marker.getLatLng();
-    var def = t("loc.defaultName", { lat: ll.lat.toFixed(3), lon: ll.lng.toFixed(3) });
+    var coords = t("loc.defaultName", { lat: ll.lat.toFixed(3), lon: ll.lng.toFixed(3) });
+    // Default to the closest major place name; fall back to coordinates offline.
+    var def = (await majorPlaceName(ll.lat, ll.lng)) || coords;
     var name = window.prompt(t("loc.savePrompt"), def);
     if (name === null) return;
     window.GeoState.addLocation(name.trim() || def, ll.lat, ll.lng);
