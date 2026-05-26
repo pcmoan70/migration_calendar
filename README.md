@@ -61,7 +61,7 @@ GitHub serves it at `https://<user>.github.io/<repo>/`.
 ```
 docs/
   index.html            Standalone page (mount point + script tags)
-  demo.js               App logic: map, modes, controls, inference orchestration
+  app.js                App logic: map, modes, controls, inference orchestration
   inference-worker.js   ONNX Runtime Web worker (model runs here)
   analysis.js           Probability / Arrivals heatmaps + Scatter renderers
   i18n/strings.js       UI strings (en, sv) + language ↔ taxonomy column map

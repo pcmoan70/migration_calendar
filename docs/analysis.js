@@ -12,7 +12,7 @@
  *   Scatter              – top-N species by current-week arrival, plotted
  *                          (arrival, probability), plus a sortable table.
  *
- * Stateless renderers: demo.js owns the data + UI state and passes a ctx.
+ * Stateless renderers: app.js owns the data + UI state and passes a ctx.
  * Exposed as window.GeoAnalysis (no module system; loaded via <script>).
  */
 window.GeoAnalysis = (function () {
@@ -292,7 +292,7 @@ window.GeoAnalysis = (function () {
 
     el.innerHTML = svg + tbl;
 
-    // Header click → sort (handled by demo.js via the returned hook).
+    // Header click → sort (handled by app.js via the returned hook).
     var ths = el.querySelectorAll(".an-scatter-table th[data-sort]");
     for (var i = 0; i < ths.length; i++) {
       ths[i].addEventListener("click", function () {

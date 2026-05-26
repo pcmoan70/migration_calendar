@@ -14,7 +14,7 @@
  *
  * Bump VERSION to invalidate all caches on the next deploy.
  */
-var VERSION = "v2";
+var VERSION = "v3";
 var SHELL_CACHE = "shell-" + VERSION;   // app code + small assets
 var DATA_CACHE = "data-" + VERSION;     // model / labels / taxonomy / vendor libs
 var TILE_CACHE = "tiles-" + VERSION;    // map tiles
@@ -25,7 +25,7 @@ var MAX_TILES = 1500;
 var SHELL = [
   "./",
   "index.html",
-  "demo.js",
+  "app.js",
   "demo.css",
   "analysis.js",
   "state.js",

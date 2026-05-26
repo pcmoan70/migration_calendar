@@ -22,10 +22,10 @@
     <h1 data-i18n="app.title">Species &amp; Checklists</h1>
   </header>
 
-  <!-- demo.js renders the whole interactive app into this mount point -->
+  <!-- app.js renders the whole interactive app into this mount point -->
   <div id="demo-root"></div>
 
-  <!-- i18n strings + persisted state + analysis views (load before demo.js) -->
+  <!-- i18n strings + persisted state + analysis views (load before app.js) -->
   <script src="i18n/strings.js"></script>
   <script src="state.js"></script>
   <script src="analysis.js"></script>
@@ -34,7 +34,7 @@
   <script src="vendor/leaflet/leaflet.js"></script>
 
   <!-- Main app (loads ONNX Runtime Web inside inference-worker.js) -->
-  <script src="demo.js"></script>
+  <script src="app.js"></script>
 
   <!-- Register the service worker for offline support -->
   <script>

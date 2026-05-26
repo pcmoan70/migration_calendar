@@ -636,7 +636,6 @@
               '<option value="richness" data-i18n="mode.richness">Species Richness</option>' +
               '<option value="list" data-i18n="mode.list">📍 Species List</option>' +
               '<option value="barchart" data-i18n="mode.barchart">📍 Migration Timeline</option>' +
-              '<option value="field" data-i18n="mode.field">📍 Field checklist</option>' +
             '</select>' +
           '</div>' +
           '<div class="ctrl-group" id="species-search-wrap">' +
@@ -747,7 +746,10 @@
             '<h3 id="sp-title" data-i18n="panel.spTitle">Species at location</h3>' +
           '</div>' +
           '<div class="sp-coords" id="sp-coords"></div>' +
-          '<div class="sp-actions"><button id="new-checklist-btn" class="demo-btn" data-i18n="btn.newchecklist">＋ Checklist</button></div>' +
+          '<div class="sp-actions">' +
+            '<button id="sp-checklist-btn" class="demo-btn" data-i18n="btn.checklist">✓ Checklist</button>' +
+            '<button id="new-checklist-btn" class="demo-btn demo-btn-light" data-i18n="btn.newchecklist">＋ Snapshot</button>' +
+          '</div>' +
           '<table id="species-list-table">' +
             '<thead><tr><th data-i18n="th.species">Species</th><th class="name2" id="sp-name2-head"></th><th data-i18n="th.sci">Scientific name</th><th data-i18n="th.prob">Probability</th><th></th><th id="sp-delta-head"></th></tr></thead>' +
             '<tbody id="sp-tbody"></tbody>' +
@@ -1143,7 +1145,7 @@
 
     // After locating, populate the click-driven modes at the current position.
     map.on("locationfound", function (e) {
-      if (["list", "barchart", "range", "field"].indexOf(currentMode) >= 0) onMapClick(e);
+      if (["list", "barchart", "range"].indexOf(currentMode) >= 0) onMapClick(e);
     });
 
     map.on("moveend", function () {
@@ -1193,7 +1195,7 @@
     document.getElementById("secondlang-wrap").style.display = listish ? "" : "none";
     // The probability min–max slider (in Settings) applies to the Species List,
     // the checklist (derived from it), the analysis tabs and the field checklist.
-    var probVisible = (currentMode === "range" || currentMode === "list" || currentMode === "barchart" || currentMode === "field");
+    var probVisible = (currentMode === "range" || currentMode === "list" || currentMode === "barchart");
     document.getElementById("barchart-threshold-wrap").style.display = probVisible ? "" : "none";
     // Week applies in every mode (incl. Migration timeline, where it sets the
     // "current week" used by the Probability / Arrivals / Scatter tabs).
@@ -1492,6 +1494,12 @@
 
     // Checklist actions
     document.getElementById("new-checklist-btn").addEventListener("click", makeChecklistFromList);
+    // Open the tickable Checklist for the current point (from the Species list).
+    document.getElementById("sp-checklist-btn").addEventListener("click", function () {
+      if (!marker) return;
+      var ll = marker.getLatLng();
+      renderFieldChecklist(ll.lat, ll.lng);
+    });
     document.getElementById("chk-print").addEventListener("click", function () { window.print(); });
     document.getElementById("chk-csv").addEventListener("click", function () {
       var c = getChecklist(currentChecklistId);
@@ -2009,23 +2017,35 @@
     if (!marker) return;
     var ll = marker.getLatLng();
     if (currentMode === "list" || currentMode === "range") renderSpeciesList(ll.lat, ll.lng);
-    else if (currentMode === "field") renderFieldChecklist(ll.lat, ll.lng);
   }
 
   function onMapClick(e) {
     // List + Range show the per-point species list; Migration Timeline the
-    // analysis; Field checklist the mobile entry list. (Range keeps its overlay.)
-    if (["list", "barchart", "range", "field"].indexOf(currentMode) < 0) return;
+    // analysis. (Range keeps its overlay.)
+    if (["list", "barchart", "range"].indexOf(currentMode) < 0) return;
     if (marker) map.removeLayer(marker);
     // Normalize: latitude clamped to [-90, 90]; longitude wrapped to [-180, 180]
     // (a click on a panned world-copy can otherwise give e.g. lon = 635).
     var lat = Math.max(-90, Math.min(90, e.latlng.lat));
     var lon = wrapLon(e.latlng.lng);
     marker = L.marker([lat, lon]).addTo(map);
-    bindSavePopup(marker, lat, lon);
-    if (currentMode === "barchart") renderAnalysis(lat, lon);
-    else if (currentMode === "field") renderFieldChecklist(lat, lon);
-    else renderSpeciesList(lat, lon);
+    if (currentMode === "list") {
+      // Let the user pick: the Species list, or the (tickable) Checklist.
+      bindPointPopup(marker, lat, lon);
+    } else {
+      bindSavePopup(marker, lat, lon);
+      if (currentMode === "barchart") renderAnalysis(lat, lon);
+      else renderSpeciesList(lat, lon);   // range (inline under map)
+    }
+  }
+
+  function makePopupBtn(label, cls, fn) {
+    var b = document.createElement("button");
+    b.type = "button";
+    b.className = "demo-btn " + (cls || "");
+    b.textContent = label;
+    b.addEventListener("click", fn);
+    return b;
   }
 
   // A "Save this location" button shown on the map, anchored to the clicked
@@ -2033,15 +2053,20 @@
   function bindSavePopup(mk, lat, lon) {
     var wrap = document.createElement("div");
     wrap.className = "map-save-pop";
-    var btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "demo-btn map-save-btn";
-    btn.textContent = t("btn.saveloc");
-    btn.addEventListener("click", function () { saveCurrentLocation(); });
-    wrap.appendChild(btn);
+    wrap.appendChild(makePopupBtn(t("btn.saveloc"), "map-save-btn", function () { saveCurrentLocation(); }));
     mk.bindPopup(wrap, { closeButton: true, autoClose: false, autoPan: false, className: "save-popup", offset: [0, -8] });
-    // Don't steal focus from the map in the full-screen field mode.
-    if (currentMode !== "field") mk.openPopup();
+    mk.openPopup();
+  }
+
+  // Species-List click: choose the Species list or the Checklist (plus Save).
+  function bindPointPopup(mk, lat, lon) {
+    var wrap = document.createElement("div");
+    wrap.className = "map-choose";
+    wrap.appendChild(makePopupBtn(t("mode.list"), "", function () { mk.closePopup(); renderSpeciesList(lat, lon); }));
+    wrap.appendChild(makePopupBtn(t("btn.checklist"), "", function () { mk.closePopup(); renderFieldChecklist(lat, lon); }));
+    wrap.appendChild(makePopupBtn(t("btn.saveloc"), "demo-btn-light", function () { saveCurrentLocation(); }));
+    mk.bindPopup(wrap, { closeButton: true, autoClose: false, autoPan: true, className: "choose-popup", offset: [0, -8] });
+    mk.openPopup();
   }
 
   // Compute the per-species comparison probabilities for the "change" column.
@@ -2949,7 +2974,7 @@
     if (!items.length) panel.style.display = "none";
     btnText.textContent = t("ctrl.checklists") + " (" + items.length + ")";
 
-    var fieldTag = '<span class="dd-icon" title="' + escapeHtml(t("mode.field")) + '">🔭</span>';
+    var fieldTag = '<span class="dd-icon" title="' + escapeHtml(t("btn.checklist")) + '">🔭</span>';
     panel.innerHTML = items.map(function (it) {
       var n = escapeHtml(it.name);
       var idAttr = it.kind === "field" ? 'data-pkey="' + escapeHtml(it.pkey) + '"' : 'data-id="' + it.id + '"';
@@ -3007,9 +3032,7 @@
   function openFieldFromList(pkey) {
     var r = getFieldRecord(pkey);
     if (!r) return;
-    var ms = document.getElementById("mode-select");
-    if (ms && ms.value !== "field") { ms.value = "field"; currentMode = "field"; }
-    renderFieldChecklist(r.lat, r.lon);
+    renderFieldChecklist(r.lat, r.lon);   // full-screen overlay; no mode switch
   }
 
   // CSV for a stored field checklist (works for any record, open or not).
