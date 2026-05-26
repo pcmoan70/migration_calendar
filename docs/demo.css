@@ -199,8 +199,7 @@ input:focus-visible {
 
 /* ---- Leaflet control styling (match the app theme) ---- */
 .leaflet-bar,
-.leaflet-control-layers,
-.maptype-control {
+.leaflet-control-layers {
   border: 1px solid var(--border) !important;
   border-radius: var(--radius-xs) !important;
   box-shadow: var(--shadow-md) !important;
@@ -214,8 +213,6 @@ input:focus-visible {
 .leaflet-bar a:hover { background: var(--surface-2); }
 .leaflet-touch .leaflet-bar a:first-child { border-top-left-radius: var(--radius-xs); border-top-right-radius: var(--radius-xs); }
 .leaflet-touch .leaflet-bar a:last-child { border-bottom-left-radius: var(--radius-xs); border-bottom-right-radius: var(--radius-xs); }
-.maptype-control { background: var(--surface); padding: 2px; }
-.maptype-select { color: var(--ink); }
 .geo-locate-btn { color: var(--brand-deep); }
 .leaflet-control-attribution {
   background: rgba(255,255,255,.82) !important;
@@ -1400,14 +1397,6 @@ table.recent-table .rc-who { color: var(--md-default-fg-color--light, #888); whi
   border: 1px solid var(--md-default-fg-color--lightest, #ccc); border-radius: var(--radius-xs);
   background: var(--md-default-bg-color, #fff); color: var(--md-default-fg-color, #333); }
 .fc-empty { font-size: 0.9rem; color: var(--md-default-fg-color--light, #666); padding: 12px 4px; }
-
-/* On-map map-type selector */
-.maptype-control { background: #fff; padding: 2px; border-radius: var(--radius-xs); }
-.maptype-select {
-  border: none; background: var(--surface); color: var(--ink); font-size: 0.82rem;
-  padding: 4px 6px; border-radius: 3px; cursor: pointer; max-width: 150px;
-}
-.maptype-select:focus { outline: none; }
 
 /* Field title: "nearby places" button + picker */
 .fp-nearby {

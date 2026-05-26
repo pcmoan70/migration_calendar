@@ -687,6 +687,16 @@
                   '<option value="annualtop" data-i18n="compare.annualtop">Annual Top</option>' +
                 '</select>' +
               '</div>' +
+              '<div class="ctrl-group" id="maptype-wrap">' +
+                '<label for="maptype-select" data-i18n="ctrl.basemap">Map type</label>' +
+                '<select id="maptype-select">' +
+                  '<option value="dark" data-i18n="basemap.dark">Dark</option>' +
+                  '<option value="light" data-i18n="basemap.light">Light</option>' +
+                  '<option value="streets" data-i18n="basemap.streets">Streets</option>' +
+                  '<option value="topo" data-i18n="basemap.topo">Topographic</option>' +
+                  '<option value="satellite" data-i18n="basemap.satellite">Satellite</option>' +
+                '</select>' +
+              '</div>' +
               '<div class="ctrl-group" id="hires-wrap" style="display:none">' +
                 '<label for="hires-factor" data-i18n="ctrl.hires">High resolution</label>' +
                 '<select id="hires-factor" title="Resolution factor (points per axis)">' +
@@ -1105,23 +1115,6 @@
     map.addControl(new LocateControl());
     map.on("locationerror", function () { setStatus(t("status.locateError")); });
 
-    // On-map map-type selector (mirrors the below-map Base map dropdown).
-    var MapTypeControl = L.Control.extend({
-      options: { position: "topright" },
-      onAdd: function () {
-        var c = L.DomUtil.create("div", "leaflet-bar leaflet-control maptype-control");
-        var sel = L.DomUtil.create("select", "maptype-select", c);
-        sel.id = "maptype-select";
-        sel.title = t("ctrl.basemap");
-        var opts = [["dark", "basemap.dark"], ["light", "basemap.light"], ["streets", "basemap.streets"], ["topo", "basemap.topo"], ["satellite", "basemap.satellite"]];
-        sel.innerHTML = opts.map(function (o) { return '<option value="' + o[0] + '" data-i18n="' + o[1] + '">' + escapeHtml(t(o[1])) + "</option>"; }).join("");
-        sel.value = document.body.getAttribute("data-basemap") || "dark";
-        L.DomEvent.disableClickPropagation(c);
-        L.DomEvent.on(sel, "change", function () { setBasemap(sel.value); });
-        return c;
-      }
-    });
-    map.addControl(new MapTypeControl());
     // After locating, populate the click-driven modes at the current position.
     map.on("locationfound", function (e) {
       if (["list", "barchart", "range", "field"].indexOf(currentMode) >= 0) onMapClick(e);
@@ -1258,6 +1251,10 @@
       hiResFactor = +this.value || 1;
       window.GeoState.save({ hiResFactor: hiResFactor });
       if (currentMode === "range" || currentMode === "richness") { clearOverlay(); triggerRender(); }
+    });
+
+    document.getElementById("maptype-select").addEventListener("change", function () {
+      setBasemap(this.value);
     });
 
     document.getElementById("perf-modal-ok").addEventListener("click", hidePerfModal);
