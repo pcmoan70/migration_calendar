@@ -713,11 +713,17 @@ body {
 /* ===== Location-analysis tabbed panel ===== */
 #an-tabs {
   display: flex;
+  flex-wrap: nowrap;          /* keep tabs on one row… */
+  overflow-x: auto;           /* …and scroll horizontally if they don't fit */
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
   gap: 2px;
   border-bottom: 2px solid var(--border);
   margin: 4px 0 10px;
 }
 .an-tab {
+  flex: 0 0 auto;             /* don't shrink; let the row scroll instead */
+  white-space: nowrap;        /* never wrap a tab label */
   padding: 6px 14px;
   background: transparent;
   border: none;
