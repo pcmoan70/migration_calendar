@@ -89,12 +89,15 @@
       '<path d="M3.7 11.8 L5.4 5.4 A1.2 1.2 0 0 1 6.6 4.5 H8.6 A1 1 0 0 1 9.6 5.5 V11"/>' +
       '<path d="M20.3 11.8 L18.6 5.4 A1.2 1.2 0 0 0 17.4 4.5 H15.4 A1 1 0 0 0 14.4 5.5 V11"/>' +
       '<line x1="9.6" y1="8" x2="14.4" y2="8"/></g>',
-    // Owl (Birds) — body + ear tufts, big eyes, beak.
-    aves: '<g fill="currentColor"><polygon points="5,3 8.6,7.6 4,8.4"/><polygon points="19,3 15.4,7.6 20,8.4"/>' +
-      '<ellipse cx="12" cy="13.2" rx="7.4" ry="8"/></g>' +
-      '<circle cx="9" cy="11" r="2.2" fill="' + EYE + '"/><circle cx="15" cy="11" r="2.2" fill="' + EYE + '"/>' +
-      '<circle cx="9" cy="11" r="0.8" fill="currentColor"/><circle cx="15" cy="11" r="0.8" fill="currentColor"/>' +
-      '<polygon points="12,12.4 10.7,14.4 13.3,14.4" fill="' + EYE + '"/>',
+    // Songbird (Birds) — side profile: round head + body, beak, cocked tail, legs.
+    aves: '<g fill="currentColor">' +
+      '<circle cx="8.5" cy="8.5" r="4"/>' +
+      '<ellipse cx="13" cy="14" rx="6.5" ry="5"/>' +
+      '<polygon points="5,7.2 1.8,8.6 5,9.8"/>' +
+      '<polygon points="17,10 23,5.6 19,13"/>' +
+      '<path d="M11 18.4 L10.4 22 M14 18.6 L14.6 22" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" fill="none"/>' +
+      '</g>' +
+      '<circle cx="8" cy="7.6" r="1.2" fill="' + EYE + '"/>',
     // Fox (Mammals) — pointed ears + triangular face, eyes + nose.
     mammalia: '<g fill="currentColor"><polygon points="3,4 9.2,9 5.2,11"/><polygon points="21,4 14.8,9 18.8,11"/>' +
       '<path d="M5,8.6 H19 L12,21 Z"/></g>' +
@@ -283,6 +286,7 @@
   // Migration animation state
   var animateAll = false;   // when true, range/richness precompute all 48 weeks
   var animating = false;    // animation playback in progress
+  var animReady = false;    // all 48 weeks cached → progress bar stays scrubbable
   var animTimer = null;
   var ANIM_INTERVAL = 350;  // ms between animation frames
 
@@ -796,8 +800,8 @@
         '<div id="field-page" style="display:none">' +
           '<div class="field-page-bar">' +
             '<button id="field-back" class="fp-back" title="Back to map">‹</button>' +
-            '<input id="field-coords" class="field-place" type="text" autocomplete="off" data-i18n-ph="ph.fieldtitle" placeholder="Location name" />' +
             '<button id="field-nearby" class="fp-nearby" title="Nearby places" aria-label="Nearby places">▾</button>' +
+            '<input id="field-coords" class="field-place" type="text" autocomplete="off" data-i18n-ph="ph.fieldtitle" placeholder="Location name" />' +
             '<span class="field-seen" id="field-seen"></span>' +
             '<span class="field-actions">' +
               '<button id="field-pdf" class="demo-btn" title="Download PDF">⬇ PDF</button>' +
@@ -1072,7 +1076,10 @@
   function populateLangSelect() {
     var sel = document.getElementById("lang-select");
     sel.innerHTML = window.GeoI18N.LANGS.map(function (L) {
-      return '<option value="' + L.code + '"' + (L.code === lang ? " selected" : "") + ">" + L.name + "</option>";
+      // ★ marks languages whose interface is fully translated (others fall
+      // back to English for UI text).
+      var label = L.name + (L.full ? " ★" : "");
+      return '<option value="' + L.code + '"' + (L.code === lang ? " selected" : "") + ">" + label + "</option>";
     }).join("");
   }
 
@@ -1500,6 +1507,24 @@
 
     document.getElementById("play-btn").addEventListener("click", toggleAnimation);
 
+    // Scrub the migration progress bar to jump to any week/date. Dragging
+    // pauses playback (the bar stays visible while an animation is cached).
+    (function () {
+      var pp = document.getElementById("play-progress");
+      var dragging = false;
+      pp.addEventListener("pointerdown", function (e) {
+        if (animating) stopAnimation();
+        dragging = true;
+        try { pp.setPointerCapture(e.pointerId); } catch (_) {}
+        scrubToWeek(e.clientX);
+        e.preventDefault();
+      });
+      pp.addEventListener("pointermove", function (e) { if (dragging) scrubToWeek(e.clientX); });
+      function endDrag() { dragging = false; }
+      pp.addEventListener("pointerup", endDrag);
+      pp.addEventListener("pointercancel", endDrag);
+    })();
+
     // Stop the migration animation when the tab is hidden so it never runs
     // unattended in a backgrounded window.
     document.addEventListener("visibilitychange", function () {
@@ -1874,6 +1899,7 @@
   }
 
   async function renderRangeMap() {
+    if (!animateAll) invalidateAnimation();   // a fresh single-week render makes any precomputed animation stale
     var key = document.getElementById("species-search").dataset.selectedKey;
     updateRangeSpecies();
     if (!key || !labelsByKey[key]) return;
@@ -1980,6 +2006,7 @@
   var RICHNESS_THRESHOLD = 0.05;
 
   async function renderRichness() {
+    if (!animateAll) invalidateAnimation();   // a fresh single-week render makes any precomputed animation stale
     if (rendering) { renderGeneration++; return; }
     var gen = ++renderGeneration;
     var selectedWeek = +document.getElementById("week-select").value;
@@ -2959,8 +2986,9 @@
     // animation playback (it refreshes when the animation stops).
     if (animating) return;
     if (currentMode === "range") {
-      lastCsvData = buildRangeMapCsv();
-      if (lastCsvData) showCsvBtn(); else hideCsvBtn();
+      // Species Range has no under-map CSV download (per design); the data is
+      // explorable via the species list / timeline instead.
+      hideCsvBtn();
     } else if (currentMode === "richness") {
       lastCsvData = buildRichnessCsv();
       if (lastCsvData) showCsvBtn(); else hideCsvBtn();
@@ -3001,7 +3029,41 @@
     animateAll = false;
     if (animTimer) { clearTimeout(animTimer); animTimer = null; }
     setPlayBtn(false);
+    // Keep the (now paused) bar visible for scrubbing when a full 48-week
+    // animation is cached; otherwise hide it.
+    if (!animReady) showPlayProgress(false);
+  }
+
+  // Discard a precomputed animation — called whenever a fresh single-week
+  // render supersedes it (pan/zoom, species/mode/group change) — and hide the
+  // progress bar.
+  function invalidateAnimation() {
+    if (animating) {
+      animating = false;
+      if (animTimer) { clearTimeout(animTimer); animTimer = null; }
+      setPlayBtn(false);
+    }
+    animReady = false;
     showPlayProgress(false);
+  }
+
+  // Map a pointer x-coordinate on the progress bar to a week (1–48) and show
+  // that week's cached frame, so the user can scrub to find a date.
+  function scrubToWeek(clientX) {
+    var el = document.getElementById("play-progress");
+    if (!el) return;
+    var r = el.getBoundingClientRect();
+    var frac = (clientX - r.left) / r.width;
+    frac = Math.max(0, Math.min(0.999999, frac));
+    var week = Math.floor(frac * 48) + 1;
+    updatePlayProgress(week);
+    var wsel = document.getElementById("week-select");
+    if (+wsel.value === week) return;
+    wsel.value = week;
+    window.GeoState.save({ week: week });
+    if (currentMode === "range" || currentMode === "richness") showCachedWeek();
+    rerenderPointList();
+    updateLegend();
   }
 
   async function toggleAnimation() {
@@ -3020,6 +3082,7 @@
     else await renderRangeMap();
     animateAll = false;
     if (!animating) return;
+    animReady = true;   // full 48-week set cached → bar stays scrubbable after playback
 
     // Step through cached weeks.
     var wsel = document.getElementById("week-select");

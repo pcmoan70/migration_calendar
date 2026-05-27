@@ -17,29 +17,29 @@ window.GeoI18N = (function () {
   // Offered languages. `code` is used for both UI strings and the localStorage
   // value; `taxCol` is the taxonomy.csv column for that language's common name.
   var LANGS = [
-    { code: "en",    name: "English",     taxCol: "com_name" },
-    { code: "sv",    name: "Svenska",     taxCol: "common_name_sv" },
-    { code: "de",    name: "Deutsch",     taxCol: "common_name_de" },
-    { code: "es",    name: "Español",     taxCol: "common_name_es" },
-    { code: "fr",    name: "Français",    taxCol: "common_name_fr" },
-    { code: "nl",    name: "Nederlands",  taxCol: "common_name_nl" },
+    { code: "en", full: true,    name: "English",     taxCol: "com_name" },
+    { code: "sv", full: true,    name: "Svenska",     taxCol: "common_name_sv" },
+    { code: "de", full: true,    name: "Deutsch",     taxCol: "common_name_de" },
+    { code: "es", full: true,    name: "Español",     taxCol: "common_name_es" },
+    { code: "fr", full: true,    name: "Français",    taxCol: "common_name_fr" },
+    { code: "nl", full: true,    name: "Nederlands",  taxCol: "common_name_nl" },
     // Italian has no common-name column in taxonomy.csv, so species names fall
     // back to (bracketed) English; the UI documentation is translated below.
     { code: "it",    name: "Italiano",    taxCol: "common_name_it" },
     { code: "pt",    name: "Português",   taxCol: "common_name_pt" },
-    { code: "pl",    name: "Polski",      taxCol: "common_name_pl" },
-    { code: "cs",    name: "Čeština",     taxCol: "common_name_cs" },
+    { code: "pl", full: true,    name: "Polski",      taxCol: "common_name_pl" },
+    { code: "cs", full: true,    name: "Čeština",     taxCol: "common_name_cs" },
     { code: "sk",    name: "Slovenčina",  taxCol: "common_name_sk" },
     { code: "hr",    name: "Hrvatski",    taxCol: "common_name_hr" },
     { code: "sr",    name: "Српски",      taxCol: "common_name_sr" },
     { code: "bg",    name: "Български",   taxCol: "common_name_bg" },
     { code: "uk",    name: "Українська",  taxCol: "common_name_uk" },
     { code: "ru",    name: "Русский",     taxCol: "common_name_ru" },
-    { code: "no",    name: "Norsk",       taxCol: "common_name_no" },
+    { code: "no", full: true,    name: "Norsk",       taxCol: "common_name_no" },
     { code: "da",    name: "Dansk",       taxCol: "common_name_da" },
-    { code: "fi",    name: "Suomi",       taxCol: "common_name_fi" },
-    { code: "et",    name: "Eesti",       taxCol: "common_name_et" },
-    { code: "lt",    name: "Lietuvių",    taxCol: "common_name_lt" },
+    { code: "fi", full: true,    name: "Suomi",       taxCol: "common_name_fi" },
+    { code: "et", full: true,    name: "Eesti",       taxCol: "common_name_et" },
+    { code: "lt", full: true,    name: "Lietuvių",    taxCol: "common_name_lt" },
     { code: "ca",    name: "Català",      taxCol: "common_name_ca" },
     { code: "tr",    name: "Türkçe",      taxCol: "common_name_tr" },
     { code: "cy",    name: "Cymraeg",     taxCol: "common_name_cy" },
@@ -59,6 +59,11 @@ window.GeoI18N = (function () {
     nl: ["jan","feb","mrt","apr","mei","jun","jul","aug","sep","okt","nov","dec"],
     no: ["jan.","feb.","mars","apr.","mai","juni","juli","aug.","sep.","okt.","nov.","des."],
     it: ["gen","feb","mar","apr","mag","giu","lug","ago","set","ott","nov","dic"],
+    pl: ["sty","lut","mar","kwi","maj","cze","lip","sie","wrz","paź","lis","gru"],
+    cs: ["led","úno","bře","dub","kvě","čer","čvc","srp","zář","říj","lis","pro"],
+    et: ["jaan","veebr","märts","apr","mai","juuni","juuli","aug","sept","okt","nov","dets"],
+    lt: ["saus.","vas.","kov.","bal.","geg.","birž.","liep.","rugp.","rugs.","spal.","lapkr.","gruod."],
+    fi: ["tammi","helmi","maalis","huhti","touko","kesä","heinä","elo","syys","loka","marras","joulu"],
   };
   var PERIODS = {
     en: ["early", "mid", "late", "late"],
@@ -69,6 +74,11 @@ window.GeoI18N = (function () {
     nl: ["begin", "half", "eind", "eind"],
     no: ["begynnelsen av", "midten av", "slutten av", "slutten av"],
     it: ["inizio", "metà", "fine", "fine"],
+    pl: ["początek", "połowa", "koniec", "koniec"],
+    cs: ["začátkem", "v polovině", "koncem", "koncem"],
+    et: ["alguses", "keskel", "lõpus", "lõpus"],
+    lt: ["pradžia", "vidurys", "pabaiga", "pabaiga"],
+    fi: ["alku", "keski", "loppu", "loppu"],
   };
 
   // {key} placeholders are filled by GeoI18N.t(key, vars).
@@ -1464,6 +1474,876 @@ window.GeoI18N = (function () {
         "<h4>Progetto e feedback</h4>" +
         "<p>Questo strumento è gratuito e i feedback sono benvenuti all'indirizzo <a href=\"mailto:vesmir09@gmail.com\">vesmir09@gmail.com</a>. È in fase di sviluppo un modello di habitat specifico per la Norvegia, che mira a usare dati norvegesi più ricchi rispetto ai dati di Google Earth Engine usati nel modello attuale. L'obiettivo del modello di habitat è un'app migliorata per il riconoscimento del canto degli uccelli (A!Birder) (in sviluppo). Questa pagina è pensata per un facile controllo qualità di quel modello.</p>" +
         "<p class=\"about-note\">Le previsioni sono stime del modello, non verità assoluta. Pesi del modello © il team BirdNET, con licenza CC BY-SA 4.0; tessere della mappa © contributori OpenStreetMap, © CARTO.</p>",
+    },
+    pl: {
+      "app.title": "Gatunki i listy obserwacji",
+      "app.loading": "Wczytywanie modelu, etykiet i nazw gatunków…",
+      "app.failed": "Nie udało się wczytać: {msg}",
+      "ctrl.language": "Język",
+      "ctrl.settings": "Ustawienia",
+      "ctrl.about": "O aplikacji i jak działa",
+      "ctrl.mode": "Tryb",
+      "ctrl.group": "Grupa gatunków",
+      "group.all": "Wszystkie grupy",
+      "group.aves": "Ptaki",
+      "group.mammalia": "Ssaki",
+      "group.amphibia": "Płazy",
+      "group.insecta": "Owady",
+      "mode.range": "Zasięg gatunku",
+      "mode.richness": "Bogactwo gatunkowe",
+      "mode.list": "📍 Lista gatunków",
+      "mode.field": "📍 Lista terenowa",
+      "btn.clear": "Wyczyść",
+      "act.heard": "Słyszane",
+      "act.flying": "W locie",
+      "act.feeding": "Żerujące",
+      "act.resting": "Odpoczywające",
+      "act.breeding": "Lęgowe",
+      "mode.barchart": "📍 Migracja",
+      "ctrl.species": "Gatunek",
+      "ph.species": "Szukaj gatunku…",
+      "ctrl.week": "Tydzień",
+      "ctrl.bcthreshold": "Zakres prawdopodobieństwa",
+      "ctrl.compare": "Porównaj z",
+      "compare.none": "— brak —",
+      "compare.prev": "Poprzedni tydzień",
+      "compare.next": "Następny tydzień",
+      "compare.mean": "Średnia roczna",
+      "compare.max": "Maksimum roczne",
+      "compare.annualtop": "Szczyt roczny",
+      "ctrl.secondlang": "Druga nazwa",
+      "ctrl.savedloc": "Zapisane lokalizacje",
+      "ph.savedloc": "Brak zapisanych lokalizacji",
+      "loc.delete": "Usuń lokalizację",
+      "ctrl.hidden": "Ukryte gatunki",
+      "loc.unhide": "Pokaż ponownie",
+      "menu.filter": "Filtruj",
+      "menu.hide": "Nie pokazuj",
+      "menu.wiki": "Wikipedia",
+      "menu.birdlife": "BirdLife",
+      "menu.macaulay": "Macaulay Library",
+      "menu.xeno": "Xeno-canto (audio)",
+      "menu.recent": "Najnowsze obserwacje",
+      "recent.none": "Nie znaleziono w pobliżu najnowszych obserwacji.",
+      "recent.viewall": "Zobacz wszystkie na iNaturalist",
+      "menu.distmap": "Mapa rozmieszczenia",
+      "distmap.none": "Nie znaleziono mapy rozmieszczenia. Otwórz stronę Wikipedii:",
+      "distmap.download": "Otwórz pełny obraz",
+      "btn.saveloc": "★ Zapisz",
+      "btn.csv": "⬇ CSV",
+      "btn.play": "▶ Odtwórz migrację",
+      "btn.pause": "⏸ Pauza",
+      "btn.newchecklist": "⭳ Zapisz",
+      "btn.checklist": "✓ Lista obserwacji",
+      "btn.print": "🖨 Drukuj",
+      "btn.close": "Zamknij",
+      "btn.delete": "Usuń",
+      "ctrl.checklists": "Lista obserwacji",
+      "chk.namePrompt": "Nazwij tę listę obserwacji:",
+      "chk.createNew": "Utwórz nową",
+      "chk.all": "Wszystkie",
+      "chk.seen": "Widziane",
+      "chk.missing": "Brakujące",
+      "chk.count": "Liczba",
+      "chk.activity": "Aktywność",
+      "chk.note": "Uwaga: prawdopodobieństwa i inne wartości na tej liście pochodzą z modelu AI i stanowią jedynie przybliżenie gatunków, które prawdopodobnie występują w tym miejscu — nie są to potwierdzone obserwacje. Wiarygodne źródło informacji o gatunkach znajdziesz na <a href=\"https://www.avilist.org\">avilist.org</a>.",
+      "status.buildingChecklist": "Tworzenie listy obserwacji…",
+      "th.change": "Zmiana (Δ)",
+      "th.locality": "Miejscowość",
+      "th.notes": "Notatki",
+      "panel.spTitle": "Gatunki w lokalizacji",
+      "panel.bcTitle": "Analiza lokalizacji",
+      "tab.timeline": "Oś czasu",
+      "tab.prob": "Prawdopodobieństwo",
+      "tab.arrival": "Przyloty",
+      "tab.focus": "Szczyt roczny",
+      "tab.scatter": "Wykres punktowy",
+      "analysis.empty": "Brak gatunków powyżej progu.",
+      "ctrl.filter": "Filtruj gatunki",
+      "place.nearby": "Pobliskie miejsca",
+      "place.none": "Brak nazwanych miejsc w pobliżu.",
+      "ph.fieldtitle": "Nazwa lokalizacji",
+      "ph.filter": "Filtruj gatunki…",
+      "ctrl.topN": "Top N",
+      "ctrl.rankby": "Sortuj według",
+      "rank.arrival": "Przyloty",
+      "rank.prob": "Prawdopodobieństwo",
+      "rank.both": "Oba",
+      "ctrl.locate": "Przejdź do mojej lokalizacji",
+      "status.locateError": "Nie udało się ustalić Twojej lokalizacji.",
+      "status.offline": "Offline — używane dane z pamięci podręcznej",
+      "ctrl.basemap": "Mapa podkładowa",
+      "ctrl.hires": "Rozdzielczość",
+      "popup.title": "Rozmieszczenie gatunków i listy obserwacji",
+      "popup.perf": "Zasięg gatunku, Bogactwo gatunkowe oraz ▶ Odtwórz migrację obliczają model w wielu komórkach mapy, dlatego do płynnego działania zalecany jest nowoczesny komputer z szybkim procesorem.",
+      "popup.ok": "OK",
+      "basemap.dark": "Ciemna",
+      "basemap.light": "Jasna",
+      "basemap.streets": "Ulice",
+      "basemap.topo": "Topograficzna",
+      "basemap.satellite": "Satelitarna",
+      "scatter.xAxis": "Przylot (bieżący tydzień)",
+      "scatter.yAxis": "Prawdopodobieństwo (bieżący tydzień)",
+      "th.rank": "#",
+      "th.species": "Gatunek",
+      "th.sci": "Nazwa naukowa",
+      "th.prob": "Prawdopodobieństwo",
+      "th.arrival": "Przylot",
+      "th.delta": "Δ wzgl. {ref}",
+      "th.ratio": "% z {ref}",
+      "legend.prob": "Prawdopodobieństwo wystąpienia",
+      "legend.count": "Przewidywana liczba gatunków",
+      "status.selectSpecies": "Wybierz gatunek, aby zobaczyć jego przewidywaną mapę zasięgu.",
+      "status.loadingModel": "Wczytywanie modelu ONNX…",
+      "status.computing": "Obliczanie {name} – {week} · {n} nowych komórek [{i}/{total}]…",
+      "status.rangeDone": "{name} – {week} · {n} komórek ({step}°)",
+      "status.rangeCached": "{name} – {week} · {n} komórek ({step}°) [z pamięci podręcznej]",
+      "status.richnessDone": "Bogactwo gatunkowe – {week} · {n} komórek ({step}°)",
+      "status.richnessCached": "Bogactwo gatunkowe – {week} · {n} komórek ({step}°) [z pamięci podręcznej]",
+      "status.predicting": "Przewidywanie gatunków w ({lat}, {lon}) tydzień {week}…",
+      "status.predicting48": "Przewidywanie 48 tygodni w ({lat}, {lon})…",
+      "status.spResult": "{n} gatunków powyżej {p}% w ({lat}, {lon})",
+      "status.error": "Błąd: {msg}",
+      "sp.summary": "{lat}°, {lon}° · Tydzień {week} · {n} gatunków powyżej {p}%",
+      "bc.summary": "{lat}°, {lon}° · {n} gatunków powyżej {p}% śr. · znormalizowane do {max}%",
+      "bc.avg": "{p}% śr.",
+      "bc.max": "{p}% maks.",
+      "week.fmt": "Tydzień {w} ({period} {month})",
+      "loc.savePrompt": "Nazwij tę lokalizację:",
+      "loc.defaultName": "{lat}, {lon}",
+      "footer.attrib": "Model: BirdNET Geomodel (wagi CC BY-SA 4.0). Kod aplikacji MIT. Przewidywania są szacunkami — nie stanem faktycznym.",
+      "footer.lastchange": "Ostatnia zmiana: {t}",
+      "about.title": "ℹ︎ O modelu i jak obliczane są wartości",
+      "about.html":
+        "<h4>Model siedliskowy</h4>" +
+        "<p>To narzędzie uruchamia <a href=\"https://github.com/birdnet-team/geomodel\" target=\"_blank\" rel=\"noopener\">BirdNET Geomodel</a> — czasoprzestrzenną sieć neuronową — w całości w Twojej przeglądarce za pomocą ONNX Runtime Web. Na podstawie <b>szerokości geograficznej</b>, <b>długości geograficznej</b> i <b>tygodnia roku</b> (1–48; model dzieli rok na 48 tygodni po około 7,6 dnia) przewiduje <b>prawdopodobieństwo wystąpienia</b> (0–100%) dla każdego z 12 012 gatunków ptaków, ssaków, płazów i owadów. Prawdopodobieństwo odzwierciedla, jak prawdopodobne jest, że dany gatunek występuje w tym miejscu o tej porze roku, co zostało wyuczone na podstawie globalnych zapisów występowania i zmiennych środowiskowych. Jest to szacunek modelu — nie liczba obserwacji ani gwarancja.</p>" +
+        "<h4>Widoki mapy</h4>" +
+        "<ul>" +
+        "<li><b>Zasięg gatunku</b> — prawdopodobieństwo wystąpienia jednego wybranego gatunku na mapie dla wybranego tygodnia.</li>" +
+        "<li><b>Bogactwo gatunkowe</b> — liczba gatunków, których prawdopodobieństwo wynosi co najmniej 5% w każdej komórce siatki, ograniczona do wybranej grupy gatunków. ▶ Odtwórz migrację animuje mapę tydzień po tygodniu.</li>" +
+        "</ul>" +
+        "<p>Mapa jest obliczana na siatce komórek (szerokich na 3° przy oddaleniu, do 0,25° przy przybliżeniu) i rysowana z dwuliniowym wygładzaniem, dzięki czemu kolory płynnie przechodzą między środkami komórek zamiast tworzyć ostre bloki. <b>Uwaga:</b> Zasięg gatunku, Bogactwo gatunkowe oraz ▶ Odtwórz migrację obliczają model w wielu komórkach mapy, dlatego do płynnego działania zalecany jest nowoczesny komputer z szybkim procesorem.</p>" +
+        "<h4>Analiza lokalizacji (kliknij mapę)</h4>" +
+        "<ul>" +
+        "<li><b>Oś czasu</b> — prawdopodobieństwo każdego gatunku we wszystkich 48 tygodniach.</li>" +
+        "<li><b>Prawdopodobieństwo</b> — mapa cieplna gatunek × tydzień (czerwony = niskie, zielony = wysokie), rozciągnięta na wartości aktualnie widoczne na ekranie.</li>" +
+        "<li><b>Przyloty</b> — dla każdego gatunku i tygodnia wskaźnik przylotu <code>(P[następny tydzień] − P[poprzedni tydzień]) ÷ max</code>, gdzie <code>max</code> to najwyższe tygodniowe prawdopodobieństwo danego gatunku w ciągu roku. Zielony = prawdopodobieństwo rośnie (przylot), czerwony = maleje (odlot); tygodnie zawijają się na granicy roku (1 ↔ 48).</li>" +
+        "<li><b>Szczyt roczny</b> — narastająca (skumulowana) suma tygodniowych wskaźników przylotu, przeskalowana do 0–100 (minimum roku = 0, szczyt = 100). Wyróżnia część roku, w której gatunek jest najbardziej obecny.</li>" +
+        "<li><b>Wykres punktowy</b> — wskaźnik przylotu w bieżącym tygodniu (oś X) względem prawdopodobieństwa (oś Y) dla najważniejszych gatunków, z sortowalną tabelą poniżej.</li>" +
+        "</ul>" +
+        "<h4>Lista gatunków — kolumna „Porównaj z”</h4>" +
+        "<ul>" +
+        "<li><b>Poprzedni / Następny tydzień</b> oraz <b>Średnia roczna</b> pokazują zmianę Δ = bieżące prawdopodobieństwo − wartość porównawcza.</li>" +
+        "<li><b>Maksimum roczne</b> pokazuje bieżący tydzień jako ułamek rocznego szczytu gatunku: <code>bieżące ÷ max w ciągu roku</code>. 100% oznacza, że wybrany tydzień jest najlepszym tygodniem danego gatunku.</li>" +
+        "</ul>" +
+        "<h4>Technologia</h4>" +
+        "<p>Model AI działa <b>w całości w Twojej przeglądarce</b> — nie ma serwera, a Twoja lokalizacja nigdy nie jest nigdzie wysyłana. Sieć neuronowa jest pobierana jednorazowo (~7 MB), a wszystkie przewidywania są obliczane na Twoim własnym urządzeniu. Zbudowane przy użyciu:</p>" +
+        "<ul>" +
+        "<li><b>ONNX Runtime Web</b> (WebAssembly) — uruchamia sieć neuronową w przeglądarce.</li>" +
+        "<li><b>Web Workers</b> — wnioskowanie działa poza głównym wątkiem, więc interfejs pozostaje responsywny.</li>" +
+        "<li><b>BirdNET Geomodel</b> — wytrenowany model, wyeksportowany do ONNX (FP16, ~7 MB).</li>" +
+        "<li><b>Leaflet</b> z kafelkami OpenStreetMap / CARTO — interaktywna mapa.</li>" +
+        "<li><b>Czysty HTML, CSS i JavaScript</b> — bez frameworka i bez etapu budowania; serwowane jako strona statyczna (GitHub Pages).</li>" +
+        "</ul>" +
+        "<h4>Projekt &amp; opinie</h4>" +
+        "<p>To narzędzie jest darmowe, a opinie są mile widziane pod adresem <a href=\"mailto:vesmir09@gmail.com\">vesmir09@gmail.com</a>. Trwają prace nad modelem siedliskowym dedykowanym Norwegii, którego celem jest wykorzystanie bogatszych norweskich danych niż dane z Google Earth Engine używane w obecnym modelu. Celem modelu siedliskowego jest ulepszona aplikacja do rozpoznawania śpiewu ptaków (A!Birder) (w trakcie tworzenia). Ta strona powstała w celu łatwej kontroli jakości tego modelu.</p>" +
+        "<p class=\"about-note\">Przewidywania są szacunkami modelu, nie stanem faktycznym. Wagi modelu © zespół BirdNET, na licencji CC BY-SA 4.0; kafelki mapy © współtwórcy OpenStreetMap, © CARTO.</p>",
+    },
+    cs: {
+      "app.title": "Druhy a kontrolní seznamy",
+      "app.loading": "Načítání modelu, štítků a názvů druhů…",
+      "app.failed": "Načtení selhalo: {msg}",
+      "ctrl.language": "Jazyk",
+      "ctrl.settings": "Nastavení",
+      "ctrl.about": "O aplikaci a jak funguje",
+      "ctrl.mode": "Režim",
+      "ctrl.group": "Skupina druhů",
+      "group.all": "Všechny skupiny",
+      "group.aves": "Ptáci",
+      "group.mammalia": "Savci",
+      "group.amphibia": "Obojživelníci",
+      "group.insecta": "Hmyz",
+      "mode.range": "Areál druhu",
+      "mode.richness": "Druhová bohatost",
+      "mode.list": "📍 Seznam druhů",
+      "mode.field": "📍 Terénní seznam",
+      "btn.clear": "Vymazat",
+      "act.heard": "Slyšeno",
+      "act.flying": "Letící",
+      "act.feeding": "Krmení",
+      "act.resting": "Odpočívající",
+      "act.breeding": "Hnízdění",
+      "mode.barchart": "📍 Migrace",
+      "ctrl.species": "Druh",
+      "ph.species": "Hledat druh…",
+      "ctrl.week": "Týden",
+      "ctrl.bcthreshold": "Rozsah pravděpodobnosti",
+      "ctrl.compare": "Porovnat s",
+      "compare.none": "— žádné —",
+      "compare.prev": "Předchozí týden",
+      "compare.next": "Následující týden",
+      "compare.mean": "Roční průměr",
+      "compare.max": "Roční maximum",
+      "compare.annualtop": "Roční vrchol",
+      "ctrl.secondlang": "2. název",
+      "ctrl.savedloc": "Uložená místa",
+      "ph.savedloc": "Zatím žádná uložená místa",
+      "loc.delete": "Smazat místo",
+      "ctrl.hidden": "Skryté druhy",
+      "loc.unhide": "Zobrazit znovu",
+      "menu.filter": "Filtrovat",
+      "menu.hide": "Nezobrazovat",
+      "menu.wiki": "Wikipedia",
+      "menu.birdlife": "BirdLife",
+      "menu.macaulay": "Macaulay Library",
+      "menu.xeno": "Xeno-canto (zvuk)",
+      "menu.recent": "Nedávná pozorování",
+      "recent.none": "V okolí nebyla nalezena žádná nedávná pozorování.",
+      "recent.viewall": "Zobrazit vše na iNaturalist",
+      "menu.distmap": "Mapa rozšíření",
+      "distmap.none": "Nebyla nalezena žádná mapa rozšíření. Otevřete stránku na Wikipedia:",
+      "distmap.download": "Otevřít celý obrázek",
+      "btn.saveloc": "★ Uložit",
+      "btn.csv": "⬇ CSV",
+      "btn.play": "▶ Přehrát migraci",
+      "btn.pause": "⏸ Pozastavit",
+      "btn.newchecklist": "⭳ Uložit",
+      "btn.checklist": "✓ Seznam",
+      "btn.print": "🖨 Tisk",
+      "btn.close": "Zavřít",
+      "btn.delete": "Smazat",
+      "ctrl.checklists": "Kontrolní seznam",
+      "chk.namePrompt": "Pojmenujte tento kontrolní seznam:",
+      "chk.createNew": "Vytvořit nový",
+      "chk.all": "Vše",
+      "chk.seen": "Viděno",
+      "chk.missing": "Chybí",
+      "chk.count": "Počet",
+      "chk.activity": "Aktivita",
+      "chk.note": "Pozn.: Pravděpodobnosti a další hodnoty v tomto kontrolním seznamu jsou odvozeny z modelu umělé inteligence a představují pouze přibližný odhad druhů, které se na tomto místě pravděpodobně vyskytují — nejedná se o potvrzená pozorování. Autoritativní přehled druhů najdete na <a href=\"https://www.avilist.org\">avilist.org</a>.",
+      "status.buildingChecklist": "Sestavování kontrolního seznamu…",
+      "th.change": "Změna (Δ)",
+      "th.locality": "Lokalita",
+      "th.notes": "Poznámky",
+      "panel.spTitle": "Druhy na místě",
+      "panel.bcTitle": "Analýza místa",
+      "tab.timeline": "Časová osa",
+      "tab.prob": "Pravděpodobnost",
+      "tab.arrival": "Přílety",
+      "tab.focus": "Roční vrchol",
+      "tab.scatter": "Bodový graf",
+      "analysis.empty": "Žádné druhy nad prahem.",
+      "ctrl.filter": "Filtrovat druhy",
+      "place.nearby": "Místa v okolí",
+      "place.none": "V okolí nejsou žádná pojmenovaná místa.",
+      "ph.fieldtitle": "Název místa",
+      "ph.filter": "Filtrovat druhy…",
+      "ctrl.topN": "Nejlepších N",
+      "ctrl.rankby": "Řadit podle",
+      "rank.arrival": "Přílety",
+      "rank.prob": "Pravděpodobnost",
+      "rank.both": "Obojí",
+      "ctrl.locate": "Přejít na mou polohu",
+      "status.locateError": "Nepodařilo se získat vaši polohu.",
+      "status.offline": "Offline — používají se data z mezipaměti",
+      "ctrl.basemap": "Podkladová mapa",
+      "ctrl.hires": "Rozlišení",
+      "popup.title": "Rozšíření druhů a kontrolní seznamy",
+      "popup.perf": "Areál druhu, Druhová bohatost a ▶ Přehrát migraci vyhodnocují model napříč mnoha buňkami mapy, proto se pro plynulý chod doporučuje moderní počítač s rychlým procesorem.",
+      "popup.ok": "OK",
+      "basemap.dark": "Tmavá",
+      "basemap.light": "Světlá",
+      "basemap.streets": "Ulice",
+      "basemap.topo": "Topografická",
+      "basemap.satellite": "Satelitní",
+      "scatter.xAxis": "Přílet (aktuální týden)",
+      "scatter.yAxis": "Pravděpodobnost (aktuální týden)",
+      "th.rank": "#",
+      "th.species": "Druh",
+      "th.sci": "Vědecký název",
+      "th.prob": "Pravděpodobnost",
+      "th.arrival": "Přílet",
+      "th.delta": "Δ vůči {ref}",
+      "th.ratio": "% z {ref}",
+      "legend.prob": "Pravděpodobnost výskytu",
+      "legend.count": "Předpokládaný počet druhů",
+      "status.selectSpecies": "Vyberte druh pro zobrazení jeho předpovězené mapy areálu.",
+      "status.loadingModel": "Načítání modelu ONNX…",
+      "status.computing": "Výpočet {name} – {week} · {n} nových buněk [{i}/{total}]…",
+      "status.rangeDone": "{name} – {week} · {n} buněk ({step}°)",
+      "status.rangeCached": "{name} – {week} · {n} buněk ({step}°) [z mezipaměti]",
+      "status.richnessDone": "Druhová bohatost – {week} · {n} buněk ({step}°)",
+      "status.richnessCached": "Druhová bohatost – {week} · {n} buněk ({step}°) [z mezipaměti]",
+      "status.predicting": "Předpověď druhů na ({lat}, {lon}) týden {week}…",
+      "status.predicting48": "Předpověď 48 týdnů na ({lat}, {lon})…",
+      "status.spResult": "{n} druhů nad {p}% na ({lat}, {lon})",
+      "status.error": "Chyba: {msg}",
+      "sp.summary": "{lat}°, {lon}° · Týden {week} · {n} druhů nad {p}%",
+      "bc.summary": "{lat}°, {lon}° · {n} druhů nad {p}% prům. · normalizováno na {max}%",
+      "bc.avg": "{p}% prům.",
+      "bc.max": "{p}% max.",
+      "week.fmt": "Týden {w} ({period} {month})",
+      "loc.savePrompt": "Pojmenujte toto místo:",
+      "loc.defaultName": "{lat}, {lon}",
+      "footer.attrib": "Model: BirdNET Geomodel (váhy CC BY-SA 4.0). Kód aplikace MIT. Předpovědi jsou odhady — nikoli skutečnost.",
+      "footer.lastchange": "Poslední změna: {t}",
+      "about.title": "ℹ︎ O modelu a jak se hodnoty počítají",
+      "about.html":
+        "<h4>Model prostředí</h4>" +
+        "<p>Tento nástroj spouští <a href=\"https://github.com/birdnet-team/geomodel\" target=\"_blank\" rel=\"noopener\">BirdNET Geomodel</a> — prostorově-časovou neuronovou síť — zcela ve vašem prohlížeči prostřednictvím ONNX Runtime Web. Z <b>zeměpisné šířky</b>, <b>zeměpisné délky</b> a <b>týdne v roce</b> (1–48; model dělí rok na 48 týdnů po přibližně 7,6 dnech) předpovídá <b>pravděpodobnost výskytu</b> (0–100 %) pro každý z 12 012 druhů ptáků, savců, obojživelníků a hmyzu. Pravděpodobnost vyjadřuje, jak je pravděpodobné, že se druh na daném místě v dané roční době vyskytuje, a byla naučena z celosvětových záznamů o výskytu a environmentálních proměnných. Jedná se o modelovaný odhad — nikoli o počet pozorování ani záruku.</p>" +
+        "<h4>Zobrazení mapy</h4>" +
+        "<ul>" +
+        "<li><b>Areál druhu</b> — pravděpodobnost jednoho vybraného druhu napříč mapou pro zvolený týden.</li>" +
+        "<li><b>Druhová bohatost</b> — počet druhů, jejichž pravděpodobnost je v každé buňce mřížky alespoň 5 %, omezený na zvolenou skupinu druhů. ▶ Přehrát migraci animuje mapu týden po týdnu.</li>" +
+        "</ul>" +
+        "<p>Mapa se vyhodnocuje na mřížce buněk (3° široké při oddálení, až po 0,25° při přiblížení) a vykresluje se s bilineárním vyhlazením, takže barvy plynule přecházejí mezi středy buněk místo tvoření ostrých bloků. <b>Poznámka:</b> Areál druhu, Druhová bohatost a ▶ Přehrát migraci vyhodnocují model napříč mnoha buňkami mapy, proto se pro plynulý chod doporučuje moderní počítač s rychlým procesorem.</p>" +
+        "<h4>Analýza místa (klikněte do mapy)</h4>" +
+        "<ul>" +
+        "<li><b>Časová osa</b> — pravděpodobnost každého druhu napříč všemi 48 týdny.</li>" +
+        "<li><b>Pravděpodobnost</b> — teplotní mapa druh × týden (červená = nízká, zelená = vysoká), roztažená přes hodnoty aktuálně na obrazovce.</li>" +
+        "<li><b>Přílety</b> — pro každý druh a týden skóre příletu <code>(P[následující týden] − P[předchozí týden]) ÷ max</code>, kde <code>max</code> je nejvyšší týdenní pravděpodobnost daného druhu za rok. Zelená = rostoucí pravděpodobnost (přílet), červená = klesající (odlet); týdny se přetáčejí přes hranici roku (1 ↔ 48).</li>" +
+        "<li><b>Roční vrchol</b> — průběžný (kumulativní) součet týdenních skóre příletů, přeškálovaný na 0–100 (roční minimum = 0, vrchol = 100). Zvýrazňuje období roku, kdy je druh nejvíce přítomen.</li>" +
+        "<li><b>Bodový graf</b> — skóre příletu aktuálního týdne (osa x) oproti pravděpodobnosti (osa y) pro nejlepší druhy, s tříditelnou tabulkou níže.</li>" +
+        "</ul>" +
+        "<h4>Seznam druhů — sloupec „Porovnat s“</h4>" +
+        "<ul>" +
+        "<li><b>Předchozí / Následující týden</b> a <b>Roční průměr</b> zobrazují změnu Δ = aktuální pravděpodobnost − porovnávaná hodnota.</li>" +
+        "<li><b>Roční maximum</b> zobrazuje aktuální týden jako podíl ročního vrcholu druhu: <code>aktuální ÷ max za rok</code>. 100 % znamená, že zvolený týden je nejlepším týdnem daného druhu.</li>" +
+        "</ul>" +
+        "<h4>Technologie</h4>" +
+        "<p>Model umělé inteligence běží <b>zcela ve vašem webovém prohlížeči</b> — neexistuje žádný server a vaše poloha se nikam neodesílá. Neuronová síť se stáhne jednou (~7 MB) a všechny předpovědi se počítají na vašem vlastním zařízení. Vytvořeno pomocí:</p>" +
+        "<ul>" +
+        "<li><b>ONNX Runtime Web</b> (WebAssembly) — spouští neuronovou síť v prohlížeči.</li>" +
+        "<li><b>Web Workers</b> — inference běží mimo hlavní vlákno, takže rozhraní zůstává responzivní.</li>" +
+        "<li><b>BirdNET Geomodel</b> — natrénovaný model, exportovaný do ONNX (FP16, ~7 MB).</li>" +
+        "<li><b>Leaflet</b> s dlaždicemi OpenStreetMap / CARTO — interaktivní mapa.</li>" +
+        "<li><b>Čisté HTML, CSS a JavaScript</b> — bez frameworku a bez build kroku; servírováno jako statický web (GitHub Pages).</li>" +
+        "</ul>" +
+        "<h4>Projekt &amp; zpětná vazba</h4>" +
+        "<p>Tento nástroj je zdarma k použití a zpětnou vazbu uvítáme na <a href=\"mailto:vesmir09@gmail.com\">vesmir09@gmail.com</a>. Vyvíjí se model prostředí specifický pro Norsko, jehož cílem je využít bohatší norská data než data z Google Earth Engine použitá v současném modelu. Cílem modelu prostředí je vylepšená aplikace pro detekci ptačího zpěvu (A!Birder) (ve vývoji). Tato stránka je vytvořena pro snadnou kontrolu kvality tohoto modelu.</p>" +
+        "<p class=\"about-note\">Předpovědi jsou odhady modelu, nikoli skutečnost. Váhy modelu © tým BirdNET, licencováno CC BY-SA 4.0; mapové dlaždice © přispěvatelé OpenStreetMap, © CARTO.</p>",
+    },
+    et: {
+      "app.title": "Liigid ja kontroll-loendid",
+      "app.loading": "Mudeli, siltide ja liiginimede laadimine…",
+      "app.failed": "Laadimine ebaõnnestus: {msg}",
+      "ctrl.language": "Keel",
+      "ctrl.settings": "Seaded",
+      "ctrl.about": "Teave ja kuidas see töötab",
+      "ctrl.mode": "Režiim",
+      "ctrl.group": "Liigirühm",
+      "group.all": "Kõik rühmad",
+      "group.aves": "Linnud",
+      "group.mammalia": "Imetajad",
+      "group.amphibia": "Kahepaiksed",
+      "group.insecta": "Putukad",
+      "mode.range": "Liigi levik",
+      "mode.richness": "Liigirikkus",
+      "mode.list": "📍 Liiginimekiri",
+      "mode.field": "📍 Välikontroll-loend",
+      "btn.clear": "Tühjenda",
+      "act.heard": "Kuuldud",
+      "act.flying": "Lennus",
+      "act.feeding": "Toitumas",
+      "act.resting": "Puhkamas",
+      "act.breeding": "Pesitsemas",
+      "mode.barchart": "📍 Ränne",
+      "ctrl.species": "Liik",
+      "ph.species": "Otsi liiki…",
+      "ctrl.week": "Nädal",
+      "ctrl.bcthreshold": "Tõenäosusvahemik",
+      "ctrl.compare": "Võrdle",
+      "compare.none": "— puudub —",
+      "compare.prev": "Eelmine nädal",
+      "compare.next": "Järgmine nädal",
+      "compare.mean": "Aasta keskmine",
+      "compare.max": "Aasta maksimum",
+      "compare.annualtop": "Aasta tipp",
+      "ctrl.secondlang": "2. nimi",
+      "ctrl.savedloc": "Salvestatud asukohad",
+      "ph.savedloc": "Salvestatud asukohti veel pole",
+      "loc.delete": "Kustuta asukoht",
+      "ctrl.hidden": "Peidetud liigid",
+      "loc.unhide": "Näita uuesti",
+      "menu.filter": "Filtreeri",
+      "menu.hide": "Ära näita",
+      "menu.wiki": "Wikipedia",
+      "menu.birdlife": "BirdLife",
+      "menu.macaulay": "Macaulay Library",
+      "menu.xeno": "Xeno-canto (heli)",
+      "menu.recent": "Hiljutised vaatlused",
+      "recent.none": "Läheduses ei leitud hiljutisi vaatlusi.",
+      "recent.viewall": "Vaata kõiki iNaturalistis",
+      "menu.distmap": "Levikukaart",
+      "distmap.none": "Levikukaarti ei leitud. Ava Wikipedia leht:",
+      "distmap.download": "Ava täispilt",
+      "btn.saveloc": "★ Salvesta",
+      "btn.csv": "⬇ CSV",
+      "btn.play": "▶ Esita ränne",
+      "btn.pause": "⏸ Peata",
+      "btn.newchecklist": "⭳ Salvesta",
+      "btn.checklist": "✓ Kontroll-loend",
+      "btn.print": "🖨 Prindi",
+      "btn.close": "Sulge",
+      "btn.delete": "Kustuta",
+      "ctrl.checklists": "Kontroll-loend",
+      "chk.namePrompt": "Anna sellele kontroll-loendile nimi:",
+      "chk.createNew": "Loo uus",
+      "chk.all": "Kõik",
+      "chk.seen": "Nähtud",
+      "chk.missing": "Puudub",
+      "chk.count": "Arv",
+      "chk.activity": "Tegevus",
+      "chk.note": "NB! Selle kontroll-loendi tõenäosused ja muud väärtused on tuletatud tehisintellekti mudelist ning kujutavad endast üksnes ligikaudset hinnangut selle kohta, millised liigid antud asukohas tõenäoliselt esinevad — need ei ole kinnitatud vaatlused. Usaldusväärse liigiteatmiku leiad aadressilt <a href=\"https://www.avilist.org\">avilist.org</a>.",
+      "status.buildingChecklist": "Kontroll-loendi koostamine…",
+      "th.change": "Muutus (Δ)",
+      "th.locality": "Paikkond",
+      "th.notes": "Märkused",
+      "panel.spTitle": "Liigid asukohas",
+      "panel.bcTitle": "Asukoha analüüs",
+      "tab.timeline": "Ajatelg",
+      "tab.prob": "Tõenäosus",
+      "tab.arrival": "Saabumised",
+      "tab.focus": "Aasta tipp",
+      "tab.scatter": "Hajuvus",
+      "analysis.empty": "Läve ületavaid liike pole.",
+      "ctrl.filter": "Filtreeri liike",
+      "place.nearby": "Lähedased kohad",
+      "place.none": "Läheduses pole nimega kohti.",
+      "ph.fieldtitle": "Asukoha nimi",
+      "ph.filter": "Filtreeri liike…",
+      "ctrl.topN": "Top N",
+      "ctrl.rankby": "Järjesta",
+      "rank.arrival": "Saabumised",
+      "rank.prob": "Tõenäosus",
+      "rank.both": "Mõlemad",
+      "ctrl.locate": "Mine minu asukohta",
+      "status.locateError": "Sinu asukohta ei õnnestunud hankida.",
+      "status.offline": "Võrguühenduseta — kasutatakse vahemällu salvestatud andmeid",
+      "ctrl.basemap": "Aluskaart",
+      "ctrl.hires": "Resolutsioon",
+      "popup.title": "Liikide levikud ja kontroll-loendid",
+      "popup.perf": "Liigi levik, liigirikkus ja ▶ Esita ränne hindavad mudelit paljudes kaardiruutudes, seega sujuva töö tagamiseks on soovitatav kiire protsessoriga kaasaegne arvuti.",
+      "popup.ok": "OK",
+      "basemap.dark": "Tume",
+      "basemap.light": "Hele",
+      "basemap.streets": "Tänavad",
+      "basemap.topo": "Topograafiline",
+      "basemap.satellite": "Satelliit",
+      "scatter.xAxis": "Saabumine (käesolev nädal)",
+      "scatter.yAxis": "Tõenäosus (käesolev nädal)",
+      "th.rank": "#",
+      "th.species": "Liik",
+      "th.sci": "Teaduslik nimi",
+      "th.prob": "Tõenäosus",
+      "th.arrival": "Saabumine",
+      "th.delta": "Δ vs {ref}",
+      "th.ratio": "% {ref}-st",
+      "legend.prob": "Esinemise tõenäosus",
+      "legend.count": "Prognoositud liikide arv",
+      "status.selectSpecies": "Vali liik, et näha selle prognoositud levikukaarti.",
+      "status.loadingModel": "ONNX-mudeli laadimine…",
+      "status.computing": "{name} arvutamine – {week} · {n} uut ruutu [{i}/{total}]…",
+      "status.rangeDone": "{name} – {week} · {n} ruutu ({step}°)",
+      "status.rangeCached": "{name} – {week} · {n} ruutu ({step}°) [vahemälust]",
+      "status.richnessDone": "Liigirikkus – {week} · {n} ruutu ({step}°)",
+      "status.richnessCached": "Liigirikkus – {week} · {n} ruutu ({step}°) [vahemälust]",
+      "status.predicting": "Liikide prognoosimine asukohas ({lat}, {lon}) nädalal {week}…",
+      "status.predicting48": "48 nädala prognoosimine asukohas ({lat}, {lon})…",
+      "status.spResult": "{n} liiki üle {p}% asukohas ({lat}, {lon})",
+      "status.error": "Viga: {msg}",
+      "sp.summary": "{lat}°, {lon}° · Nädal {week} · {n} liiki üle {p}%",
+      "bc.summary": "{lat}°, {lon}° · {n} liiki üle {p}% keskmise · normaliseeritud väärtusele {max}%",
+      "bc.avg": "{p}% keskm.",
+      "bc.max": "{p}% maks.",
+      "week.fmt": "Nädal {w} ({period} {month})",
+      "loc.savePrompt": "Anna sellele asukohale nimi:",
+      "loc.defaultName": "{lat}, {lon}",
+      "footer.attrib": "Mudel: BirdNET Geomodel (kaalud CC BY-SA 4.0). Rakenduse kood MIT. Prognoosid on hinnangud — mitte tegelik tõde.",
+      "footer.lastchange": "Viimane muudatus: {t}",
+      "about.title": "ℹ︎ Teave mudeli kohta ja kuidas väärtusi arvutatakse",
+      "about.html":
+        "<h4>Elupaigamudel</h4>" +
+        "<p>See tööriist käivitab <a href=\"https://github.com/birdnet-team/geomodel\" target=\"_blank\" rel=\"noopener\">BirdNET Geomodel</a> — ruumilis-ajalise närvivõrgu — täielikult sinu brauseris ONNX Runtime Web abil. <b>Laiuskraadi</b>, <b>pikkuskraadi</b> ja <b>aasta nädala</b> (1–48; mudel jagab aasta 48 nädalaks, igaüks umbes 7,6 päeva) põhjal prognoosib see <b>esinemise tõenäosuse</b> (0–100%) igale 12 012 liigile lindude, imetajate, kahepaiksete ja putukate seas. Tõenäosus peegeldab, kui tõenäoliselt liik selles kohas sel aastaajal esineb, õpituna globaalsetest esinemisandmetest ja keskkonnamuutujatest. Tegemist on mudeli hinnanguga — mitte vaatluste arvu ega garantiiga.</p>" +
+        "<h4>Kaardivaated</h4>" +
+        "<ul>" +
+        "<li><b>Liigi levik</b> — ühe valitud liigi tõenäosus üle kaardi valitud nädalal.</li>" +
+        "<li><b>Liigirikkus</b> — nende liikide arv, mille tõenäosus on igas võrgukastis vähemalt 5%, piiratuna valitud liigirühmaga. ▶ Esita ränne animeerib kaarti nädalate kaupa.</li>" +
+        "</ul>" +
+        "<p>Kaarti hinnatakse ruutude võrgustikul (3° lai eemale suumituna, kuni 0,25° sisse suumituna) ning joonistatakse bilineaarse pehmendusega, nii et värvid sulanduvad ruutude keskpunktide vahel, mitte ei moodusta teravaid plokke. <b>Märkus:</b> Liigi levik, liigirikkus ja ▶ Esita ränne hindavad mudelit paljudes kaardiruutudes, seega sujuva töö tagamiseks on soovitatav kiire protsessoriga kaasaegne arvuti.</p>" +
+        "<h4>Asukoha analüüs (klõpsa kaardil)</h4>" +
+        "<ul>" +
+        "<li><b>Ajatelg</b> — iga liigi tõenäosus kõigil 48 nädalal.</li>" +
+        "<li><b>Tõenäosus</b> — liik × nädal soojuskaart (punane = madal, roheline = kõrge), venitatud üle hetkel ekraanil olevate väärtuste.</li>" +
+        "<li><b>Saabumised</b> — iga liigi ja nädala kohta saabumisskoor <code>(P[järgmine nädal] − P[eelmine nädal]) ÷ max</code>, kus <code>max</code> on selle liigi suurim nädalane tõenäosus aastas. Roheline = tõenäosus tõuseb (saabub), punane = langeb (lahkub); nädalad keerduvad ümber aastapiiri (1 ↔ 48).</li>" +
+        "<li><b>Aasta tipp</b> — nädalaste saabumisskooride jooksev (kumulatiivne) summa, ümberskaleeritud vahemikku 0–100 (aasta miinimum = 0, tipp = 100). See toob esile selle aastaosa, mil liik on kõige enam kohal.</li>" +
+        "<li><b>Hajuvus</b> — käesoleva nädala saabumisskoor (x-telg) versus tõenäosus (y-telg) tippliikide kohta, all sorditav tabel.</li>" +
+        "</ul>" +
+        "<h4>Liiginimekiri — veerg „Võrdle“</h4>" +
+        "<ul>" +
+        "<li><b>Eelmine / järgmine nädal</b> ja <b>aasta keskmine</b> näitavad muutust Δ = praegune tõenäosus − võrdlusväärtus.</li>" +
+        "<li><b>Aasta maksimum</b> näitab käesolevat nädalat osana liigi aasta tipust: <code>praegune ÷ aasta max</code>. 100% tähendab, et valitud nädal on selle liigi parim nädal.</li>" +
+        "</ul>" +
+        "<h4>Tehnoloogia</h4>" +
+        "<p>Tehisintellekti mudel töötab <b>täielikult sinu veebibrauseris</b> — serverit pole ja sinu asukohta ei saadeta kunagi kuhugi. Närvivõrk laaditakse alla üks kord (~7 MB) ja kõik prognoosid arvutatakse sinu enda seadmes. Ehitatud kasutades:</p>" +
+        "<ul>" +
+        "<li><b>ONNX Runtime Web</b> (WebAssembly) — käivitab närvivõrgu brauseris.</li>" +
+        "<li><b>Web Workers</b> — järeldus jookseb põhilõimest eraldi, nii et liides püsib reageeriv.</li>" +
+        "<li><b>BirdNET Geomodel</b> — treenitud mudel, eksporditud ONNX-i (FP16, ~7 MB).</li>" +
+        "<li><b>Leaflet</b> koos OpenStreetMap / CARTO paanidega — interaktiivne kaart.</li>" +
+        "<li><b>Lihtne HTML, CSS ja JavaScript</b> — raamistikku ega ehitussammu pole; serveeritakse staatilise saidina (GitHub Pages).</li>" +
+        "</ul>" +
+        "<h4>Projekt &amp; tagasiside</h4>" +
+        "<p>See tööriist on tasuta kasutatav ja tagasiside on teretulnud aadressil <a href=\"mailto:vesmir09@gmail.com\">vesmir09@gmail.com</a>. Arendamisel on Norra-spetsiifiline elupaigamudel, mille eesmärk on kasutada rikkalikumaid Norra andmeid kui praeguses mudelis kasutatud Google Earth Engine'i andmed. Elupaigamudeli eesmärk on täiustatud linnulaulu tuvastamise rakendus (A!Birder) (arendamisel). See leht on loodud selle mudeli lihtsaks kvaliteedikontrolliks.</p>" +
+        "<p class=\"about-note\">Prognoosid on mudeli hinnangud, mitte tegelik tõde. Mudeli kaalud © BirdNET-i meeskond, litsentsitud CC BY-SA 4.0; kaardipaanid © OpenStreetMap kaastöölised, © CARTO.</p>",
+    },
+    lt: {
+      "app.title": "Rūšys ir kontroliniai sąrašai",
+      "app.loading": "Įkeliamas modelis, žymės ir rūšių pavadinimai…",
+      "app.failed": "Nepavyko įkelti: {msg}",
+      "ctrl.language": "Kalba",
+      "ctrl.settings": "Nustatymai",
+      "ctrl.about": "Apie ir kaip tai veikia",
+      "ctrl.mode": "Režimas",
+      "ctrl.group": "Rūšių grupė",
+      "group.all": "Visos grupės",
+      "group.aves": "Paukščiai",
+      "group.mammalia": "Žinduoliai",
+      "group.amphibia": "Varliagyviai",
+      "group.insecta": "Vabzdžiai",
+      "mode.range": "Rūšies paplitimas",
+      "mode.richness": "Rūšių gausa",
+      "mode.list": "📍 Rūšių sąrašas",
+      "mode.field": "📍 Lauko kontrolinis sąrašas",
+      "btn.clear": "Išvalyti",
+      "act.heard": "Girdėta",
+      "act.flying": "Skrendanti",
+      "act.feeding": "Maitinasi",
+      "act.resting": "Ilsisi",
+      "act.breeding": "Veisiasi",
+      "mode.barchart": "📍 Migracija",
+      "ctrl.species": "Rūšis",
+      "ph.species": "Ieškoti rūšies…",
+      "ctrl.week": "Savaitė",
+      "ctrl.bcthreshold": "Tikimybės intervalas",
+      "ctrl.compare": "Palyginti su",
+      "compare.none": "— nėra —",
+      "compare.prev": "Praėjusi savaitė",
+      "compare.next": "Kita savaitė",
+      "compare.mean": "Metinis vidurkis",
+      "compare.max": "Metinis maksimumas",
+      "compare.annualtop": "Metinis pikas",
+      "ctrl.secondlang": "2-asis pavadinimas",
+      "ctrl.savedloc": "Įrašytos vietos",
+      "ph.savedloc": "Dar nėra įrašytų vietų",
+      "loc.delete": "Ištrinti vietą",
+      "ctrl.hidden": "Paslėptos rūšys",
+      "loc.unhide": "Rodyti vėl",
+      "menu.filter": "Filtruoti",
+      "menu.hide": "Nerodyti",
+      "menu.wiki": "Wikipedia",
+      "menu.birdlife": "BirdLife",
+      "menu.macaulay": "Macaulay Library",
+      "menu.xeno": "Xeno-canto (garsas)",
+      "menu.recent": "Naujausi aptikimai",
+      "recent.none": "Netoliese naujausių aptikimų nerasta.",
+      "recent.viewall": "Peržiūrėti visus iNaturalist",
+      "menu.distmap": "Paplitimo žemėlapis",
+      "distmap.none": "Paplitimo žemėlapis nerastas. Atverkite Wikipedia puslapį:",
+      "distmap.download": "Atverti visą vaizdą",
+      "btn.saveloc": "★ Įrašyti",
+      "btn.csv": "⬇ CSV",
+      "btn.play": "▶ Leisti migraciją",
+      "btn.pause": "⏸ Pauzė",
+      "btn.newchecklist": "⭳ Įrašyti",
+      "btn.checklist": "✓ Kontrolinis sąrašas",
+      "btn.print": "🖨 Spausdinti",
+      "btn.close": "Uždaryti",
+      "btn.delete": "Ištrinti",
+      "ctrl.checklists": "Kontrolinis sąrašas",
+      "chk.namePrompt": "Pavadinkite šį kontrolinį sąrašą:",
+      "chk.createNew": "Sukurti naują",
+      "chk.all": "Visi",
+      "chk.seen": "Matyti",
+      "chk.missing": "Trūksta",
+      "chk.count": "Kiekis",
+      "chk.activity": "Veikla",
+      "chk.note": "Pastaba: šio kontrolinio sąrašo tikimybės ir kitos reikšmės yra gautos iš DI modelio ir atspindi tik apytikslį rūšių, galinčių pasitaikyti šioje vietoje, įvertinimą — tai nėra patvirtinti stebėjimai. Patikimą rūšių žinyną rasite <a href=\"https://www.avilist.org\">avilist.org</a>.",
+      "status.buildingChecklist": "Sudaromas kontrolinis sąrašas…",
+      "th.change": "Pokytis (Δ)",
+      "th.locality": "Vietovė",
+      "th.notes": "Pastabos",
+      "panel.spTitle": "Rūšys vietoje",
+      "panel.bcTitle": "Vietos analizė",
+      "tab.timeline": "Laiko juosta",
+      "tab.prob": "Tikimybė",
+      "tab.arrival": "Atskridimai",
+      "tab.focus": "Metinis pikas",
+      "tab.scatter": "Taškinė diagrama",
+      "analysis.empty": "Nėra rūšių virš slenksčio.",
+      "ctrl.filter": "Filtruoti rūšis",
+      "place.nearby": "Vietos netoliese",
+      "place.none": "Netoliese nėra įvardytų vietų.",
+      "ph.fieldtitle": "Vietos pavadinimas",
+      "ph.filter": "Filtruoti rūšis…",
+      "ctrl.topN": "Geriausi N",
+      "ctrl.rankby": "Rikiuoti pagal",
+      "rank.arrival": "Atskridimai",
+      "rank.prob": "Tikimybė",
+      "rank.both": "Abu",
+      "ctrl.locate": "Eiti į mano vietą",
+      "status.locateError": "Nepavyko nustatyti jūsų vietos.",
+      "status.offline": "Neprisijungus — naudojami talpykloje saugomi duomenys",
+      "ctrl.basemap": "Bazinis žemėlapis",
+      "ctrl.hires": "Skiriamoji geba",
+      "popup.title": "Rūšių paplitimas ir kontroliniai sąrašai",
+      "popup.perf": "Rūšies paplitimas, Rūšių gausa ir ▶ Leisti migraciją įvertina modelį daugelyje žemėlapio langelių, todėl sklandžiam veikimui rekomenduojamas šiuolaikinis kompiuteris su greitu procesoriumi.",
+      "popup.ok": "Gerai",
+      "basemap.dark": "Tamsus",
+      "basemap.light": "Šviesus",
+      "basemap.streets": "Gatvės",
+      "basemap.topo": "Topografinis",
+      "basemap.satellite": "Palydovinis",
+      "scatter.xAxis": "Atskridimas (dabartinė savaitė)",
+      "scatter.yAxis": "Tikimybė (dabartinė savaitė)",
+      "th.rank": "#",
+      "th.species": "Rūšis",
+      "th.sci": "Mokslinis pavadinimas",
+      "th.prob": "Tikimybė",
+      "th.arrival": "Atskridimas",
+      "th.delta": "Δ lyginant su {ref}",
+      "th.ratio": "{ref} proc.",
+      "legend.prob": "Pasitaikymo tikimybė",
+      "legend.count": "Prognozuojamas rūšių skaičius",
+      "status.selectSpecies": "Pasirinkite rūšį, kad pamatytumėte jos prognozuojamo paplitimo žemėlapį.",
+      "status.loadingModel": "Įkeliamas ONNX modelis…",
+      "status.computing": "Skaičiuojama {name} – {week} · {n} naujų langelių [{i}/{total}]…",
+      "status.rangeDone": "{name} – {week} · {n} langelių ({step}°)",
+      "status.rangeCached": "{name} – {week} · {n} langelių ({step}°) [iš talpyklos]",
+      "status.richnessDone": "Rūšių gausa – {week} · {n} langelių ({step}°)",
+      "status.richnessCached": "Rūšių gausa – {week} · {n} langelių ({step}°) [iš talpyklos]",
+      "status.predicting": "Prognozuojamos rūšys ({lat}, {lon}) {week} savaitę…",
+      "status.predicting48": "Prognozuojamos 48 savaitės ({lat}, {lon})…",
+      "status.spResult": "{n} rūšių virš {p}% ({lat}, {lon})",
+      "status.error": "Klaida: {msg}",
+      "sp.summary": "{lat}°, {lon}° · {week} savaitė · {n} rūšių virš {p}%",
+      "bc.summary": "{lat}°, {lon}° · {n} rūšių virš {p}% vid. · normalizuota iki {max}%",
+      "bc.avg": "{p}% vid.",
+      "bc.max": "{p}% maks.",
+      "week.fmt": "Savaitė {w} ({period} {month})",
+      "loc.savePrompt": "Pavadinkite šią vietą:",
+      "loc.defaultName": "{lat}, {lon}",
+      "footer.attrib": "Modelis: BirdNET Geomodel (svoriai CC BY-SA 4.0). Programos kodas MIT. Prognozės yra įverčiai — ne galutinė tiesa.",
+      "footer.lastchange": "Paskutinis pakeitimas: {t}",
+      "about.title": "ℹ︎ Apie modelį ir kaip skaičiuojamos reikšmės",
+      "about.html":
+        "<h4>Buveinių modelis</h4>" +
+        "<p>Šis įrankis paleidžia <a href=\"https://github.com/birdnet-team/geomodel\" target=\"_blank\" rel=\"noopener\">BirdNET Geomodel</a> — erdvėlaikinį neuroninį tinklą — visiškai jūsų naršyklėje per ONNX Runtime Web. Iš <b>platumos</b>, <b>ilgumos</b> ir <b>metų savaitės</b> (1–48; modelis padalija metus į 48 maždaug 7,6 dienos trukmės savaites) jis prognozuoja <b>pasitaikymo tikimybę</b> (0–100%) kiekvienai iš 12 012 rūšių tarp paukščių, žinduolių, varliagyvių ir vabzdžių. Tikimybė atspindi, kokia tikimybė, kad rūšis ten bus tuo metų laiku, ir yra išmokta iš pasaulinių pasitaikymo įrašų bei aplinkos kintamųjų. Tai modeliuotas įvertis — ne stebėjimų skaičius ar garantija.</p>" +
+        "<h4>Žemėlapio rodiniai</h4>" +
+        "<ul>" +
+        "<li><b>Rūšies paplitimas</b> — vienos pasirinktos rūšies tikimybė visame žemėlapyje pasirinktą savaitę.</li>" +
+        "<li><b>Rūšių gausa</b> — rūšių, kurių tikimybė yra bent 5% kiekviename tinklelio langelyje, skaičius, apribotas pasirinkta rūšių grupe. ▶ Leisti migraciją animuoja žemėlapį savaitę po savaitės.</li>" +
+        "</ul>" +
+        "<p>Žemėlapis vertinamas langelių tinklelyje (3° pločio nutolinus, iki 0,25° priartinus) ir piešiamas su dvitiesiu glodinimu, todėl spalvos susilieja tarp langelių centrų, o ne sudaro kietus blokus. <b>Pastaba:</b> Rūšies paplitimas, Rūšių gausa ir ▶ Leisti migraciją įvertina modelį daugelyje žemėlapio langelių, todėl sklandžiam veikimui rekomenduojamas šiuolaikinis kompiuteris su greitu procesoriumi.</p>" +
+        "<h4>Vietos analizė (spustelėkite žemėlapį)</h4>" +
+        "<ul>" +
+        "<li><b>Laiko juosta</b> — kiekvienos rūšies tikimybė per visas 48 savaites.</li>" +
+        "<li><b>Tikimybė</b> — rūšių × savaičių šilumos žemėlapis (raudona = maža, žalia = didelė), ištemptas per ekrane šiuo metu esančias reikšmes.</li>" +
+        "<li><b>Atskridimai</b> — kiekvienai rūšiai ir savaitei atskridimo įvertis <code>(P[kita savaitė] − P[praėjusi savaitė]) ÷ max</code>, kur <code>max</code> yra tos rūšies didžiausia savaitinė tikimybė per metus. Žalia = tikimybė kyla (atskrenda), raudona = krenta (išskrenda); savaitės susisuka ties metų riba (1 ↔ 48).</li>" +
+        "<li><b>Metinis pikas</b> — kaupiamoji (bėganti) savaitinių atskridimo įverčių suma, perskalduota į 0–100 (metų minimumas = 0, pikas = 100). Ji išryškina metų dalį, kai rūšis labiausiai pasitaiko.</li>" +
+        "<li><b>Taškinė diagrama</b> — dabartinės savaitės atskridimo įvertis (x ašis) palyginti su tikimybe (y ašis) populiariausioms rūšims, su rikiuojama lentele apačioje.</li>" +
+        "</ul>" +
+        "<h4>Rūšių sąrašas — stulpelis „Palyginti su“</h4>" +
+        "<ul>" +
+        "<li><b>Praėjusi / Kita savaitė</b> ir <b>Metinis vidurkis</b> rodo pokytį Δ = dabartinė tikimybė − palyginimo reikšmė.</li>" +
+        "<li><b>Metinis maksimumas</b> rodo dabartinę savaitę kaip rūšies metinio piko dalį: <code>dabartinė ÷ max per metus</code>. 100% reiškia, kad pasirinkta savaitė yra geriausia tos rūšies savaitė.</li>" +
+        "</ul>" +
+        "<h4>Technologijos</h4>" +
+        "<p>DI modelis veikia <b>visiškai jūsų interneto naršyklėje</b> — nėra serverio ir jūsų vieta niekur nesiunčiama. Neuroninis tinklas atsisiunčiamas vieną kartą (~7 MB), o visos prognozės skaičiuojamos jūsų pačių įrenginyje. Sukurta su:</p>" +
+        "<ul>" +
+        "<li><b>ONNX Runtime Web</b> (WebAssembly) — paleidžia neuroninį tinklą naršyklėje.</li>" +
+        "<li><b>Web Workers</b> — išvada vykdoma ne pagrindinėje gijoje, todėl sąsaja išlieka reaguojanti.</li>" +
+        "<li><b>BirdNET Geomodel</b> — apmokytas modelis, eksportuotas į ONNX (FP16, ~7 MB).</li>" +
+        "<li><b>Leaflet</b> su OpenStreetMap / CARTO plytelėmis — interaktyvus žemėlapis.</li>" +
+        "<li><b>Grynas HTML, CSS ir JavaScript</b> — be karkaso ir be kūrimo žingsnio; pateikiama kaip statinė svetainė (GitHub Pages).</li>" +
+        "</ul>" +
+        "<h4>Projektas &amp; atsiliepimai</h4>" +
+        "<p>Šis įrankis yra nemokamas, o atsiliepimų laukiame adresu <a href=\"mailto:vesmir09@gmail.com\">vesmir09@gmail.com</a>. Norvegijai pritaikytas buveinių modelis kuriamas, siekiant naudoti turtingesnius Norvegijos duomenis nei dabartiniame modelyje naudojami Google Earth Engine duomenys. Buveinių modelio tikslas yra patobulinta paukščių dainų aptikimo programa (A!Birder) (kuriama). Šis puslapis sukurtas patogiai to modelio kokybės kontrolei.</p>" +
+        "<p class=\"about-note\">Prognozės yra modelio įverčiai, o ne galutinė tiesa. Modelio svoriai © BirdNET komanda, licencijuota CC BY-SA 4.0; žemėlapio plytelės © OpenStreetMap bendraautoriai, © CARTO.</p>",
+    },
+    fi: {
+      "app.title": "Lajit ja tarkistuslistat",
+      "app.loading": "Ladataan mallia, otsikoita ja lajinimiä…",
+      "app.failed": "Lataus epäonnistui: {msg}",
+      "ctrl.language": "Kieli",
+      "ctrl.settings": "Asetukset",
+      "ctrl.about": "Tietoja ja toimintaperiaate",
+      "ctrl.mode": "Tila",
+      "ctrl.group": "Lajiryhmä",
+      "group.all": "Kaikki ryhmät",
+      "group.aves": "Linnut",
+      "group.mammalia": "Nisäkkäät",
+      "group.amphibia": "Sammakkoeläimet",
+      "group.insecta": "Hyönteiset",
+      "mode.range": "Lajin levinneisyys",
+      "mode.richness": "Lajirunsaus",
+      "mode.list": "📍 Lajilista",
+      "mode.field": "📍 Maastotarkistuslista",
+      "btn.clear": "Tyhjennä",
+      "act.heard": "Kuultu",
+      "act.flying": "Lentää",
+      "act.feeding": "Ruokailee",
+      "act.resting": "Lepää",
+      "act.breeding": "Pesii",
+      "mode.barchart": "📍 Muutto",
+      "ctrl.species": "Laji",
+      "ph.species": "Hae lajeja…",
+      "ctrl.week": "Viikko",
+      "ctrl.bcthreshold": "Todennäköisyysväli",
+      "ctrl.compare": "Vertaa",
+      "compare.none": "— ei mitään —",
+      "compare.prev": "Edellinen viikko",
+      "compare.next": "Seuraava viikko",
+      "compare.mean": "Vuoden keskiarvo",
+      "compare.max": "Vuoden maksimi",
+      "compare.annualtop": "Vuoden huippu",
+      "ctrl.secondlang": "2. nimi",
+      "ctrl.savedloc": "Tallennetut sijainnit",
+      "ph.savedloc": "Ei vielä tallennettuja sijainteja",
+      "loc.delete": "Poista sijainti",
+      "ctrl.hidden": "Piilotetut lajit",
+      "loc.unhide": "Näytä uudelleen",
+      "menu.filter": "Suodata",
+      "menu.hide": "Älä näytä",
+      "menu.wiki": "Wikipedia",
+      "menu.birdlife": "BirdLife",
+      "menu.macaulay": "Macaulay Library",
+      "menu.xeno": "Xeno-canto (ääni)",
+      "menu.recent": "Viimeaikaiset havainnot",
+      "recent.none": "Lähistöltä ei löytynyt viimeaikaisia havaintoja.",
+      "recent.viewall": "Katso kaikki iNaturalistissa",
+      "menu.distmap": "Levinneisyyskartta",
+      "distmap.none": "Levinneisyyskarttaa ei löytynyt. Avaa Wikipedia-sivu:",
+      "distmap.download": "Avaa koko kuva",
+      "btn.saveloc": "★ Tallenna",
+      "btn.csv": "⬇ CSV",
+      "btn.play": "▶ Toista muutto",
+      "btn.pause": "⏸ Tauko",
+      "btn.newchecklist": "⭳ Tallenna",
+      "btn.checklist": "✓ Tarkistuslista",
+      "btn.print": "🖨 Tulosta",
+      "btn.close": "Sulje",
+      "btn.delete": "Poista",
+      "ctrl.checklists": "Tarkistuslista",
+      "chk.namePrompt": "Anna tälle tarkistuslistalle nimi:",
+      "chk.createNew": "Luo uusi",
+      "chk.all": "Kaikki",
+      "chk.seen": "Nähty",
+      "chk.missing": "Puuttuu",
+      "chk.count": "Lukumäärä",
+      "chk.activity": "Toiminta",
+      "chk.note": "Huom: Tämän tarkistuslistan todennäköisyydet ja muut arvot on johdettu tekoälymallista ja edustavat vain arviota lajeista, joita tässä sijainnissa todennäköisesti esiintyy — ne eivät ole vahvistettuja havaintoja. Luotettavan lajiviitteen saat osoitteesta <a href=\"https://www.avilist.org\">avilist.org</a>.",
+      "status.buildingChecklist": "Rakennetaan tarkistuslistaa…",
+      "th.change": "Muutos (Δ)",
+      "th.locality": "Paikkakunta",
+      "th.notes": "Muistiinpanot",
+      "panel.spTitle": "Lajit sijainnissa",
+      "panel.bcTitle": "Sijainnin analyysi",
+      "tab.timeline": "Aikajana",
+      "tab.prob": "Todennäköisyys",
+      "tab.arrival": "Saapumiset",
+      "tab.focus": "Vuoden huippu",
+      "tab.scatter": "Hajontakaavio",
+      "analysis.empty": "Ei lajeja kynnysarvon yläpuolella.",
+      "ctrl.filter": "Suodata lajeja",
+      "place.nearby": "Lähistön paikat",
+      "place.none": "Ei nimettyjä paikkoja lähistöllä.",
+      "ph.fieldtitle": "Sijainnin nimi",
+      "ph.filter": "Suodata lajeja…",
+      "ctrl.topN": "Top N",
+      "ctrl.rankby": "Järjestysperuste",
+      "rank.arrival": "Saapumiset",
+      "rank.prob": "Todennäköisyys",
+      "rank.both": "Molemmat",
+      "ctrl.locate": "Siirry sijaintiini",
+      "status.locateError": "Sijaintiasi ei saatu selville.",
+      "status.offline": "Offline — käytetään välimuistissa olevia tietoja",
+      "ctrl.basemap": "Taustakartta",
+      "ctrl.hires": "Tarkkuus",
+      "popup.title": "Lajien levinneisyydet ja tarkistuslistat",
+      "popup.perf": "Lajin levinneisyys, Lajirunsaus ja ▶ Toista muutto arvioivat mallia useissa kartan soluissa, joten sujuvan suorituskyvyn takaamiseksi suositellaan nykyaikaista tietokonetta, jossa on nopea suoritin.",
+      "popup.ok": "OK",
+      "basemap.dark": "Tumma",
+      "basemap.light": "Vaalea",
+      "basemap.streets": "Kadut",
+      "basemap.topo": "Topografinen",
+      "basemap.satellite": "Satelliitti",
+      "scatter.xAxis": "Saapuminen (kuluva viikko)",
+      "scatter.yAxis": "Todennäköisyys (kuluva viikko)",
+      "th.rank": "#",
+      "th.species": "Laji",
+      "th.sci": "Tieteellinen nimi",
+      "th.prob": "Todennäköisyys",
+      "th.arrival": "Saapuminen",
+      "th.delta": "Δ vs {ref}",
+      "th.ratio": "% arvosta {ref}",
+      "legend.prob": "Esiintymistodennäköisyys",
+      "legend.count": "Ennustettu lajimäärä",
+      "status.selectSpecies": "Valitse laji nähdäksesi sen ennustetun levinneisyyskartan.",
+      "status.loadingModel": "Ladataan ONNX-mallia…",
+      "status.computing": "Lasketaan {name} – {week} · {n} uutta solua [{i}/{total}]…",
+      "status.rangeDone": "{name} – {week} · {n} solua ({step}°)",
+      "status.rangeCached": "{name} – {week} · {n} solua ({step}°) [välimuistissa]",
+      "status.richnessDone": "Lajirunsaus – {week} · {n} solua ({step}°)",
+      "status.richnessCached": "Lajirunsaus – {week} · {n} solua ({step}°) [välimuistissa]",
+      "status.predicting": "Ennustetaan lajeja sijainnissa ({lat}, {lon}) viikolla {week}…",
+      "status.predicting48": "Ennustetaan 48 viikkoa sijainnissa ({lat}, {lon})…",
+      "status.spResult": "{n} lajia yli {p}% sijainnissa ({lat}, {lon})",
+      "status.error": "Virhe: {msg}",
+      "sp.summary": "{lat}°, {lon}° · Viikko {week} · {n} lajia yli {p}%",
+      "bc.summary": "{lat}°, {lon}° · {n} lajia yli {p}% keskimäärin · normalisoitu arvoon {max}%",
+      "bc.avg": "{p}% keskim.",
+      "bc.max": "{p}% maks.",
+      "week.fmt": "Viikko {w} ({period} {month})",
+      "loc.savePrompt": "Anna tälle sijainnille nimi:",
+      "loc.defaultName": "{lat}, {lon}",
+      "footer.attrib": "Malli: BirdNET Geomodel (painot CC BY-SA 4.0). Sovelluskoodi MIT. Ennusteet ovat arvioita — eivät absoluuttista totuutta.",
+      "footer.lastchange": "Viimeisin muutos: {t}",
+      "about.title": "ℹ︎ Tietoja mallista ja arvojen laskennasta",
+      "about.html":
+        "<h4>Habitaattimalli</h4>" +
+        "<p>Tämä työkalu ajaa <a href=\"https://github.com/birdnet-team/geomodel\" target=\"_blank\" rel=\"noopener\">BirdNET Geomodel</a> -mallin — spatiotemporaalisen neuroverkon — kokonaan selaimessasi ONNX Runtime Webin avulla. <b>Leveysasteesta</b>, <b>pituusasteesta</b> ja <b>vuoden viikosta</b> (1–48; malli jakaa vuoden 48 viikkoon, joista kukin on noin 7,6 päivää) se ennustaa <b>esiintymistodennäköisyyden</b> (0–100 %) kullekin 12 012 lajille lintujen, nisäkkäiden, sammakkoeläinten ja hyönteisten joukosta. Todennäköisyys kuvastaa, kuinka todennäköisesti laji esiintyy kyseisessä paikassa kyseisenä vuodenaikana, ja se on opittu maailmanlaajuisista esiintymistiedoista ja ympäristömuuttujista. Kyseessä on mallinnettu arvio — ei havaintomäärä eikä takuu.</p>" +
+        "<h4>Karttanäkymät</h4>" +
+        "<ul>" +
+        "<li><b>Lajin levinneisyys</b> — yhden valitun lajin todennäköisyys kartalla valitulla viikolla.</li>" +
+        "<li><b>Lajirunsaus</b> — niiden lajien lukumäärä, joiden todennäköisyys on vähintään 5 % kussakin ruudussa, rajattuna valittuun lajiryhmään. ▶ Toista muutto animoi kartan viikko viikolta.</li>" +
+        "</ul>" +
+        "<p>Karttaa arvioidaan solujen ruudukolla (3° leveä loitonnettaessa, aina 0,25°:een asti lähennettäessä) ja se piirretään bilineaarisella pehmennyksellä, joten värit sulautuvat solujen keskipisteiden välillä sen sijaan, että muodostaisivat teräviä lohkoja. <b>Huom:</b> Lajin levinneisyys, Lajirunsaus ja ▶ Toista muutto arvioivat mallia useissa kartan soluissa, joten sujuvan suorituskyvyn takaamiseksi suositellaan nykyaikaista tietokonetta, jossa on nopea suoritin.</p>" +
+        "<h4>Sijainnin analyysi (napsauta karttaa)</h4>" +
+        "<ul>" +
+        "<li><b>Aikajana</b> — kunkin lajin todennäköisyys kaikkien 48 viikon aikana.</li>" +
+        "<li><b>Todennäköisyys</b> — laji × viikko -lämpökartta (punainen = matala, vihreä = korkea), venytettynä näytöllä parhaillaan oleviin arvoihin.</li>" +
+        "<li><b>Saapumiset</b> — kullekin lajille ja viikolle saapumispistemäärä <code>(P[seuraava viikko] − P[edellinen viikko]) ÷ max</code>, jossa <code>max</code> on kyseisen lajin korkein viikoittainen todennäköisyys vuoden aikana. Vihreä = todennäköisyys nousee (saapuu), punainen = laskee (lähtee); viikot kiertävät vuoden rajan ympäri (1 ↔ 48).</li>" +
+        "<li><b>Vuoden huippu</b> — viikoittaisten saapumispistemäärien juokseva (kumulatiivinen) summa, skaalattuna uudelleen välille 0–100 (vuoden alin = 0, sen huippu = 100). Se korostaa sitä osaa vuodesta, jolloin laji on eniten läsnä.</li>" +
+        "<li><b>Hajontakaavio</b> — kuluvan viikon saapumispistemäärä (x-akseli) verrattuna todennäköisyyteen (y-akseli) suosituimmille lajeille, alla lajiteltava taulukko.</li>" +
+        "</ul>" +
+        "<h4>Lajilista — ”Vertaa”-sarake</h4>" +
+        "<ul>" +
+        "<li><b>Edellinen / Seuraava viikko</b> ja <b>Vuoden keskiarvo</b> näyttävät muutoksen Δ = nykyinen todennäköisyys − vertailuarvo.</li>" +
+        "<li><b>Vuoden maksimi</b> näyttää kuluvan viikon osuutena lajin vuotuisesta huipusta: <code>nykyinen ÷ vuoden max</code>. 100 % tarkoittaa, että valittu viikko on kyseisen lajin paras viikko.</li>" +
+        "</ul>" +
+        "<h4>Teknologia</h4>" +
+        "<p>Tekoälymalli ajetaan <b>kokonaan verkkoselaimessasi</b> — palvelinta ei ole eikä sijaintiasi koskaan lähetetä mihinkään. Neuroverkko ladataan kerran (~7 MB) ja kaikki ennusteet lasketaan omalla laitteellasi. Rakennettu seuraavilla:</p>" +
+        "<ul>" +
+        "<li><b>ONNX Runtime Web</b> (WebAssembly) — ajaa neuroverkon selaimessa.</li>" +
+        "<li><b>Web Workers</b> — päättely suoritetaan pääsäikeen ulkopuolella, joten käyttöliittymä pysyy responsiivisena.</li>" +
+        "<li><b>BirdNET Geomodel</b> — koulutettu malli, viety ONNX-muotoon (FP16, ~7 MB).</li>" +
+        "<li><b>Leaflet</b> ja OpenStreetMap / CARTO -karttaruudut — interaktiivinen kartta.</li>" +
+        "<li><b>Pelkkä HTML, CSS ja JavaScript</b> — ei sovelluskehystä eikä käännösvaihetta; tarjotaan staattisena sivustona (GitHub Pages).</li>" +
+        "</ul>" +
+        "<h4>Projekti &amp; palaute</h4>" +
+        "<p>Tämä työkalu on ilmainen käyttää, ja palautetta otetaan mielellään vastaan osoitteessa <a href=\"mailto:vesmir09@gmail.com\">vesmir09@gmail.com</a>. Norjaan kohdistettua habitaattimallia kehitetään parhaillaan, ja sen tavoitteena on hyödyntää rikkaampaa norjalaista dataa kuin nykyisessä mallissa käytettyä Google Earth Engine -dataa. Habitaattimallin tavoitteena on parannettu linnunlaulun tunnistussovellus (A!Birder) (kehitteillä). Tämä sivu on tehty kyseisen mallin helppoa laadunvalvontaa varten.</p>" +
+        "<p class=\"about-note\">Ennusteet ovat mallin arvioita, eivät absoluuttista totuutta. Mallin painot © BirdNET-tiimi, lisensoitu CC BY-SA 4.0; karttaruudut © OpenStreetMap-tekijät, © CARTO.</p>",
     },
   };
 

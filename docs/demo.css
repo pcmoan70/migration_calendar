@@ -194,6 +194,8 @@ input:focus-visible {
   border-radius: var(--radius-xs);
   background: var(--surface);
   overflow: hidden;
+  cursor: pointer;
+  touch-action: none;
 }
 #play-progress .pp-fill {
   position: absolute; top: 0; bottom: 0; left: 0; width: 0;
@@ -1429,14 +1431,14 @@ table.recent-table .rc-who { color: var(--md-default-fg-color--light, #888); whi
   font-size: 1.5rem; line-height: 1;
 }
 .field-place {
-  flex: 1 1 auto; min-width: 0; font-size: 0.95rem; font-weight: 600;
+  flex: 0 1 auto; width: 25ch; max-width: 25ch; min-width: 0; font-size: 0.95rem; font-weight: 600;
   color: var(--md-default-fg-color, #222);
-  border: none; border-bottom: 1px dashed transparent; border-radius: 0;
+  border: none; border-bottom: 1px dashed var(--border); border-radius: 0;
   background: transparent; padding: 4px 2px;
-  text-overflow: ellipsis;
+  text-overflow: ellipsis; white-space: nowrap; overflow: hidden; cursor: text;
 }
 .field-place:focus { outline: none; border-bottom-color: var(--md-accent-fg-color, var(--brand)); }
-.field-seen { flex: 0 0 auto; font-size: 0.85rem; font-weight: 600; color: var(--md-accent-fg-color, var(--brand)); }
+.field-seen { flex: 0 0 auto; margin-left: auto; font-size: 0.85rem; font-weight: 600; color: var(--md-accent-fg-color, var(--brand)); }
 .field-actions { flex: 0 0 auto; display: flex; gap: 6px; }
 #field-page #field-search {
   flex: 0 0 auto; width: auto; box-sizing: border-box; margin: 8px 12px; padding: 12px 14px; font-size: 1.05rem;
