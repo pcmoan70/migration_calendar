@@ -44,6 +44,27 @@ window.GeoI18N = (function () {
     { code: "fa",    name: "فارسی",       taxCol: "common_name_fa" },
     { code: "ja",    name: "日本語",       taxCol: "common_name_ja" },
     { code: "zh-CN", name: "中文 (简体)",  taxCol: "common_name_zh-CN" },
+    // Bird names from the IOC World Bird List 15.2 (matched on scientific name).
+    // These have no translated UI (falls back to English); species without an
+    // IOC name in the language fall back to a bracketed English name.
+    { code: "zh-TW", name: "中文 (繁體)",      taxCol: "common_name_zh-TW" },
+    { code: "eo",    name: "Esperanto",        taxCol: "common_name_eo" },
+    { code: "hu",    name: "Magyar",           taxCol: "common_name_hu" },
+    { code: "ro",    name: "Română",           taxCol: "common_name_ro" },
+    { code: "sl",    name: "Slovenščina",      taxCol: "common_name_sl" },
+    { code: "lv",    name: "Latviešu",         taxCol: "common_name_lv" },
+    { code: "is",    name: "Íslenska",         taxCol: "common_name_is" },
+    { code: "id",    name: "Bahasa Indonesia", taxCol: "common_name_id" },
+    { code: "el",    name: "Ελληνικά",         taxCol: "common_name_el" },
+    { code: "mk",    name: "Македонски",       taxCol: "common_name_mk" },
+    { code: "be",    name: "Беларуская",       taxCol: "common_name_be" },
+    { code: "af",    name: "Afrikaans",        taxCol: "common_name_af" },
+    { code: "se",    name: "Davvisámegiella",  taxCol: "common_name_se" },
+    { code: "ko",    name: "한국어",            taxCol: "common_name_ko" },
+    { code: "he",    name: "עברית",            taxCol: "common_name_he" },
+    { code: "ar",    name: "العربية",          taxCol: "common_name_ar" },
+    { code: "th",    name: "ไทย",              taxCol: "common_name_th" },
+    { code: "ml",    name: "മലയാളം",           taxCol: "common_name_ml" },
   ];
 
   // Month abbreviations and intra-month period words, per language.
