@@ -1232,7 +1232,11 @@
     // longitudes (e.g. a click returning lon = 635) and the range overlay
     // always projects onto the visible map.
     map = L.map("demo-map", {
-      center: center, zoom: zoom, minZoom: 2, maxZoom: MAX_ZOOM,
+      center: center, zoom: zoom,
+      // Keep min/max zoom on the H3 step ladder (multiples of H3_ZOOM_STEP) so
+      // the clamped end stops don't land off-grid with larger cells.
+      minZoom: window.h3 ? Math.ceil(2 / H3_ZOOM_STEP) * H3_ZOOM_STEP : 2,
+      maxZoom: window.h3 ? Math.floor(MAX_ZOOM / H3_ZOOM_STEP) * H3_ZOOM_STEP : MAX_ZOOM,
       worldCopyJump: true,
       maxBounds: [[-90, -180], [90, 180]], maxBoundsViscosity: 1.0,
       // Zoom in ~2.65x steps (one H3 resolution per level) so hex cells keep a
