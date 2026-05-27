@@ -1426,6 +1426,7 @@
   var WDPA_ATTR = 'Protected areas &copy; <a href="https://www.protectedplanet.net" target="_blank" rel="noopener">UNEP-WCMC &amp; IUCN — Protected Planet (WDPA)</a>';
   var EEA_ATTR = 'Natura 2000 &copy; <a href="https://www.eea.europa.eu" target="_blank" rel="noopener">European Environment Agency</a>';
   var OSM_PA_ATTR = 'Protected areas &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors';
+  var EBIRD_HS_ATTR = 'Hotspots &copy; <a href="https://ebird.org" target="_blank" rel="noopener">eBird</a> / Cornell Lab';
 
   // A Leaflet tile layer backed by an ArcGIS MapServer "export" endpoint: each
   // 256-px tile is requested as a rendered PNG for its Web-Mercator bbox.
@@ -1483,6 +1484,38 @@
     return grp;
   }
 
+  // eBird birding hotspots near the view, as clickable markers (name + all-time
+  // species count + last-seen). Uses the user's eBird key; refreshes on pan.
+  function ebirdHotspotLayer() {
+    var grp = L.layerGroup(), active = false, tok = 0;
+    function load() {
+      var key = ebirdKey();
+      if (!key) { grp.clearLayers(); setStatus(t("layer.hotspotsKey")); return; }
+      if (map.getZoom() < 8) { grp.clearLayers(); return; }
+      var c = map.getCenter(), b = map.getBounds();
+      var radius = Math.max(2, Math.min(100, Math.round(haversineKm(c.lat, c.lng, b.getNorth(), b.getEast()))));
+      var url = "https://api.ebird.org/v2/ref/hotspot/geo?lat=" + c.lat.toFixed(4) + "&lng=" + c.lng.toFixed(4) + "&dist=" + radius + "&fmt=json";
+      var mine = ++tok;
+      fetch(url, { headers: { "X-eBirdApiToken": key } }).then(function (r) { return r.ok ? r.json() : []; }).then(function (rows) {
+        if (mine !== tok || !active) return;
+        grp.clearLayers();
+        (rows || []).forEach(function (h) {
+          if (h.lat == null || h.lng == null) return;
+          var m = L.circleMarker([h.lat, h.lng], { radius: 5, color: "#8a4b12", weight: 1.5, fillColor: "#f0992e", fillOpacity: 0.85 });
+          var sp = h.numSpeciesAllTime != null ? " · " + h.numSpeciesAllTime + " " + t("layer.species") : "";
+          var last = h.latestObsDt ? " · " + String(h.latestObsDt).slice(0, 10) : "";
+          m.bindTooltip("<b>" + escapeHtml(h.locName || "") + "</b><span class='area-tip-sub'>" + escapeHtml(sp + last) + "</span>", { direction: "top", className: "area-tip" });
+          m.on("click", function () { openExternal("https://ebird.org/hotspot/" + h.locId); });
+          grp.addLayer(m);
+        });
+      }).catch(function () { /* offline / rate-limited */ });
+    }
+    grp.on("add", function () { active = true; map.attributionControl.addAttribution(EBIRD_HS_ATTR); load(); });
+    grp.on("remove", function () { active = false; map.attributionControl.removeAttribution(EBIRD_HS_ATTR); });
+    map.on("moveend", function () { if (active) load(); });
+    return grp;
+  }
+
   var arcOverlays = [];   // active-overlay refs for hover identify: {layer, kind, defs}
   function setupAreaOverlays() {
     if (!map || !window.L) return;
@@ -1497,6 +1530,7 @@
     overlays[t("layer.wdpa")] = wdpa;
     overlays[t("layer.ramsar")] = ramsar;
     overlays[t("layer.natura2000")] = n2k;
+    overlays[t("layer.hotspots")] = ebirdHotspotLayer();
     overlays[t("layer.osmpa")] = osmProtectedLayer();
     L.control.layers(null, overlays, { collapsed: true, position: "topright" }).addTo(map);
     setupAreaHover();
