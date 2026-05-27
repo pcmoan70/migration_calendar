@@ -883,11 +883,13 @@
             '</span>' +
           '</div>' +
           '<div id="field-far-msg" class="fp-far-msg" data-i18n="chk.farWarn" style="display:none"></div>' +
-          '<input id="field-search" type="text" autocomplete="off" data-i18n-ph="ph.filter" placeholder="Filter species…" />' +
-          '<div id="field-filter" class="chk-filter">' +
-            '<button type="button" class="chk-filter-btn is-active" data-ffilter="all" data-i18n="chk.all">All</button>' +
-            '<button type="button" class="chk-filter-btn" data-ffilter="seen" data-i18n="chk.seen">Seen</button>' +
-            '<button type="button" class="chk-filter-btn" data-ffilter="missing" data-i18n="chk.missing">Missing</button>' +
+          '<div class="fc-filterbar">' +
+            '<input id="field-search" type="text" autocomplete="off" data-i18n-ph="ph.filter" placeholder="Filter species…" />' +
+            '<div id="field-filter" class="chk-filter">' +
+              '<button type="button" class="chk-filter-btn is-active" data-ffilter="all" data-i18n="chk.all">All</button>' +
+              '<button type="button" class="chk-filter-btn" data-ffilter="seen" data-i18n="chk.seen">Seen</button>' +
+              '<button type="button" class="chk-filter-btn" data-ffilter="missing" data-i18n="chk.missing">Missing</button>' +
+            '</div>' +
           '</div>' +
           '<div id="field-list"></div>' +
           '<div id="fc-picker" style="display:none">' +
@@ -950,6 +952,7 @@
         '</div>' +
         '<div id="sp-menu" style="display:none">' +
           '<button type="button" class="sp-menu-item sp-menu-app" data-act="apprange" data-i18n="menu.apprange">Species distribution</button>' +
+          '<button type="button" class="sp-menu-item sp-menu-app" data-act="appmig" data-i18n="menu.appmig">Migration</button>' +
           '<button type="button" class="sp-menu-item" data-act="recent" data-i18n="menu.recent">Recent detections</button>' +
           '<button type="button" class="sp-menu-item" data-act="distmap" data-i18n="menu.distmap">Distribution map</button>' +
           '<button type="button" class="sp-menu-item" data-act="wiki" data-i18n="menu.wiki">Wikipedia</button>' +
@@ -1756,6 +1759,7 @@
         var act = this.getAttribute("data-act");
         if (act === "hide") hideSpecies(menuKey);
         else if (act === "apprange") showSpeciesRange(menuKey);
+        else if (act === "appmig") showSpeciesMigration(menuKey);
         else if (act === "filter") applyNameFilter(menuName);
         else if (act === "wiki") openWikipedia(menuSci || menuName);
         else if (act === "birdlife") openBirdLife((labelsByKey[menuKey] && labelsByKey[menuKey].common) || menuName, menuSci || menuName);
@@ -1848,16 +1852,27 @@
 
   // Show the app's own range map for a species: switch to Species Range mode,
   // close any full-screen panel, and select the species (which renders it).
-  function showSpeciesRange(key) {
+  function showSpeciesRange(key, skipRender) {
     if (!labelsByKey[key]) return;
     var modeEl = document.getElementById("mode-select");
     if (modeEl.value !== "range") { modeEl.value = "range"; modeEl.dispatchEvent(new Event("change", { bubbles: true })); }
     var ep = document.getElementById("entry-page"); if (ep) ep.style.display = "none";
-    selectSpecies(key);
+    selectSpecies(key, skipRender);
     if (map) map.invalidateSize();
   }
 
-  function selectSpecies(key) {
+  // Like showSpeciesRange, but also starts the week-by-week "Play migration"
+  // animation so the user watches the species' range shift across the year.
+  function showSpeciesMigration(key) {
+    if (!labelsByKey[key]) return;
+    // Select without the single-week render so the animation's 48-week
+    // precompute (below) is the only render in flight — otherwise its
+    // rendering=true guard would abort the precompute.
+    showSpeciesRange(key, true);
+    toggleAnimation();
+  }
+
+  function selectSpecies(key, skipRender) {
     var lbl = labelsByKey[key];
     if (!lbl) return;
     var el = document.getElementById("species-search");
@@ -1865,7 +1880,7 @@
     el.dataset.selectedKey = key;
     window.GeoState.save({ species: key });
     stopAnimation();
-    if (currentMode === "range") renderRangeMap();
+    if (!skipRender && currentMode === "range") renderRangeMap();
   }
 
   // ---- Inference -----------------------------------------------------------
@@ -3036,7 +3051,7 @@
       return h;
     };
     list.innerHTML = shown.map(function (r) {
-      var en = entries[r.key] || {}, d = cd(r.key);
+      var en = entries[r.key] || {}, d = cd(r.key), lbl = labelsByKey[r.key];
       var ents = rec ? fcEntriesFor(rec, r.key) : [], n = ents.length;
       var hasN = (d.count != null && d.count !== "");
       var entLines = ents.slice(-2).reverse().map(function (e) {
@@ -3048,7 +3063,7 @@
       return '<div class="fc-card' + (en.seen ? " fc-on" : "") + (d.note ? " fc-note-on" : "") + '" data-key="' + escapeHtml(r.key) + '">' +
         '<div class="fc-top">' +
           '<label class="fc-tick"><input type="checkbox" class="fc-seen" data-key="' + escapeHtml(r.key) + '"' + (en.seen ? " checked" : "") + "></label>" +
-          '<span class="fc-name">' + escapeHtml(r.name) + badge + "</span>" +
+          '<span class="fc-name sp-link" data-key="' + escapeHtml(r.key) + '" data-name="' + escapeHtml(r.name) + '" data-sci="' + escapeHtml(lbl ? (lbl.sci || "") : "") + '">' + escapeHtml(r.name) + badge + "</span>" +
           '<button type="button" class="fc-count' + (hasN ? " has-n" : "") + '" data-key="' + escapeHtml(r.key) + '">' + (hasN ? d.count : "#") + "</button>" +
           '<select class="fc-act" data-key="' + escapeHtml(r.key) + '">' + actOpts(d.act) + "</select>" +
           '<button type="button" class="fc-add" data-key="' + escapeHtml(r.key) + '" title="' + escapeHtml(t("fc.add")) + '" aria-label="' + escapeHtml(t("fc.add")) + '">＋</button>' +

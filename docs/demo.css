@@ -1159,8 +1159,9 @@ button.dd-name:hover { text-decoration: underline; }
 }
 .sp-menu-item:hover { background: var(--surface-2); }
 .sp-menu-item[data-act="hide"] { color: var(--danger); }
-/* The app's own range map — the primary action, set apart at the top. */
-.sp-menu-app { font-weight: 700; color: var(--brand-strong); border-bottom: 1px solid var(--border); }
+/* The app's own views (range + migration) — primary actions, set apart on top. */
+.sp-menu-app { font-weight: 700; color: var(--brand-strong); }
+.sp-menu-item[data-act="appmig"] { border-bottom: 1px solid var(--border); }
 
 /* ===== Two-sided probability range slider (analysis) ===== */
 #prob-range {
@@ -1453,12 +1454,14 @@ table.recent-table .rc-who { color: var(--md-default-fg-color--light, #888); whi
 .field-place:focus { outline: none; border-bottom-color: var(--md-accent-fg-color, var(--brand)); }
 .field-seen { flex: 0 0 auto; margin-left: auto; font-size: 0.85rem; font-weight: 600; color: var(--md-accent-fg-color, var(--brand)); }
 .field-actions { flex: 0 0 auto; display: flex; gap: 6px; }
+/* Filter row: a narrow search box beside the All/Seen/Missing toggle. */
+.fc-filterbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 8px 12px 6px; }
 #field-page #field-search {
-  flex: 0 0 auto; width: auto; box-sizing: border-box; margin: 8px 12px; padding: 12px 14px; font-size: 1.05rem;
+  flex: 1 1 120px; min-width: 0; max-width: 220px; box-sizing: border-box; margin: 0; padding: 8px 12px; font-size: 0.95rem;
   border: 1px solid var(--md-default-fg-color--lightest, #ccc); border-radius: 8px;
   background: var(--md-default-bg-color, #fff); color: var(--md-default-fg-color, #333);
 }
-#field-filter { margin: 0 12px 6px; }
+#field-filter { margin: 0; flex: 0 0 auto; }
 /* "Far from this location" warning: a red ! in the bar + a tap-to-show note. */
 .fp-far {
   flex: 0 0 auto; width: 30px; height: 30px; border-radius: 50%; cursor: pointer;
