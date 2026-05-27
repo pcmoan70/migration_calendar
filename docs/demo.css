@@ -1447,10 +1447,11 @@ table.recent-table .rc-srccell { white-space: nowrap; }
 .rc-src-ebird { background: #1f7a3a; }
 .rc-src-gbif { background: #4a6fa5; }
 .rc-src-inat { background: #74ac00; }
-/* Caption row: source counts on the left, action buttons on the right. */
-.recent-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
-.recent-head .recent-src { margin-bottom: 0; }
-.recent-head-btns { display: flex; gap: 6px; flex: 0 0 auto; }
+/* Caption row: source counts on the left, action buttons on the right.
+   Wraps so the buttons stay visible (not pushed off-screen) on narrow phones. */
+.recent-head { display: flex; align-items: center; justify-content: space-between; gap: 8px 10px; margin-bottom: 8px; flex-wrap: wrap; }
+.recent-head .recent-src { margin-bottom: 0; flex: 1 1 140px; min-width: 0; }
+.recent-head-btns { display: flex; gap: 6px; flex: 0 0 auto; flex-wrap: wrap; }
 #recent-dl, #recent-map {
   flex: 0 0 auto; cursor: pointer; font: inherit; font-size: 0.78rem; padding: 5px 10px; border-radius: var(--radius-xs);
   border: 1px solid var(--md-default-fg-color--lightest, #ccc);
