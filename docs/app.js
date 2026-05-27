@@ -1852,27 +1852,40 @@
 
   // Show the app's own range map for a species: switch to Species Range mode,
   // close any full-screen panel, and select the species (which renders it).
-  function showSpeciesRange(key, skipRender) {
+  function showSpeciesRange(key) {
     if (!labelsByKey[key]) return;
     var modeEl = document.getElementById("mode-select");
     if (modeEl.value !== "range") { modeEl.value = "range"; modeEl.dispatchEvent(new Event("change", { bubbles: true })); }
     var ep = document.getElementById("entry-page"); if (ep) ep.style.display = "none";
-    selectSpecies(key, skipRender);
+    selectSpecies(key);
     if (map) map.invalidateSize();
   }
 
-  // Like showSpeciesRange, but also starts the week-by-week "Play migration"
-  // animation so the user watches the species' range shift across the year.
-  function showSpeciesMigration(key) {
-    if (!labelsByKey[key]) return;
-    // Select without the single-week render so the animation's 48-week
-    // precompute (below) is the only render in flight — otherwise its
-    // rendering=true guard would abort the precompute.
-    showSpeciesRange(key, true);
-    toggleAnimation();
+  // The point a per-species migration timeline should be computed at: the open
+  // checklist's location, else the placed marker, else the current map centre.
+  function migrationPoint() {
+    var fp = document.getElementById("field-page");
+    if (fp && fp.style.display !== "none" && typeof fieldLat === "number") return { lat: fieldLat, lon: fieldLon };
+    if (marker) { var ll = marker.getLatLng(); return { lat: ll.lat, lon: ll.lng }; }
+    var c = map.getCenter(); return { lat: c.lat, lon: c.lng };
   }
 
-  function selectSpecies(key, skipRender) {
+  // "Migration": this one species' weekly probability through the year at a
+  // single point — i.e. the Migration (barchart) mode's Timeline tab, run at
+  // the relevant point and filtered to just this species.
+  function showSpeciesMigration(key) {
+    var lbl = labelsByKey[key];
+    if (!lbl) return;
+    var pt = migrationPoint();
+    var modeEl = document.getElementById("mode-select");
+    if (modeEl.value !== "barchart") { modeEl.value = "barchart"; modeEl.dispatchEvent(new Event("change", { bubbles: true })); }
+    analysisTab = "timeline";
+    window.GeoState.save({ analysisTab: analysisTab });
+    document.getElementById("an-filter").value = speciesName(lbl);
+    renderAnalysis(pt.lat, pt.lon);
+  }
+
+  function selectSpecies(key) {
     var lbl = labelsByKey[key];
     if (!lbl) return;
     var el = document.getElementById("species-search");
@@ -1880,7 +1893,7 @@
     el.dataset.selectedKey = key;
     window.GeoState.save({ species: key });
     stopAnimation();
-    if (!skipRender && currentMode === "range") renderRangeMap();
+    if (currentMode === "range") renderRangeMap();
   }
 
   // ---- Inference -----------------------------------------------------------
