@@ -277,12 +277,52 @@
   var RENDER_CACHE_MAX = 50;
   // Species-Range H3 cell-value cache: "speciesCode:week" -> { h3index: rawProb }.
   // Accumulates cells across every zoom/pan so revisiting an area needs no new
-  // inference; merged on render. LRU-capped by (species,week) tag.
+  // inference; merged on render. Persisted to localStorage, capped (MB) via a
+  // Settings control; oldest (species,week) tags are evicted to fit the cap.
   var h3RangeCache = new Map();
+  var H3_CACHE_KEY = "geomodel-h3cache-v1";
+  var h3CacheMB = 2;          // localStorage budget for the range cache (0 = off)
+  var h3SaveTimer = null;
   function h3RangeCacheFor(tag) {
     var m = h3RangeCache.get(tag);
-    if (!m) { m = {}; h3RangeCache.set(tag, m); if (h3RangeCache.size > 300) h3RangeCache.delete(h3RangeCache.keys().next().value); }
+    if (!m) { m = {}; h3RangeCache.set(tag, m); if (h3RangeCache.size > 600) h3RangeCache.delete(h3RangeCache.keys().next().value); }
     return m;
+  }
+  function loadH3Cache() {
+    if (h3CacheMB <= 0) return;
+    try {
+      var obj = JSON.parse(localStorage.getItem(H3_CACHE_KEY) || "{}");
+      Object.keys(obj).forEach(function (tag) { h3RangeCache.set(tag, obj[tag]); });   // insertion order = oldest first
+    } catch (e) { /* corrupt / unavailable — ignore */ }
+  }
+  function h3CacheToJson() {
+    var obj = {};
+    h3RangeCache.forEach(function (cells, tag) {
+      var o = {};
+      for (var c in cells) { var v = cells[c]; o[c] = v < 0.0001 ? 0 : +v.toFixed(4); }   // round to shrink
+      obj[tag] = o;
+    });
+    return obj;
+  }
+  function scheduleH3Save() {
+    if (h3SaveTimer) clearTimeout(h3SaveTimer);
+    h3SaveTimer = setTimeout(saveH3Cache, 2500);
+  }
+  function saveH3Cache() {
+    h3SaveTimer = null;
+    if (h3CacheMB <= 0) { try { localStorage.removeItem(H3_CACHE_KEY); } catch (e) {} return; }
+    var capChars = h3CacheMB * 1e6;   // ~1 char ≈ 1 byte for this ascii/numeric data
+    var obj = h3CacheToJson(), str = JSON.stringify(obj);
+    // Evict oldest tags (Map order) until within the cap.
+    while (str.length > capChars && Object.keys(obj).length > 1) {
+      delete obj[Object.keys(obj)[0]];
+      str = JSON.stringify(obj);
+    }
+    try { localStorage.setItem(H3_CACHE_KEY, str); }
+    catch (e) {   // quota exceeded — drop half the tags and retry once
+      var keys = Object.keys(obj); for (var i = 0; i < keys.length / 2; i++) delete obj[keys[i]];
+      try { localStorage.setItem(H3_CACHE_KEY, JSON.stringify(obj)); } catch (e2) { try { localStorage.removeItem(H3_CACHE_KEY); } catch (e3) {} }
+    }
   }
   var marker = null;
   var currentMode = "range";
@@ -776,6 +816,12 @@
                 '<label for="hires-factor" data-i18n="ctrl.hires">High resolution</label>' +
                 '<select id="hires-factor" title="Resolution factor (points per axis)">' +
                   '<option value="1" selected>1</option><option value="2">2</option><option value="3">3</option><option value="5">5</option><option value="7">7</option><option value="9">9</option><option value="11">11</option>' +
+                '</select>' +
+              '</div>' +
+              '<div class="ctrl-group">' +
+                '<label for="h3cache-mb" data-i18n="ctrl.cachemb">Map data cache</label>' +
+                '<select id="h3cache-mb">' +
+                  '<option value="0" data-i18n="opt.off">Off</option><option value="1">1 MB</option><option value="2">2 MB</option><option value="5">5 MB</option>' +
                 '</select>' +
               '</div>' +
               '<div class="ctrl-group" id="barchart-threshold-wrap" style="display:none">' +
@@ -1366,6 +1412,16 @@
       if (currentMode === "range" || currentMode === "richness") { clearOverlay(); triggerRender(); }
     });
 
+    // Range cache budget (MB) → persist to localStorage; 0 disables and clears.
+    h3CacheMB = +window.GeoState.get("h3CacheMB", 2) || 0;
+    document.getElementById("h3cache-mb").value = String(h3CacheMB);
+    loadH3Cache();
+    document.getElementById("h3cache-mb").addEventListener("change", function () {
+      h3CacheMB = +this.value || 0;
+      window.GeoState.save({ h3CacheMB: h3CacheMB });
+      saveH3Cache();   // re-fit to the new cap (or clear when Off)
+    });
+
     document.getElementById("maptype-select").addEventListener("change", function () {
       setBasemap(this.value);
     });
@@ -1619,10 +1675,12 @@
     })();
 
     // Stop the migration animation when the tab is hidden so it never runs
-    // unattended in a backgrounded window.
+    // unattended in a backgrounded window; also flush the range cache.
     document.addEventListener("visibilitychange", function () {
       if (document.hidden && animating) stopAnimation();
+      if (document.hidden && h3SaveTimer) saveH3Cache();
     });
+    window.addEventListener("pagehide", function () { if (h3SaveTimer) saveH3Cache(); });
 
     // Dropdown popovers (Hidden species, Saved locations).
     function wireDropdown(btnId, panelId) {
@@ -2213,7 +2271,7 @@
       cachedRender = { h3range: true, tag: key + ":" + selectedWeek };
       paintOverlay();
       setStatus(t("status.rangeDone", { name: name, week: weekText(selectedWeek), n: cells.length.toLocaleString(), step: approxStep }));
-      updateLegend(); updateMapCsv();
+      updateLegend(); updateMapCsv(); scheduleH3Save();
     } catch (e) { setStatus(t("status.error", { msg: e.message })); console.error(e); }
     finally { rendering = false; showComputingOverlay(false); if (gen !== renderGeneration) triggerRender(); }
   }
