@@ -949,6 +949,7 @@
           '<div id="bc-container"></div>' +
         '</div>' +
         '<div id="sp-menu" style="display:none">' +
+          '<button type="button" class="sp-menu-item sp-menu-app" data-act="apprange" data-i18n="menu.apprange">Species distribution</button>' +
           '<button type="button" class="sp-menu-item" data-act="recent" data-i18n="menu.recent">Recent detections</button>' +
           '<button type="button" class="sp-menu-item" data-act="distmap" data-i18n="menu.distmap">Distribution map</button>' +
           '<button type="button" class="sp-menu-item" data-act="wiki" data-i18n="menu.wiki">Wikipedia</button>' +
@@ -1754,6 +1755,7 @@
       btn.addEventListener("click", function () {
         var act = this.getAttribute("data-act");
         if (act === "hide") hideSpecies(menuKey);
+        else if (act === "apprange") showSpeciesRange(menuKey);
         else if (act === "filter") applyNameFilter(menuName);
         else if (act === "wiki") openWikipedia(menuSci || menuName);
         else if (act === "birdlife") openBirdLife((labelsByKey[menuKey] && labelsByKey[menuKey].common) || menuName, menuSci || menuName);
@@ -1842,6 +1844,17 @@
   function highlightItem(items, idx) {
     items.forEach(function (el, i) { el.classList.toggle("active", i === idx); });
     if (items[idx]) items[idx].scrollIntoView({ block: "nearest" });
+  }
+
+  // Show the app's own range map for a species: switch to Species Range mode,
+  // close any full-screen panel, and select the species (which renders it).
+  function showSpeciesRange(key) {
+    if (!labelsByKey[key]) return;
+    var modeEl = document.getElementById("mode-select");
+    if (modeEl.value !== "range") { modeEl.value = "range"; modeEl.dispatchEvent(new Event("change", { bubbles: true })); }
+    var ep = document.getElementById("entry-page"); if (ep) ep.style.display = "none";
+    selectSpecies(key);
+    if (map) map.invalidateSize();
   }
 
   function selectSpecies(key) {

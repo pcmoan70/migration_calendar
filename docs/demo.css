@@ -1159,6 +1159,8 @@ button.dd-name:hover { text-decoration: underline; }
 }
 .sp-menu-item:hover { background: var(--surface-2); }
 .sp-menu-item[data-act="hide"] { color: var(--danger); }
+/* The app's own range map — the primary action, set apart at the top. */
+.sp-menu-app { font-weight: 700; color: var(--brand-strong); border-bottom: 1px solid var(--border); }
 
 /* ===== Two-sided probability range slider (analysis) ===== */
 #prob-range {
