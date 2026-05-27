@@ -2915,15 +2915,15 @@
   function renderTimelineTab(container, ctx) {
     var wkIdx = ctx.week - 1;
     var rows = window.GeoAnalysis.visibleSpecies(ctx);
-    rows.forEach(function (r) {
-      var sum = 0; for (var w = 0; w < 48; w++) sum += r.probs[w];
-      r.avg = sum / 48;
-    });
     // Sort by current-week probability (largest first).
     rows.sort(function (a, b) { return b.probs[wkIdx] - a.probs[wkIdx]; });
 
     var globalMax = 0;
-    rows.forEach(function (r) { for (var w = 0; w < 48; w++) if (r.probs[w] > globalMax) globalMax = r.probs[w]; });
+    rows.forEach(function (r) {
+      var mx = 0; for (var w = 0; w < 48; w++) if (r.probs[w] > mx) mx = r.probs[w];
+      r.max = mx;
+      if (mx > globalMax) globalMax = mx;
+    });
     if (globalMax < 0.01) globalMax = 0.01;
 
     if (rows.length === 0) { container.innerHTML = '<p class="an-empty">' + escapeHtml(t("analysis.empty")) + "</p>"; return; }
@@ -2936,7 +2936,7 @@
         '<span class="bc-rank">' + (ri + 1) + '</span>' +
         '<span class="bc-name">' + nameLinkHtml(r.label) + '</span>' +
         '<span class="bc-sci">' + escapeHtml(r.label.sci) + '</span>' +
-        '<span class="bc-avg">' + t("bc.avg", { p: (r.avg * 100).toFixed(1) }) + '</span>' +
+        '<span class="bc-avg">' + t("bc.max", { p: (r.max * 100).toFixed(1) }) + '</span>' +
         '</div><div class="bc-bars">';
       for (var w3 = 0; w3 < 48; w3++) {
         var prob = r.probs[w3];
