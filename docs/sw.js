@@ -14,7 +14,7 @@
  *
  * Bump VERSION to invalidate all caches on the next deploy.
  */
-var VERSION = "v12";
+var VERSION = "v13";
 var SHELL_CACHE = "shell-" + VERSION;   // app code + small assets
 var DATA_CACHE = "data-" + VERSION;     // model / labels / taxonomy / vendor libs
 var TILE_CACHE = "tiles-" + VERSION;    // map tiles
@@ -34,6 +34,7 @@ var SHELL = [
   "icon.svg",
   "vendor/leaflet/leaflet.css",
   "vendor/leaflet/leaflet.js",
+  "vendor/h3-js.js",
   "vendor/leaflet/images/marker-icon.png",
   "vendor/leaflet/images/marker-icon-2x.png",
   "vendor/leaflet/images/marker-shadow.png",

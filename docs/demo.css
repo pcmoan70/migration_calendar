@@ -189,7 +189,7 @@ input:focus-visible {
 #play-progress {
   position: relative;
   height: 26px;
-  margin: 0 0 8px;
+  margin: 8px 0;
   border: 1px solid var(--border);
   border-radius: var(--radius-xs);
   background: var(--surface);

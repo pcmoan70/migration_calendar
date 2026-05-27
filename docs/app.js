@@ -771,7 +771,6 @@
         '</div>' +
         '<div id="demo-status">&nbsp;</div>' +
         '<div id="range-species" style="display:none"></div>' +
-        '<div id="play-progress" style="display:none"><div class="pp-fill"></div><div class="pp-marker"></div><div class="pp-months"></div></div>' +
         '<div id="demo-map-wrap">' +
           '<div id="demo-map"></div>' +
           '<div id="demo-computing" style="display:none">' +
@@ -781,6 +780,7 @@
           '</div>' +
           '<div id="demo-legend"></div>' +
         '</div>' +
+        '<div id="play-progress" style="display:none"><div class="pp-fill"></div><div class="pp-marker"></div><div class="pp-months"></div></div>' +
         '<div id="csv-btn-wrap" style="display:none">' +
           '<button id="csv-download-btn" class="demo-btn" data-i18n="btn.csv" title="Download CSV">\u2b07 CSV</button>' +
         '</div>' +
@@ -1750,13 +1750,92 @@
     if (overlayCanvas) { overlayCanvas.width = 0; overlayCanvas.height = 0; }
   }
 
-  // Renders the cell grid as a smooth heatmap. To avoid colour/alpha fringing
-  // (which image smoothing of an RGBA grid produces around the range edges),
-  // we bilinearly interpolate the PROBABILITY SCALAR — in both longitude
-  // (linear in screen-x) and latitude (non-linear in Web Mercator, so each row
-  // is mapped back to its latitude) — and only then colourise each pixel. The
-  // buffer is built at ~screen resolution so it is drawn essentially 1:1.
+  // Bilinear sample of the cached probability field at a lat/lon — the same
+  // mapping the smooth renderer uses (linear in lon, row by latitude).
+  function sampleGridProb(g, probs, lat, lon) {
+    var rf = (g.north - lat) / g.step - 0.5;
+    var r0 = Math.floor(rf), fr = Math.max(0, Math.min(1, rf - r0));
+    r0 = Math.max(0, Math.min(g.nLat - 1, r0));
+    var r1 = Math.max(0, Math.min(g.nLat - 1, r0 + 1));
+    var lonU = lon; while (lonU < g.west) lonU += 360; while (lonU > g.east) lonU -= 360;
+    var cf = (lonU - g.west) / g.step - 0.5;
+    var c0 = Math.floor(cf), fc = Math.max(0, Math.min(1, cf - c0));
+    c0 = Math.max(0, Math.min(g.nLon - 1, c0));
+    var c1 = Math.max(0, Math.min(g.nLon - 1, c0 + 1));
+    var b0 = r0 * g.nLon, b1 = r1 * g.nLon;
+    var top = probs[b0 + c0] + (probs[b0 + c1] - probs[b0 + c0]) * fc;
+    var bot = probs[b1 + c0] + (probs[b1 + c1] - probs[b1 + c0]) * fc;
+    return top + (bot - top) * fr;
+  }
+
+  // H3 resolution whose average hexagon edge is ~22 px on screen (finer with a
+  // higher Resolution setting).
+  function h3ResForView() {
+    var c = map.getCenter(), z = map.getZoom();
+    var mpp = 156543.03392 * Math.cos(c.lat * Math.PI / 180) / Math.pow(2, z);
+    var targetM = Math.max(1, 22 * mpp / Math.max(1, hiResFactor));
+    var best = 4, bestD = Infinity;
+    for (var r = 0; r <= 12; r++) {
+      var d = Math.abs(window.h3.getHexagonEdgeLengthAvg(r, "m") - targetM);
+      if (d < bestD) { bestD = d; best = r; }
+    }
+    return best;
+  }
+
+  // The overlay is drawn as filled H3 hexagons sampling the predicted field;
+  // falls back to the smooth heatmap if the H3 library is unavailable.
   function paintOverlay() {
+    if (!cachedRender || !map) return;
+    if (window.h3) { try { paintOverlayH3(); return; } catch (e) { /* fall through */ } }
+    paintOverlaySmooth();
+  }
+
+  function paintOverlayH3() {
+    ensureOverlayCanvas();
+    var g = cachedRender.grid, probs = cachedRender.probs;
+    var size = map.getSize();
+    if (overlayCanvas.width !== size.x || overlayCanvas.height !== size.y) { overlayCanvas.width = size.x; overlayCanvas.height = size.y; }
+    L.DomUtil.setPosition(overlayCanvas, map.containerPointToLayerPoint([0, 0]));
+    var ctx = overlayCanvas.getContext("2d");
+    ctx.clearRect(0, 0, size.x, size.y);
+
+    // Polygon to tile, clamped to valid lat/lon (no antimeridian crossing).
+    var polyN = Math.min(g.north, 89.5), polyS = Math.max(g.south, -89.5), polyW = g.west, polyE = g.east;
+    if (polyE - polyW >= 360) { polyW = -179.9; polyE = 179.9; }
+    else { polyW = Math.max(polyW, -179.9); polyE = Math.min(polyE, 179.9); if (polyE <= polyW) { polyW = -179.9; polyE = 179.9; } }
+
+    var res = h3ResForView(), cells = [];
+    for (var tries = 0; tries < 4; tries++) {
+      cells = window.h3.polygonToCells([[polyN, polyW], [polyN, polyE], [polyS, polyE], [polyS, polyW]], res);
+      if (cells.length <= 7000 || res === 0) break;
+      res--;
+    }
+
+    for (var i = 0; i < cells.length; i++) {
+      var ll = window.h3.cellToLatLng(cells[i]);
+      var p = sampleGridProb(g, probs, ll[0], ll[1]);
+      if (!(p >= 0.01)) continue;
+      var bnd = window.h3.cellToBoundary(cells[i]);
+      // Skip hexes straddling the antimeridian (would smear across the map).
+      var minLon = 999, maxLon = -999;
+      for (var w = 0; w < bnd.length; w++) { if (bnd[w][1] < minLon) minLon = bnd[w][1]; if (bnd[w][1] > maxLon) maxLon = bnd[w][1]; }
+      if (maxLon - minLon > 180) continue;
+      ctx.beginPath();
+      for (var v = 0; v < bnd.length; v++) {
+        var pt = map.latLngToContainerPoint([bnd[v][0], bnd[v][1]]);
+        if (v === 0) ctx.moveTo(pt.x, pt.y); else ctx.lineTo(pt.x, pt.y);
+      }
+      ctx.closePath();
+      var col = colormapLookup(p);
+      ctx.fillStyle = "rgba(" + col[0] + "," + col[1] + "," + col[2] + "," + Math.min(1, 0.25 + p * 0.75).toFixed(3) + ")";
+      ctx.fill();
+    }
+  }
+
+  // Smooth-heatmap fallback: bilinearly interpolate the PROBABILITY SCALAR (in
+  // longitude, linear in screen-x, and latitude, mapped back per Mercator row),
+  // then colourise each pixel. Built at ~screen resolution, drawn ~1:1.
+  function paintOverlaySmooth() {
     if (!cachedRender || !map) return;
     ensureOverlayCanvas();
 
