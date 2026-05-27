@@ -276,7 +276,8 @@
   var fieldFilter = "all";    // checklist row filter: "all" | "seen" | "missing"
   var fieldPlaceToken = 0;    // guards against stale field-place lookups
   var fieldLat = 0, fieldLon = 0;   // current field-checklist point
-  var fieldKey = null;        // placeKey of the field checklist currently open
+  var fieldKey = null;        // listId (placeKey@day) of the field checklist currently open
+  var fieldNameCache = {};    // placeKey -> resolved place name (auto-title for new lists)
   var rendering = false;
   var renderGeneration = 0;
   var moveEndTimer = null;
@@ -2363,6 +2364,12 @@
     return getFieldRecord(fieldKey) || (create ? newFieldRecord(fieldKey, fieldLat, fieldLon) : null);
   }
   function putFieldRecord(rec) {
+    // Give a freshly-recorded list a real place name (not coordinates) as soon
+    // as it has content, using the resolved name for its location when known.
+    if (!(rec.title || "").trim() && rec.log.length) {
+      var nm = fieldNameCache[String(rec.id).split("@")[0]];
+      if (nm) rec.title = nm;
+    }
     var all = getFieldChecklists();
     if (!rec.log.length && !(rec.title || "").trim()) delete all[rec.id];   // drop empty + untitled
     else all[rec.id] = rec;
@@ -2484,12 +2491,21 @@
       fcEl.dataset.pkey = id;
       fieldKey = id;
       var rec = getFieldRecord(id);
-      var saved = (rec && rec.title) || getFieldTitles()[pkey];
+      var saved = (rec && rec.title) || getFieldTitles()[pkey] || fieldNameCache[pkey];
       fcEl.value = saved || (lat.toFixed(4) + "°, " + lon.toFixed(4) + "°");
       var ptok = ++fieldPlaceToken;
       if (!saved) {
+        // Resolve a proper place name; show it, remember it as the auto-title,
+        // and persist it onto the open list once it has observations so the
+        // dropdown never shows raw coordinates.
         detailedPlaceName(lat, lon).then(function (name) {
-          if (ptok === fieldPlaceToken && name && !getFieldTitles()[pkey]) fcEl.value = name;
+          if (!name) return;
+          fieldNameCache[pkey] = name;
+          if (ptok !== fieldPlaceToken) return;          // user moved on
+          if (getFieldTitles()[pkey]) return;            // user already named it
+          if (!(fcEl.value || "").trim() || /^-?\d.*°/.test(fcEl.value)) fcEl.value = name;
+          var r2 = getFieldRecord(id);
+          if (r2 && r2.log && r2.log.length && !(r2.title || "").trim()) persistFieldTitle(name);
         });
       }
       document.getElementById("field-page").style.display = "flex";   // full-screen entry page
@@ -3236,7 +3252,7 @@
     Object.keys(fcs).forEach(function (id) {
       var r = getFieldRecord(id); if (!r) return;
       if (!((r.log && r.log.length) || (r.title || "").trim())) return;
-      var base = (r.title || "").trim() || (r.lat.toFixed(3) + "°, " + r.lon.toFixed(3) + "°");
+      var base = (r.title || "").trim() || fieldNameCache[String(id).split("@")[0]] || (r.lat.toFixed(3) + "°, " + r.lon.toFixed(3) + "°");
       items.push({ pkey: id, base: base, day: dayOf(r), lat: r.lat, lon: r.lon });
     });
     var counts = {};

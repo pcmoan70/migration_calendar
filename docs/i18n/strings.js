@@ -23,9 +23,7 @@ window.GeoI18N = (function () {
     { code: "es", full: true,    name: "Español",     taxCol: "common_name_es" },
     { code: "fr", full: true,    name: "Français",    taxCol: "common_name_fr" },
     { code: "nl", full: true,    name: "Nederlands",  taxCol: "common_name_nl" },
-    // Italian has no common-name column in taxonomy.csv, so species names fall
-    // back to (bracketed) English; the UI documentation is translated below.
-    { code: "it",    name: "Italiano",    taxCol: "common_name_it" },
+    { code: "it", full: true,    name: "Italiano",    taxCol: "common_name_it" },
     { code: "pt", full: true,    name: "Português",   taxCol: "common_name_pt" },
     { code: "pl", full: true,    name: "Polski",      taxCol: "common_name_pl" },
     { code: "cs", full: true,    name: "Čeština",     taxCol: "common_name_cs" },
@@ -46,6 +44,27 @@ window.GeoI18N = (function () {
     { code: "fa",    name: "فارسی",       taxCol: "common_name_fa" },
     { code: "ja",    name: "日本語",       taxCol: "common_name_ja" },
     { code: "zh-CN", name: "中文 (简体)",  taxCol: "common_name_zh-CN" },
+    // Bird names sourced from the IOC World Bird List 15.2. These languages have
+    // no translated UI (it falls back to English) and unmatched/non-bird species
+    // fall back to a bracketed English name.
+    { code: "zh-TW", name: "中文 (繁體)",      taxCol: "common_name_zh-TW" },
+    { code: "eo",    name: "Esperanto",        taxCol: "common_name_eo" },
+    { code: "hu",    name: "Magyar",           taxCol: "common_name_hu" },
+    { code: "ro",    name: "Română",           taxCol: "common_name_ro" },
+    { code: "sl",    name: "Slovenščina",      taxCol: "common_name_sl" },
+    { code: "lv",    name: "Latviešu",         taxCol: "common_name_lv" },
+    { code: "is",    name: "Íslenska",         taxCol: "common_name_is" },
+    { code: "id",    name: "Bahasa Indonesia", taxCol: "common_name_id" },
+    { code: "el",    name: "Ελληνικά",         taxCol: "common_name_el" },
+    { code: "mk",    name: "Македонски",       taxCol: "common_name_mk" },
+    { code: "be",    name: "Беларуская",       taxCol: "common_name_be" },
+    { code: "af",    name: "Afrikaans",        taxCol: "common_name_af" },
+    { code: "se",    name: "Davvisámegiella",  taxCol: "common_name_se" },
+    { code: "ko",    name: "한국어",            taxCol: "common_name_ko" },
+    { code: "he",    name: "עברית",            taxCol: "common_name_he" },
+    { code: "ar",    name: "العربية",          taxCol: "common_name_ar" },
+    { code: "th",    name: "ไทย",              taxCol: "common_name_th" },
+    { code: "ml",    name: "മലയാളം",           taxCol: "common_name_ml" },
   ];
 
   // Month abbreviations and intra-month period words, per language.
