@@ -375,6 +375,13 @@
     return "https://xeno-canto.org/explore?query=" + encodeURIComponent(String(sci || "").trim());
   }
 
+  // eBird species page (label keys are eBird taxon codes) — shows recent
+  // sightings and a map; falls back to a search for non-code keys.
+  function ebirdUrl(key, sci) {
+    if (/^[a-z]/i.test(key) && !/^\d+$/.test(key)) return "https://ebird.org/species/" + encodeURIComponent(key);
+    return "https://ebird.org/species/search?q=" + encodeURIComponent(String(sci || "").trim());
+  }
+
   // Best-effort direct factsheet slug (works only when BirdLife's genus matches
   // eBird's); used as a no-JS fallback href and last resort.
   function slugify(s) { return String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, ""); }
@@ -880,6 +887,7 @@
           '<button type="button" class="sp-menu-item" data-act="distmap" data-i18n="menu.distmap">Distribution map</button>' +
           '<button type="button" class="sp-menu-item" data-act="wiki" data-i18n="menu.wiki">Wikipedia</button>' +
           '<button type="button" class="sp-menu-item" data-act="birdlife" data-i18n="menu.birdlife">BirdLife</button>' +
+          '<button type="button" class="sp-menu-item" data-act="ebird" data-i18n="menu.ebird">eBird (recent sightings)</button>' +
           '<button type="button" class="sp-menu-item" data-act="macaulay" data-i18n="menu.macaulay">Macaulay Library</button>' +
           '<button type="button" class="sp-menu-item" data-act="xeno" data-i18n="menu.xeno">Xeno-canto (audio)</button>' +
           '<button type="button" class="sp-menu-item" data-act="filter" data-i18n="menu.filter">Filter</button>' +
@@ -1619,9 +1627,12 @@
         menuKey = link.getAttribute("data-key");
         menuName = link.getAttribute("data-name");
         menuSci = link.getAttribute("data-sci") || "";
-        // BirdLife DataZone covers birds only — hide the item for other groups.
+        // BirdLife DataZone and eBird cover birds only — hide for other groups.
+        var bird = isBirdKey(menuKey);
         var blBtn = spMenu.querySelector('[data-act="birdlife"]');
-        if (blBtn) blBtn.style.display = isBirdKey(menuKey) ? "" : "none";
+        if (blBtn) blBtn.style.display = bird ? "" : "none";
+        var ebBtn = spMenu.querySelector('[data-act="ebird"]');
+        if (ebBtn) ebBtn.style.display = bird ? "" : "none";
         spMenu.style.left = e.pageX + "px";
         spMenu.style.top = e.pageY + "px";
         spMenu.style.display = "block";
@@ -1638,6 +1649,7 @@
         else if (act === "filter") applyNameFilter(menuName);
         else if (act === "wiki") openWikipedia(menuSci || menuName);
         else if (act === "birdlife") openBirdLife((labelsByKey[menuKey] && labelsByKey[menuKey].common) || menuName, menuSci || menuName);
+        else if (act === "ebird") openExternal(ebirdUrl(menuKey, menuSci || menuName));
         else if (act === "macaulay") openExternal(macaulayUrl(menuKey, menuSci || menuName));
         else if (act === "xeno") openExternal(xenoCantoUrl(menuSci || menuName));
         else if (act === "distmap") showDistMap(menuName, menuSci || menuName, menuKey);
