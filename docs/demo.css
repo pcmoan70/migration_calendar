@@ -216,9 +216,14 @@ input:focus-visible {
 /* ---------- Map ---------- */
 #demo-map {
   width: 100%;
-  /* Keep the map from filling the viewport so the controls/panels below are
-     easy to scroll to. */
-  height: min(560px, 62vh);
+  /* Balanced landscape proportions instead of a thin, wide letterbox. The
+     aspect ratio drives the height from the width, capped to the viewport so
+     the controls/panels below stay easy to reach, with a floor for narrow
+     (mobile) screens. */
+  aspect-ratio: 16 / 10;
+  height: auto;
+  max-height: 72vh;
+  min-height: 400px;
   border-radius: var(--radius);
   border: 1px solid var(--border);
   box-shadow: var(--shadow-md);
