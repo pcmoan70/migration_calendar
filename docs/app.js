@@ -515,6 +515,8 @@
     all.sort(function (a, b) { return String(b.eventDate || "").localeCompare(String(a.eventDate || "")); });
     return all.slice(0, 100).map(function (o) {
       return {
+        src: "GBIF",
+        dt: o.eventDate || "",
         date: (o.eventDate || "").slice(0, 10) || "—",
         place: o.locality || o.verbatimLocality || o.stateProvince || o.county || o.country || "",
         who: (Array.isArray(o.recordedBy) ? o.recordedBy.join(", ") : o.recordedBy) || o.datasetName || "",
@@ -531,6 +533,8 @@
     var j = await (await fetch(url)).json();
     return ((j && j.results) || []).map(function (o) {
       return {
+        src: "iNaturalist",
+        dt: o.time_observed_at || o.observed_on || "",
         date: o.observed_on || (o.time_observed_at || "").slice(0, 10) || "—",
         place: o.place_guess || "",
         who: (o.user && (o.user.login || o.user.name)) || "",
@@ -555,6 +559,8 @@
     var j = await r.json();
     return ((j && j.length) ? j : []).map(function (o) {
       return {
+        src: "eBird",
+        dt: o.obsDt || "",
         date: (o.obsDt || "").slice(0, 10) || "—",
         place: o.locName || "",
         who: (o.howMany != null ? "×" + o.howMany : ""),
@@ -563,10 +569,22 @@
     });
   }
 
-  // Show recent observations of a species near the clicked location, most
-  // recent first. When the user has set an eBird API key, eBird is the primary
-  // source for birds (last 30 days); otherwise — and as a fallback — GBIF (the
-  // Nordic atlases publish there in near-real-time), then iNaturalist's live API.
+  var lastRecentRows = [], lastRecentMeta = null;
+  // CSV of the merged sightings list (one row per observation, all sources).
+  function recentCsv() {
+    var m = lastRecentMeta || {};
+    var lines = ["# " + (m.name || "") + " (" + (m.sci || "") + ") | " + (m.lat != null ? m.lat.toFixed(4) + "°, " + m.lon.toFixed(4) + "°" : "")];
+    lines.push("date,source,place,observer_or_count,url");
+    lastRecentRows.forEach(function (r) {
+      lines.push([csvEsc(r.date), r.src, csvEsc(r.place), csvEsc(r.who), csvEsc(r.url)].join(","));
+    });
+    return lines.join("\n");
+  }
+
+  // Show recent observations of a species near the clicked location: GBIF,
+  // iNaturalist and (with the user's eBird key, for birds) eBird, fetched in
+  // parallel and merged into one list sorted by time, most recent first.
+  // Downloadable as CSV. eBird's window is 30 days; GBIF/iNaturalist use ~2 months.
   async function showRecent(name, sci, lat, lon, key) {
     var body = document.getElementById("recent-body");
     document.getElementById("recent-title").textContent = name;
@@ -596,34 +614,37 @@
       if (a) a.setAttribute("href", gbifBase + countryParam);
     });
 
-    function render(rows, src, win) {
+    var srcSlug = function (s) { return s === "iNaturalist" ? "inat" : (s || "").toLowerCase(); };
+    function render(rows) {
       if (token !== recentToken) return;
       if (!rows.length) { body.innerHTML = '<p class="recent-none">' + escapeHtml(t("recent.none")) + "</p>" + links(); return; }
+      var counts = {};
+      rows.forEach(function (r) { counts[r.src] = (counts[r.src] || 0) + 1; });
+      var cap = Object.keys(counts).map(function (s) { return s + " " + counts[s]; }).join(" · ");
       var html = rows.map(function (r) {
         var place = r.place || "(map)";
         var cell = r.url ? '<a href="' + escapeHtml(r.url) + '" target="_blank" rel="noopener">' + escapeHtml(place) + "</a>" : escapeHtml(place);
-        return '<tr><td class="rc-date">' + escapeHtml(r.date) + '</td><td class="rc-place">' + cell + '</td><td class="rc-who">' + escapeHtml(r.who) + "</td></tr>";
+        var badge = '<span class="rc-src rc-src-' + srcSlug(r.src) + '">' + escapeHtml(r.src || "") + "</span>";
+        return '<tr><td class="rc-date">' + escapeHtml(r.date) + '</td><td class="rc-srccell">' + badge + '</td><td class="rc-place">' + cell + '</td><td class="rc-who">' + escapeHtml(r.who) + "</td></tr>";
       }).join("");
-      body.innerHTML = '<div class="recent-src">' + escapeHtml(src + " · " + (win || (d1 + " – " + d2))) + "</div>" +
+      body.innerHTML = '<div class="recent-head"><span class="recent-src">' + escapeHtml(cap + " · " + d1 + " – " + d2) + "</span>" +
+        '<button type="button" id="recent-dl">' + escapeHtml(t("recent.download")) + "</button></div>" +
         '<table class="recent-table"><tbody>' + html + "</tbody></table>" + links();
     }
 
     try {
-      // eBird first when the user has a key and this is a bird (30-day window).
-      if (key && isBirdKey(key) && ebirdKey()) {
-        var eb = await ebirdRecent(key, lat, lon);
-        if (token !== recentToken) return;
-        if (eb.length) {
-          var ed1 = fmtD(new Date(Date.now() - 30 * 864e5));
-          render(eb, "eBird", ed1 + " – " + d2);
-          return;
-        }
-      }
-      var rows = await gbifRecent(sci, lat, lon, range);
+      var wantEbird = key && isBirdKey(key) && ebirdKey();
+      var results = await Promise.all([
+        gbifRecent(sci, lat, lon, range).catch(function () { return []; }),
+        inatRecent(sci, lat, lon, d1, d2).catch(function () { return []; }),
+        wantEbird ? ebirdRecent(key, lat, lon).catch(function () { return []; }) : Promise.resolve([])
+      ]);
       if (token !== recentToken) return;
-      if (rows.length) { render(rows, "GBIF"); return; }
-      var inat = await inatRecent(sci, lat, lon, d1, d2);   // fallback where GBIF lags
-      render(inat, "iNaturalist");
+      var rows = results[0].concat(results[1], results[2]);
+      rows.sort(function (a, b) { return String(b.dt || b.date || "").localeCompare(String(a.dt || a.date || "")); });
+      lastRecentRows = rows;
+      lastRecentMeta = { name: name, sci: sci, lat: lat, lon: lon };
+      render(rows);
     } catch (e) {
       if (token !== recentToken) return;
       body.innerHTML = '<p class="recent-none">' + escapeHtml(t("recent.none")) + "</p>" + links();
@@ -1495,6 +1516,12 @@
     document.getElementById("recent-close").addEventListener("click", hideRecent);
     document.getElementById("recent-modal").addEventListener("click", function (e) {
       if (e.target === this) hideRecent();
+    });
+    document.getElementById("recent-modal").addEventListener("click", function (e) {
+      if (!e.target.closest || !e.target.closest("#recent-dl")) return;
+      if (!lastRecentRows.length) return;
+      var nm = (lastRecentMeta && lastRecentMeta.name) || "sightings";
+      downloadCsv("sightings_" + String(nm).replace(/[^\w-]+/g, "_") + ".csv", recentCsv());
     });
     // Pop-up reference links: Wikipedia uses the locale→English fallback;
     // BirdLife resolves the factsheet via its numeric ID.

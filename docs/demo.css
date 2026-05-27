@@ -1431,6 +1431,21 @@ table.recent-table .rc-who { color: var(--md-default-fg-color--light, #888); whi
 
 /* Recent-detections source label */
 .recent-src { font-size: 0.78rem; color: var(--md-default-fg-color--light, #888); margin-bottom: 8px; }
+/* Per-row source badge in the merged sightings list. */
+table.recent-table .rc-srccell { white-space: nowrap; }
+.rc-src { display: inline-block; font-size: 0.66rem; font-weight: 700; letter-spacing: 0.02em; color: #fff; padding: 1px 6px; border-radius: 999px; }
+.rc-src-ebird { background: #1f7a3a; }
+.rc-src-gbif { background: #4a6fa5; }
+.rc-src-inat { background: #74ac00; }
+/* Caption row: source counts on the left, Download-CSV on the right. */
+.recent-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.recent-head .recent-src { margin-bottom: 0; }
+#recent-dl {
+  flex: 0 0 auto; cursor: pointer; font: inherit; font-size: 0.78rem; padding: 5px 10px; border-radius: var(--radius-xs);
+  border: 1px solid var(--md-default-fg-color--lightest, #ccc);
+  background: var(--surface, #f5f5f5); color: var(--md-default-fg-color, #333);
+}
+#recent-dl:hover { border-color: var(--brand); color: var(--brand-strong, var(--brand)); }
 
 /* "Locate me" crosshair control on the map */
 /* Center the crosshair SVG in the Leaflet bar button (higher specificity than
