@@ -3887,9 +3887,6 @@
     });
     items.sort(function (a, b) { return (b.acc - a.acc) || (a.dist - b.dist); });
 
-    // Recency dots (now aligned with order): first = green, next three = orange.
-    items.filter(function (it) { return it.acc > 0; }).forEach(function (it, i) { it.dotRank = i; });
-
     wrap.style.display = items.length ? "" : "none";
     if (!items.length) panel.style.display = "none";
     btnText.textContent = items.length;   // small count badge on the list icon
@@ -3897,8 +3894,13 @@
 
     panel.innerHTML = items.map(function (it) {
       var n = escapeHtml(it.name);
-      var dot = it.dotRank === 0 ? '<span class="dd-dot dd-dot-last"></span>'
-        : (it.dotRank >= 1 && it.dotRank <= 3 ? '<span class="dd-dot dd-dot-recent"></span>' : "");
+      // Proximity dot: green < 500 m, orange ≤ 2 km, red beyond.
+      var dot = "";
+      if (isFinite(it.dist)) {
+        var cls = it.dist < 0.5 ? "dd-dot-near" : (it.dist <= 2 ? "dd-dot-mid" : "dd-dot-far");
+        var dtxt = it.dist < 1 ? Math.round(it.dist * 1000) + " m" : it.dist.toFixed(1) + " km";
+        dot = '<span class="dd-dot ' + cls + '" title="' + dtxt + '"></span>';
+      }
       return '<div class="dd-row"><button type="button" class="dd-name dd-open-field" data-pkey="' + escapeHtml(it.pkey) + '" title="' + n + '">' + dot + n + "</button>" +
         '<button type="button" class="dd-csv dd-csv-field" data-pkey="' + escapeHtml(it.pkey) + '" title="' + escapeHtml(t("btn.csv")) + '">⬇</button>' +
         '<button type="button" class="dd-del dd-del-field" data-pkey="' + escapeHtml(it.pkey) + '" title="' + escapeHtml(t("btn.delete")) + '">×</button></div>';
