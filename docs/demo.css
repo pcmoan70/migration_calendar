@@ -1024,6 +1024,10 @@ table.an-scatter-table td.an-tint { color: #fff; font-weight: 600; text-shadow: 
 button.dd-name { cursor: pointer; }
 button.dd-name:hover { text-decoration: underline; }
 .dd-icon { margin-right: 5px; font-size: 0.9em; color: var(--brand); vertical-align: -2px; }
+/* Recency markers in the checklist list: last opened = green, next three = orange. */
+.dd-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 7px; vertical-align: middle; }
+.dd-dot-last { background: #22a447; }
+.dd-dot-recent { background: #ef9420; }
 .dd-del {
   border: none;
   background: transparent;

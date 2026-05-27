@@ -2978,6 +2978,10 @@
       var id = listId || listIdFor(lat, lon);   // today's list at this place by default
       fcEl.dataset.pkey = id;
       fieldKey = id;
+      // Stamp last-accessed (for the recency dots in the checklist list); only
+      // for lists that already exist in storage — don't create an empty one.
+      var allFcs = getFieldChecklists();
+      if (allFcs[id]) { allFcs[id].accessedAt = Date.now(); saveFieldChecklists(allFcs); }
       var rec = getFieldRecord(id);
       var saved = (rec && rec.title) || getFieldTitles()[pkey] || fieldNameCache[pkey];
       fcEl.value = saved || (lat.toFixed(4) + "°, " + lon.toFixed(4) + "°");
@@ -3823,6 +3827,16 @@
     return items;
   }
 
+  // When a checklist was last opened — explicit stamp, else newest log entry,
+  // else creation time. Used to flag the most/recently accessed lists.
+  function accessTime(r) {
+    if (!r) return 0;
+    if (r.accessedAt) return r.accessedAt;
+    var ts = (r.log && r.log.length) ? (r.log[r.log.length - 1].ts || 0) : 0;
+    if (!ts && r.createdAt) ts = Date.parse(r.createdAt) || 0;
+    return ts;
+  }
+
   // Dropdown listing the saved Checklists, nearest first.
   function refreshChecklists() {
     var wrap = document.getElementById("checklists-wrap");
@@ -3840,6 +3854,12 @@
     });
     items.sort(function (a, b) { return (a.dist != null ? a.dist : Infinity) - (b.dist != null ? b.dist : Infinity); });
 
+    // Recency dots: most recently accessed = green, the next three = orange.
+    items.forEach(function (it) { it.acc = accessTime(getFieldRecord(it.pkey)); });
+    items.slice().filter(function (it) { return it.acc > 0; })
+      .sort(function (a, b) { return b.acc - a.acc; })
+      .forEach(function (it, i) { it.dotRank = i; });
+
     wrap.style.display = items.length ? "" : "none";
     if (!items.length) panel.style.display = "none";
     btnText.textContent = items.length;   // small count badge on the list icon
@@ -3847,7 +3867,9 @@
 
     panel.innerHTML = items.map(function (it) {
       var n = escapeHtml(it.name);
-      return '<div class="dd-row"><button type="button" class="dd-name dd-open-field" data-pkey="' + escapeHtml(it.pkey) + '" title="' + n + '">' + n + "</button>" +
+      var dot = it.dotRank === 0 ? '<span class="dd-dot dd-dot-last"></span>'
+        : (it.dotRank >= 1 && it.dotRank <= 3 ? '<span class="dd-dot dd-dot-recent"></span>' : "");
+      return '<div class="dd-row"><button type="button" class="dd-name dd-open-field" data-pkey="' + escapeHtml(it.pkey) + '" title="' + n + '">' + dot + n + "</button>" +
         '<button type="button" class="dd-csv dd-csv-field" data-pkey="' + escapeHtml(it.pkey) + '" title="' + escapeHtml(t("btn.csv")) + '">⬇</button>' +
         '<button type="button" class="dd-del dd-del-field" data-pkey="' + escapeHtml(it.pkey) + '" title="' + escapeHtml(t("btn.delete")) + '">×</button></div>';
     }).join("");
