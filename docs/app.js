@@ -334,6 +334,7 @@
   var fieldKey = null;        // listId (placeKey@day) of the field checklist currently open
   var fieldNameCache = {};    // placeKey -> resolved place name (auto-title for new lists)
   var fieldGeoWatch = null;   // geolocation watch id while a checklist is open
+  var fieldGeoLast = null;    // freshest device position {lat,lon,ts} while a checklist is open
   var entryEditKey = null;    // species whose observations the entry-edit page is showing
   var rendering = false;
   var renderGeneration = 0;
@@ -2870,10 +2871,12 @@
   // Append an observation entry to the open list (with id, time, location).
   function fcAppend(key, count, note, act) {
     var rec = curFieldRecord(true); if (!rec) return;
-    rec.log.push({ id: eid(), ts: Date.now(), lat: fieldLat, lon: fieldLon, key: key, count: (count != null && count !== "" ? count : null), act: act || "", note: (note || "").trim() });
+    var loc = regLocation(), eId = eid();
+    rec.log.push({ id: eId, ts: Date.now(), lat: loc.lat, lon: loc.lon, key: key, count: (count != null && count !== "" ? count : null), act: act || "", note: (note || "").trim() });
     rec.seen = rec.seen || {}; rec.seen[key] = true;
     rec.lat = fieldLat; rec.lon = fieldLon;
     putFieldRecord(rec);
+    freshenEntryLocation(eId);
   }
   // ＋ : commit the species' compose draft as a new entry, then clear it.
   function fcCommitCompose(key) {
@@ -2887,12 +2890,18 @@
   function fcTick(key, on) {
     var rec = curFieldRecord(true); if (!rec) return;
     rec.seen = rec.seen || {};
+    var newId = null;
     if (on) {
       rec.seen[key] = true;
-      if (!fcEntriesFor(rec, key).length) { var d = composeDraft[key] || {}; rec.log.push({ id: eid(), ts: Date.now(), lat: fieldLat, lon: fieldLon, key: key, count: (d.count != null && d.count !== "" ? d.count : null), act: d.act || "", note: (d.note || "").trim() }); composeDraft[key] = { count: null, act: "", note: "" }; }
+      if (!fcEntriesFor(rec, key).length) {
+        var d = composeDraft[key] || {}, loc = regLocation(); newId = eid();
+        rec.log.push({ id: newId, ts: Date.now(), lat: loc.lat, lon: loc.lon, key: key, count: (d.count != null && d.count !== "" ? d.count : null), act: d.act || "", note: (d.note || "").trim() });
+        composeDraft[key] = { count: null, act: "", note: "" };
+      }
     } else { delete rec.seen[key]; }
     rec.lat = fieldLat; rec.lon = fieldLon;
     putFieldRecord(rec);
+    if (newId) freshenEntryLocation(newId);
   }
   function fcUpdateEntry(id, patch) {
     var rec = curFieldRecord(false); if (!rec) return;
@@ -2966,6 +2975,7 @@
   function stopFieldGeoWatch() {
     if (fieldGeoWatch != null && navigator.geolocation) navigator.geolocation.clearWatch(fieldGeoWatch);
     fieldGeoWatch = null;
+    fieldGeoLast = null;
     showFieldFar(false);
   }
   function startFieldGeoWatch() {
@@ -2974,9 +2984,26 @@
     fieldGeoWatch = navigator.geolocation.watchPosition(function (pos) {
       // Stop once the checklist page is no longer showing.
       if (document.getElementById("field-page").style.display !== "flex") { stopFieldGeoWatch(); return; }
+      fieldGeoLast = { lat: pos.coords.latitude, lon: pos.coords.longitude, ts: Date.now() };
       var d = haversineKm(pos.coords.latitude, pos.coords.longitude, fieldLat, fieldLon);
       showFieldFar(d > FIELD_FAR_KM);
-    }, function () { /* denied / unavailable — no warning */ }, { enableHighAccuracy: false, maximumAge: 30000, timeout: 20000 });
+    }, function () { /* denied / unavailable — no warning */ }, { enableHighAccuracy: true, maximumAge: 10000, timeout: 20000 });
+  }
+  // Location to stamp on a new registration: the live device fix when available,
+  // else the checklist's anchor point.
+  function regLocation() {
+    return fieldGeoLast ? { lat: fieldGeoLast.lat, lon: fieldGeoLast.lon } : { lat: fieldLat, lon: fieldLon };
+  }
+  // Request a one-shot high-accuracy fix and patch the just-logged entry with it,
+  // so each registration ends up with a fresh position (not the open-time anchor).
+  function freshenEntryLocation(entryId) {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(function (pos) {
+      fieldGeoLast = { lat: pos.coords.latitude, lon: pos.coords.longitude, ts: Date.now() };
+      var rec = curFieldRecord(false); if (!rec) return;
+      var e = (rec.log || []).filter(function (x) { return x.id === entryId; })[0];
+      if (e) { e.lat = pos.coords.latitude; e.lon = pos.coords.longitude; putFieldRecord(rec); }
+    }, function () { /* denied / unavailable — keep best-known location */ }, { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 });
   }
 
   // Build the probability-ranked species list for the clicked/located point.
@@ -3307,14 +3334,14 @@
     var entries = getFieldEntries(), esc = function (v) { var s = String(v == null ? "" : v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
     var byKey = {}; (fieldData || []).forEach(function (r) { byKey[r.key] = r; });
     var titleEl = document.getElementById("field-coords");
-    var title = (titleEl && titleEl.value || "").trim();
-    var lines = [];
-    if (title) lines.push("# " + title + " | " + new Date().toISOString().slice(0, 10));
-    lines.push("species,common_name,count,activity,notes");
+    var title = (titleEl && titleEl.value || "").trim() || (fieldLat.toFixed(4) + "°, " + fieldLon.toFixed(4) + "°");
+    var lid = fieldKey || "";
+    var lines = ["# " + title + " | " + new Date().toISOString().slice(0, 10)];
+    lines.push("checklist,list_id,species,common_name,count,activity,notes");
     Object.keys(entries).forEach(function (key) {
       var e = entries[key]; if (!e.seen && (e.count == null || e.count === "") && !e.act && !e.note) return;
       var name = (byKey[key] && byKey[key].name) || (labelsByKey[key] && speciesName(labelsByKey[key])) || key;
-      lines.push([key, esc(name), e.count != null ? e.count : "", e.act ? actName(e.act) : "", esc(e.note || "")].join(","));
+      lines.push([esc(title), esc(lid), key, esc(name), e.count != null ? e.count : "", e.act ? actName(e.act) : "", esc(e.note || "")].join(","));
     });
     return lines.join("\n");
   }
@@ -3940,11 +3967,12 @@
   function fieldRecordCsv(id) {
     var r = getFieldRecord(id); if (!r) return "";
     var title = (r.title || "").trim() || (r.lat.toFixed(4) + "°, " + r.lon.toFixed(4) + "°");
+    var lid = r.id || id || "";
     var agg = fcAggregate(r), lines = ["# " + title + " | " + dayOf(r)];
-    lines.push("species,common_name,count,activity,notes");
+    lines.push("checklist,list_id,species,common_name,count,activity,notes");
     Object.keys(agg).forEach(function (key) {
       var a = agg[key], name = (labelsByKey[key] && speciesName(labelsByKey[key])) || key;
-      lines.push([key, csvEsc(name), a.count > 0 ? a.count : "", a.act ? actName(a.act) : "", csvEsc(a.note || "")].join(","));
+      lines.push([csvEsc(title), csvEsc(lid), key, csvEsc(name), a.count > 0 ? a.count : "", a.act ? actName(a.act) : "", csvEsc(a.note || "")].join(","));
     });
     return lines.join("\n");
   }
@@ -3952,11 +3980,12 @@
   function fieldLogCsv(id) {
     var r = id ? getFieldRecord(id) : curFieldRecord(false); if (!r) return "";
     var title = (r.title || "").trim() || (r.lat.toFixed(4) + "°, " + r.lon.toFixed(4) + "°");
+    var lid = r.id || id || "";
     var lines = ["# " + title + " | " + dayOf(r) + " | observation log"];
-    lines.push("timestamp,lat,lon,species,common_name,count,activity,notes");
+    lines.push("checklist,list_id,timestamp,lat,lon,species,common_name,count,activity,notes");
     (r.log || []).slice().sort(function (a, b) { return (a.ts || 0) - (b.ts || 0); }).forEach(function (e) {
       var name = (labelsByKey[e.key] && speciesName(labelsByKey[e.key])) || e.key;
-      lines.push([new Date(e.ts).toISOString(), e.lat != null ? e.lat.toFixed(5) : "", e.lon != null ? e.lon.toFixed(5) : "",
+      lines.push([csvEsc(title), csvEsc(lid), new Date(e.ts).toISOString(), e.lat != null ? e.lat.toFixed(5) : "", e.lon != null ? e.lon.toFixed(5) : "",
         e.key, csvEsc(name), csvEsc(e.count != null ? e.count : ""), csvEsc(actLabel(e.act)), csvEsc(e.note || "")].join(","));
     });
     return lines.join("\n");
