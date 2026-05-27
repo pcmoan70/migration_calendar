@@ -1491,12 +1491,15 @@
     function load() {
       var key = ebirdKey();
       if (!key) { grp.clearLayers(); setStatus(t("layer.hotspotsKey")); return; }
-      if (map.getZoom() < 8) { grp.clearLayers(); return; }
+      if (map.getZoom() < 6.5) { grp.clearLayers(); setStatus(t("layer.hotspotsZoom")); return; }
       var c = map.getCenter(), b = map.getBounds();
-      var radius = Math.max(2, Math.min(100, Math.round(haversineKm(c.lat, c.lng, b.getNorth(), b.getEast()))));
+      // eBird caps dist at 500 km; cover the viewport (centre→corner) up to that.
+      var radius = Math.max(2, Math.min(500, Math.round(haversineKm(c.lat, c.lng, b.getNorth(), b.getEast()))));
       var url = "https://api.ebird.org/v2/ref/hotspot/geo?lat=" + c.lat.toFixed(4) + "&lng=" + c.lng.toFixed(4) + "&dist=" + radius + "&fmt=json";
       var mine = ++tok;
-      fetch(url, { headers: { "X-eBirdApiToken": key } }).then(function (r) { return r.ok ? r.json() : []; }).then(function (rows) {
+      fetch(url, { headers: { "X-eBirdApiToken": key } })
+        .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+        .then(function (rows) {
         if (mine !== tok || !active) return;
         grp.clearLayers();
         (rows || []).forEach(function (h) {
@@ -1508,7 +1511,8 @@
           m.on("click", function () { openExternal("https://ebird.org/hotspot/" + h.locId); });
           grp.addLayer(m);
         });
-      }).catch(function () { /* offline / rate-limited */ });
+        if (!grp.getLayers().length) setStatus(t("layer.hotspotsNone"));
+      }).catch(function (e) { if (active) setStatus(t("status.error", { msg: "eBird hotspots " + e.message })); });
     }
     grp.on("add", function () { active = true; map.attributionControl.addAttribution(EBIRD_HS_ATTR); load(); });
     grp.on("remove", function () { active = false; map.attributionControl.removeAttribution(EBIRD_HS_ATTR); });
