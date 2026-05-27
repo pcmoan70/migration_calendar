@@ -914,6 +914,7 @@
           '</div>' +
           '<div id="fc-act-picker" style="display:none">' +
             '<div class="fcp-head"><span id="fca-name"></span><button type="button" id="fca-close" aria-label="Close">×</button></div>' +
+            '<input id="fca-search" type="text" autocomplete="off" data-i18n-ph="chk.actSearch" placeholder="Search or write…" />' +
             '<div id="fca-list"></div>' +
           '</div>' +
           '<div id="place-picker" style="display:none">' +
@@ -1547,6 +1548,12 @@
       var it = e.target.closest && e.target.closest(".fca-item");
       if (it) { setFcAct(fcActKey, it.getAttribute("data-act")); hideFcActPicker(); return; }
       if (e.target.id === "fca-close") hideFcActPicker();
+    });
+    var fcaSearch = document.getElementById("fca-search");
+    fcaSearch.addEventListener("input", renderFcActList);
+    fcaSearch.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") { e.preventDefault(); setFcAct(fcActKey, resolveActQuery(this.value)); hideFcActPicker(); }
+      else if (e.key === "Escape") { hideFcActPicker(); }
     });
     document.addEventListener("click", function (e) {
       var p = document.getElementById("fc-act-picker");
@@ -3145,15 +3152,36 @@
   // card's activity button — replaces a cramped <select>. Edits the species'
   // compose-draft activity (committed only by ＋ or the checkbox).
   var fcActKey = null;
+  // Resolve a typed query to an activity value: an existing code if the text
+  // matches a localized name exactly, otherwise the raw text (a custom value).
+  function resolveActQuery(raw) {
+    raw = (raw || "").trim(); if (!raw) return "";
+    var lc = raw.toLowerCase();
+    for (var i = 0; i < FIELD_ACTS.length; i++) if (actName(FIELD_ACTS[i]).toLowerCase() === lc) return FIELD_ACTS[i];
+    return raw;
+  }
+  // (Re)build the list, filtered by the search box. A non-matching query also
+  // offers a "＋ <text>" item so a custom activity can be written.
+  function renderFcActList() {
+    if (!fcActKey) return;
+    var cur = cd(fcActKey).act || "";
+    var raw = document.getElementById("fca-search").value.trim(), q = raw.toLowerCase();
+    var exact = false;
+    var matches = FIELD_ACTS.filter(function (a) { var nm = actName(a).toLowerCase(); if (nm === q) exact = true; return !q || nm.indexOf(q) >= 0; });
+    var h = '<button type="button" class="fca-item fca-none' + (!cur ? " is-active" : "") + '" data-act="">—</button>';
+    if (raw && !exact) h += '<button type="button" class="fca-item fca-custom' + (cur === raw ? " is-active" : "") + '" data-act="' + escapeHtml(raw) + '">＋ ' + escapeHtml(raw) + "</button>";
+    matches.forEach(function (a) {
+      h += '<button type="button" class="fca-item' + (cur === a ? " is-active" : "") + '" data-act="' + escapeHtml(a) + '">' + escapeHtml(actName(a)) + "</button>";
+    });
+    document.getElementById("fca-list").innerHTML = h;
+  }
   function openFcActPicker(key, name) {
     fcActKey = key;
     document.getElementById("fca-name").textContent = name || "";
     var cur = cd(key).act || "";
-    var h = '<button type="button" class="fca-item fca-none' + (!cur ? " is-active" : "") + '" data-act="">—</button>';
-    FIELD_ACTS.forEach(function (a) {
-      h += '<button type="button" class="fca-item' + (cur === a ? " is-active" : "") + '" data-act="' + escapeHtml(a) + '">' + escapeHtml(actName(a)) + "</button>";
-    });
-    document.getElementById("fca-list").innerHTML = h;
+    // Prefill the box with a custom value so it stays visible/editable.
+    document.getElementById("fca-search").value = (cur && FIELD_ACTS.indexOf(cur) < 0) ? cur : "";
+    renderFcActList();
     var p = document.getElementById("fc-act-picker");
     p.style.display = "block";
     var active = p.querySelector(".fca-item.is-active");
