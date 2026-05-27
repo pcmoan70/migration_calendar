@@ -1447,15 +1447,33 @@ table.recent-table .rc-srccell { white-space: nowrap; }
 .rc-src-ebird { background: #1f7a3a; }
 .rc-src-gbif { background: #4a6fa5; }
 .rc-src-inat { background: #74ac00; }
-/* Caption row: source counts on the left, Download-CSV on the right. */
+/* Caption row: source counts on the left, action buttons on the right. */
 .recent-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
 .recent-head .recent-src { margin-bottom: 0; }
-#recent-dl {
+.recent-head-btns { display: flex; gap: 6px; flex: 0 0 auto; }
+#recent-dl, #recent-map {
   flex: 0 0 auto; cursor: pointer; font: inherit; font-size: 0.78rem; padding: 5px 10px; border-radius: var(--radius-xs);
   border: 1px solid var(--md-default-fg-color--lightest, #ccc);
   background: var(--surface, #f5f5f5); color: var(--md-default-fg-color, #333);
 }
 #recent-dl:hover { border-color: var(--brand); color: var(--brand-strong, var(--brand)); }
+#recent-map { border-color: var(--brand); background: var(--brand-soft, #eef3ff); color: var(--brand-strong, var(--brand)); font-weight: 600; }
+#recent-map:hover { background: var(--brand); color: #fff; }
+
+/* Plotted-detections legend (bottom-left map control). */
+.det-legend {
+  background: var(--surface, #fff); color: var(--ink, #222); border: 1px solid var(--border, #ccc);
+  border-radius: 6px; padding: 6px 8px; font-size: 0.78rem; line-height: 1.3; max-width: 210px; max-height: 42vh;
+  overflow: auto; box-shadow: var(--shadow-sm, 0 1px 5px rgba(0,0,0,.25));
+}
+.det-legend-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-weight: 700; margin-bottom: 5px; }
+.det-clear { border: none; background: transparent; cursor: pointer; color: var(--danger, #c0392b); font: inherit; font-size: 0.72rem; }
+.det-row { display: flex; align-items: center; gap: 6px; padding: 2px 0; }
+.det-sw { width: 11px; height: 11px; border-radius: 50%; flex: 0 0 auto; border: 1px solid #1a1a1a; }
+.det-nm { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.det-ct { color: var(--ink-muted, #777); font-variant-numeric: tabular-nums; }
+.det-del { border: none; background: transparent; cursor: pointer; color: var(--ink-muted, #777); font-size: 1rem; line-height: 1; padding: 0 2px; }
+.det-del:hover { color: var(--danger, #c0392b); }
 
 /* "Locate me" crosshair control on the map */
 /* Center the crosshair SVG in the Leaflet bar button (higher specificity than

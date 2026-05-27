@@ -653,7 +653,8 @@
         return '<tr><td class="rc-date">' + escapeHtml(r.date) + '</td><td class="rc-srccell">' + badge + '</td><td class="rc-place">' + cell + '</td><td class="rc-who">' + escapeHtml(r.who) + "</td></tr>";
       }).join("");
       body.innerHTML = '<div class="recent-head"><span class="recent-src">' + escapeHtml(cap + " · " + d1 + " – " + d2) + "</span>" +
-        '<button type="button" id="recent-dl">' + escapeHtml(t("recent.download")) + "</button></div>" +
+        '<span class="recent-head-btns"><button type="button" id="recent-map">' + escapeHtml(t("recent.showInMap")) + "</button>" +
+        '<button type="button" id="recent-dl">' + escapeHtml(t("recent.download")) + "</button></span></div>" +
         '<table class="recent-table"><tbody>' + html + "</tbody></table>" + links();
     }
 
@@ -1372,6 +1373,7 @@
     });
 
     setupAreaOverlays();   // protected/priority-area overlay toggles (off by default)
+    loadDetections();      // restore any "Show in map" detection points
 
     map.on("moveend", function () {
       var c = map.getCenter();
@@ -1518,6 +1520,71 @@
     grp.on("remove", function () { active = false; map.attributionControl.removeAttribution(EBIRD_HS_ATTR); });
     map.on("moveend", function () { if (active) load(); });
     return grp;
+  }
+
+  // ---- "Show in map": plotted detections (per species, coloured + legend) ---
+  // From the Recent-detections list, plot a species' located observations as
+  // coloured points; repeatable for many species. Points click through to the
+  // source record. Persisted so they survive a reload; a legend lists/removes
+  // each species.
+  var DET_COLORS = ["#e6194B", "#3cb44b", "#4363d8", "#f58231", "#911eb4", "#42d4f4", "#f032e6", "#469990", "#9A6324", "#800000", "#808000", "#000075", "#a9a9a9", "#fabed4", "#bfef45"];
+  var detPlot = {};     // name -> { color, rows:[{lat,lon,url,date,src,place}], group }
+  var detLegend = null;
+  function detSlim(rows) {
+    return (rows || []).filter(function (r) { return r.lat != null && r.lon != null; })
+      .map(function (r) { return { lat: +r.lat, lon: +r.lon, url: r.url || "", date: r.date || "", src: r.src || "", place: r.place || "" }; });
+  }
+  function renderDetGroup(name, rows, color) {
+    var g = L.layerGroup();
+    rows.forEach(function (r) {
+      var m = L.circleMarker([r.lat, r.lon], { radius: 5, color: "#1a1a1a", weight: 1, opacity: 0.9, fillColor: color, fillOpacity: 0.9 });
+      m.bindTooltip("<b>" + escapeHtml(name) + "</b><span class='area-tip-sub'>" + escapeHtml([r.src, r.date, r.place].filter(Boolean).join(" · ")) + "</span>", { direction: "top", className: "area-tip" });
+      if (r.url) m.on("click", function (e) { if (e && e.originalEvent) L.DomEvent.stopPropagation(e.originalEvent); openExternal(r.url); });
+      g.addLayer(m);
+    });
+    return g;
+  }
+  function plotDetections(name, rows, fit) {
+    var slim = detSlim(rows);
+    if (!slim.length) { setStatus(t("det.none")); return; }
+    var color = (detPlot[name] && detPlot[name].color) || DET_COLORS[Object.keys(detPlot).length % DET_COLORS.length];
+    if (detPlot[name]) map.removeLayer(detPlot[name].group);
+    var g = renderDetGroup(name, slim, color); g.addTo(map);
+    detPlot[name] = { color: color, rows: slim, group: g };
+    updateDetLegend(); saveDetections();
+    if (fit) { try { map.fitBounds(g.getBounds().pad(0.25)); } catch (e) { /* single point / bad bounds */ } }
+  }
+  function removeDetection(name) { if (detPlot[name]) { map.removeLayer(detPlot[name].group); delete detPlot[name]; updateDetLegend(); saveDetections(); } }
+  function clearDetections() { Object.keys(detPlot).forEach(function (n) { map.removeLayer(detPlot[n].group); }); detPlot = {}; updateDetLegend(); saveDetections(); }
+  function saveDetections() {
+    var out = {}; Object.keys(detPlot).forEach(function (n) { out[n] = { color: detPlot[n].color, rows: detPlot[n].rows.slice(0, 150) }; });
+    window.GeoState.save({ mapDetections: out });
+  }
+  function loadDetections() {
+    var saved = window.GeoState.get("mapDetections", {}) || {};
+    Object.keys(saved).forEach(function (n) {
+      var d = saved[n]; if (!d || !d.rows || !d.rows.length) return;
+      var g = renderDetGroup(n, d.rows, d.color); g.addTo(map);
+      detPlot[n] = { color: d.color, rows: d.rows, group: g };
+    });
+    updateDetLegend();
+  }
+  function updateDetLegend() {
+    var names = Object.keys(detPlot);
+    if (!names.length) { if (detLegend) { map.removeControl(detLegend); detLegend = null; } return; }
+    if (!detLegend) {
+      detLegend = L.control({ position: "bottomleft" });
+      detLegend.onAdd = function () { var d = L.DomUtil.create("div", "det-legend"); d.id = "det-legend"; L.DomEvent.disableClickPropagation(d); L.DomEvent.disableScrollPropagation(d); return d; };
+      detLegend.addTo(map);
+    }
+    var el = document.getElementById("det-legend");
+    el.innerHTML = '<div class="det-legend-head"><span>' + escapeHtml(t("det.title")) + '</span><button type="button" class="det-clear">' + escapeHtml(t("det.clearAll")) + "</button></div>" +
+      names.map(function (n) {
+        var d = detPlot[n];
+        return '<div class="det-row"><span class="det-sw" style="background:' + d.color + '"></span><span class="det-nm" title="' + escapeHtml(n) + '">' + escapeHtml(n) + '</span><span class="det-ct">' + d.rows.length + '</span><button type="button" class="det-del" data-name="' + escapeHtml(n) + '" aria-label="remove">×</button></div>';
+      }).join("");
+    el.querySelector(".det-clear").addEventListener("click", clearDetections);
+    el.querySelectorAll(".det-del").forEach(function (b) { b.addEventListener("click", function () { removeDetection(this.getAttribute("data-name")); }); });
   }
 
   var arcOverlays = [];   // active-overlay refs for hover identify: {layer, kind, defs}
@@ -1724,10 +1791,16 @@
       if (e.target === this) hideRecent();
     });
     document.getElementById("recent-modal").addEventListener("click", function (e) {
-      if (!e.target.closest || !e.target.closest("#recent-dl")) return;
-      if (!lastRecentRows.length) return;
-      var nm = (lastRecentMeta && lastRecentMeta.name) || "sightings";
-      downloadCsv("sightings_" + String(nm).replace(/[^\w-]+/g, "_") + ".csv", recentCsv());
+      if (!e.target.closest) return;
+      if (e.target.closest("#recent-dl")) {
+        if (!lastRecentRows.length) return;
+        var nm = (lastRecentMeta && lastRecentMeta.name) || "sightings";
+        downloadCsv("sightings_" + String(nm).replace(/[^\w-]+/g, "_") + ".csv", recentCsv());
+      } else if (e.target.closest("#recent-map")) {
+        if (!lastRecentRows.length || !lastRecentMeta) return;
+        plotDetections(lastRecentMeta.name, lastRecentRows, true);   // plot + zoom to points
+        hideRecent();
+      }
     });
     // Pop-up reference links: Wikipedia uses the locale→English fallback;
     // BirdLife resolves the factsheet via its numeric ID.
