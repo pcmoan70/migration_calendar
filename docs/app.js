@@ -3837,7 +3837,7 @@
     return ts;
   }
 
-  // Dropdown listing the saved Checklists, nearest first.
+  // Dropdown listing the saved Checklists, most recently accessed first.
   function refreshChecklists() {
     var wrap = document.getElementById("checklists-wrap");
     var btnText = document.getElementById("checklists-btn-text");
@@ -3847,18 +3847,17 @@
     var fcs = getFieldChecklists();
     var items = buildChecklistItems(fcs);
 
-    // Sort by distance to the current map centre (the point of interest).
+    // Sort by last-access time (most recent first); distance to the current
+    // map centre breaks ties.
     var c0 = map ? map.getCenter() : null;
-    if (c0) items.forEach(function (it) {
-      it.dist = (it.lat != null && it.lon != null) ? haversineKm(c0.lat, c0.lng, it.lat, it.lon) : Infinity;
+    items.forEach(function (it) {
+      it.acc = accessTime(getFieldRecord(it.pkey));
+      it.dist = (c0 && it.lat != null && it.lon != null) ? haversineKm(c0.lat, c0.lng, it.lat, it.lon) : Infinity;
     });
-    items.sort(function (a, b) { return (a.dist != null ? a.dist : Infinity) - (b.dist != null ? b.dist : Infinity); });
+    items.sort(function (a, b) { return (b.acc - a.acc) || (a.dist - b.dist); });
 
-    // Recency dots: most recently accessed = green, the next three = orange.
-    items.forEach(function (it) { it.acc = accessTime(getFieldRecord(it.pkey)); });
-    items.slice().filter(function (it) { return it.acc > 0; })
-      .sort(function (a, b) { return b.acc - a.acc; })
-      .forEach(function (it, i) { it.dotRank = i; });
+    // Recency dots (now aligned with order): first = green, next three = orange.
+    items.filter(function (it) { return it.acc > 0; }).forEach(function (it, i) { it.dotRank = i; });
 
     wrap.style.display = items.length ? "" : "none";
     if (!items.length) panel.style.display = "none";
