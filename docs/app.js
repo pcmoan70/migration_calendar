@@ -138,6 +138,12 @@
   var ZOOM_STEP = { 2: 3, 3: 2, 4: 1, 5: 0.5, 6: 0.5, 7: 0.25, 8: 0.25, 9: 0.125, 10: 0.0625, 11: 0.03125,
     12: 0.015625, 13: 0.0078125, 14: 0.00390625, 15: 0.001953125, 16: 0.0009765625, 17: 0.00048828125, 18: 0.000244140625 };
   var MAX_ZOOM = 18;
+  // Snap the map's zoom to steps of ~2.65x (log2 ≈ 1.404) — one H3 resolution
+  // per zoom level — so the chosen H3 cell size stays constant on screen as you
+  // zoom (H3 resolutions are ~2.65x apart, vs the usual 2x per zoom level).
+  var H3_ZOOM_STEP = (typeof window !== "undefined" && window.h3)
+    ? Math.log(window.h3.getHexagonEdgeLengthAvg(5, "m") ? window.h3.getHexagonEdgeLengthAvg(4, "m") / window.h3.getHexagonEdgeLengthAvg(5, "m") : 2.6458) / Math.LN2
+    : 1.404;
 
   // Perceptual scaling: gamma < 1 stretches low values for visibility
   var DISPLAY_GAMMA = 0.5;
@@ -1155,6 +1161,10 @@
       center: center, zoom: zoom, minZoom: 2, maxZoom: MAX_ZOOM,
       worldCopyJump: true,
       maxBounds: [[-90, -180], [90, 180]], maxBoundsViscosity: 1.0,
+      // Zoom in ~2.65x steps (one H3 resolution per level) so hex cells keep a
+      // constant on-screen size; only when the H3 overlay is available.
+      zoomSnap: window.h3 ? H3_ZOOM_STEP : 1,
+      zoomDelta: window.h3 ? H3_ZOOM_STEP : 1,
     });
 
     setBasemap(window.GeoState.get("basemap", "dark"));
@@ -1929,7 +1939,7 @@
     if (east - west < 0.1) east = west + 0.1;
     // High-resolution multiplies the points per axis by hiResFactor
     // (1/hiResFactor the cell size); factor 1 = normal resolution.
-    var step = (ZOOM_STEP[map.getZoom()] || 3) / hiResFactor;
+    var step = (ZOOM_STEP[Math.round(map.getZoom())] || 3) / hiResFactor;   // zoom may be fractional (H3-aligned snapping)
     south = Math.max(Math.floor(south / step) * step, -90);
     north = Math.min(Math.ceil(north / step) * step, 90);
     west = Math.floor(west / step) * step;
