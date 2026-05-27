@@ -1456,6 +1456,17 @@ table.recent-table .rc-who { color: var(--md-default-fg-color--light, #888); whi
   background: var(--md-default-bg-color, #fff); color: var(--md-default-fg-color, #333);
 }
 #field-filter { margin: 0 12px 6px; }
+/* "Far from this location" warning: a red ! in the bar + a tap-to-show note. */
+.fp-far {
+  flex: 0 0 auto; width: 30px; height: 30px; border-radius: 50%; cursor: pointer;
+  border: none; background: var(--danger); color: #fff; font-weight: 800; font-size: 1.05rem; line-height: 1;
+  box-shadow: var(--shadow-sm);
+}
+.fp-far-msg {
+  flex: 0 0 auto; margin: 0 12px 8px; padding: 8px 12px; box-sizing: border-box;
+  border: 1px solid var(--danger); border-left-width: 4px; border-radius: var(--radius-xs);
+  background: #fdeceb; color: var(--danger-strong); font-size: 0.9rem; line-height: 1.35;
+}
 #field-page #field-list { flex: 1 1 auto; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 0 12px 24px; }
 .fc-row {
   display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 6px;

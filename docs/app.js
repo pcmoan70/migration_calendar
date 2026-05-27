@@ -278,6 +278,7 @@
   var fieldLat = 0, fieldLon = 0;   // current field-checklist point
   var fieldKey = null;        // listId (placeKey@day) of the field checklist currently open
   var fieldNameCache = {};    // placeKey -> resolved place name (auto-title for new lists)
+  var fieldGeoWatch = null;   // geolocation watch id while a checklist is open
   var rendering = false;
   var renderGeneration = 0;
   var moveEndTimer = null;
@@ -803,6 +804,7 @@
             '<button id="field-back" class="fp-back" title="Back to map">‹</button>' +
             '<button id="field-nearby" class="fp-nearby" title="Nearby places" aria-label="Nearby places">▾</button>' +
             '<input id="field-coords" class="field-place" type="text" autocomplete="off" data-i18n-ph="ph.fieldtitle" placeholder="Location name" />' +
+            '<button type="button" id="field-far" class="fp-far" style="display:none" aria-label="!">!</button>' +
             '<span class="field-seen" id="field-seen"></span>' +
             '<span class="field-actions">' +
               '<button id="field-pdf" class="demo-btn" title="Download PDF">⬇ PDF</button>' +
@@ -811,6 +813,7 @@
               '<button id="field-clear" class="demo-btn demo-btn-light" data-i18n="btn.clear">Clear</button>' +
             '</span>' +
           '</div>' +
+          '<div id="field-far-msg" class="fp-far-msg" data-i18n="chk.farWarn" style="display:none"></div>' +
           '<input id="field-search" type="text" autocomplete="off" data-i18n-ph="ph.filter" placeholder="Filter species…" />' +
           '<div id="field-filter" class="chk-filter">' +
             '<button type="button" class="chk-filter-btn is-active" data-ffilter="all" data-i18n="chk.all">All</button>' +
@@ -1297,6 +1300,7 @@
       spPanel.style.display = "none";
       document.getElementById("barchart-panel").style.display = "none";
       document.getElementById("field-page").style.display = "none";
+      stopFieldGeoWatch();
       hideCsvBtn();
       if (cachedRender) clearOverlay();
       if (marker) { map.removeLayer(marker); marker = null; }
@@ -1470,9 +1474,15 @@
 
     // Back: close the full-screen field page and return to the map.
     document.getElementById("field-back").addEventListener("click", function () {
-      hideFcPicker(); hidePlacePicker();
+      hideFcPicker(); hidePlacePicker(); stopFieldGeoWatch();
       document.getElementById("field-page").style.display = "none";
       if (map) map.invalidateSize();
+    });
+    // Tap the red "!" to toggle the short "far from this location" explanation.
+    document.getElementById("field-far").addEventListener("click", function (e) {
+      e.stopPropagation();
+      var m = document.getElementById("field-far-msg");
+      m.style.display = m.style.display === "none" ? "" : "none";
     });
 
     // Back from the full-screen Species-List page to the map.
@@ -2466,6 +2476,32 @@
     return i === q.length;
   }
 
+  // ---- "Far from checklist point" warning ----------------------------------
+  // While a checklist is open, watch the device location; if it is more than
+  // 2 km from the checklist's point, show a red "!" the user can tap to read a
+  // short, localized explanation.
+  var FIELD_FAR_KM = 2;
+  function showFieldFar(on) {
+    var b = document.getElementById("field-far");
+    if (b) { b.style.display = on ? "" : "none"; b.title = t("chk.far"); }
+    if (!on) { var m = document.getElementById("field-far-msg"); if (m) m.style.display = "none"; }
+  }
+  function stopFieldGeoWatch() {
+    if (fieldGeoWatch != null && navigator.geolocation) navigator.geolocation.clearWatch(fieldGeoWatch);
+    fieldGeoWatch = null;
+    showFieldFar(false);
+  }
+  function startFieldGeoWatch() {
+    stopFieldGeoWatch();
+    if (!navigator.geolocation) return;
+    fieldGeoWatch = navigator.geolocation.watchPosition(function (pos) {
+      // Stop once the checklist page is no longer showing.
+      if (document.getElementById("field-page").style.display !== "flex") { stopFieldGeoWatch(); return; }
+      var d = haversineKm(pos.coords.latitude, pos.coords.longitude, fieldLat, fieldLon);
+      showFieldFar(d > FIELD_FAR_KM);
+    }, function () { /* denied / unavailable — no warning */ }, { enableHighAccuracy: false, maximumAge: 30000, timeout: 20000 });
+  }
+
   // Build the probability-ranked species list for the clicked/located point.
   // listId pins a specific (possibly past-day) list; otherwise today's list at
   // this place is started/continued.
@@ -2516,6 +2552,7 @@
       }
       document.getElementById("field-page").style.display = "flex";   // full-screen entry page
       hideFcPicker(); hidePlacePicker();
+      showFieldFar(false); startFieldGeoWatch();   // re-check distance for this point
       renderFieldList();
       setStatus(t("status.spResult", { n: rows.length, p: (pmin * 100).toFixed(0), lat: lat.toFixed(2), lon: lon.toFixed(2) }));
     } catch (e) { setStatus(t("status.error", { msg: e.message })); console.error(e); }
@@ -3311,7 +3348,7 @@
         e.stopPropagation();
         var pkey = this.getAttribute("data-pkey");
         var all = getFieldChecklists(); delete all[pkey]; saveFieldChecklists(all);
-        if (fieldKey === pkey) { fieldKey = null; document.getElementById("field-page").style.display = "none"; }
+        if (fieldKey === pkey) { fieldKey = null; stopFieldGeoWatch(); document.getElementById("field-page").style.display = "none"; }
         refreshChecklists();
       });
     });
