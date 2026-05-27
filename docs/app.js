@@ -517,6 +517,7 @@
     return all.slice(0, 100).map(function (o) {
       return {
         src: "GBIF",
+        origin: o.datasetName || "",   // the underlying dataset GBIF aggregated
         dt: o.eventDate || "",
         date: (o.eventDate || "").slice(0, 10) || "—",
         lat: o.decimalLatitude != null ? o.decimalLatitude : null,
@@ -584,13 +585,20 @@
   }
 
   var lastRecentRows = [], lastRecentMeta = null;
+  // Short label for a GBIF origin dataset name (e.g. "Observation.org, Nature
+  // data…" -> "Observation.org"); the full name stays in the badge tooltip/CSV.
+  function shortOrigin(s) {
+    var t = String(s || "").split(/,| – | - |\(/)[0].trim();
+    return t || String(s || "");
+  }
   // CSV of the merged sightings list (one row per observation, all sources).
+  // The "origin" column is GBIF's underlying dataset (else the source itself).
   function recentCsv() {
     var m = lastRecentMeta || {};
     var lines = ["# " + (m.name || "") + " (" + (m.sci || "") + ") | " + (m.lat != null ? m.lat.toFixed(4) + "°, " + m.lon.toFixed(4) + "°" : "")];
-    lines.push("date,source,lat,lon,place,observer_or_count,notes,url");
+    lines.push("date,source,origin,lat,lon,place,observer_or_count,notes,url");
     lastRecentRows.forEach(function (r) {
-      lines.push([csvEsc(r.date), r.src, r.lat != null ? r.lat : "", r.lon != null ? r.lon : "",
+      lines.push([csvEsc(r.date), r.src, csvEsc(r.origin || r.src), r.lat != null ? r.lat : "", r.lon != null ? r.lon : "",
         csvEsc(r.place), csvEsc(r.who), csvEsc(r.note || ""), csvEsc(r.url)].join(","));
     });
     return lines.join("\n");
@@ -639,7 +647,9 @@
       var html = rows.map(function (r) {
         var place = r.place || "(map)";
         var cell = r.url ? '<a href="' + escapeHtml(r.url) + '" target="_blank" rel="noopener">' + escapeHtml(place) + "</a>" : escapeHtml(place);
-        var badge = '<span class="rc-src rc-src-' + srcSlug(r.src) + '">' + escapeHtml(r.src || "") + "</span>";
+        // GBIF aggregates many datasets — badge such rows by their origin dataset.
+        var label = (r.src === "GBIF" && r.origin) ? shortOrigin(r.origin) : r.src;
+        var badge = '<span class="rc-src rc-src-' + srcSlug(r.src) + '" title="' + escapeHtml(r.origin || r.src) + '">' + escapeHtml(label || "") + "</span>";
         return '<tr><td class="rc-date">' + escapeHtml(r.date) + '</td><td class="rc-srccell">' + badge + '</td><td class="rc-place">' + cell + '</td><td class="rc-who">' + escapeHtml(r.who) + "</td></tr>";
       }).join("");
       body.innerHTML = '<div class="recent-head"><span class="recent-src">' + escapeHtml(cap + " · " + d1 + " – " + d2) + "</span>" +
