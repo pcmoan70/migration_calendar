@@ -1467,7 +1467,7 @@
             var add = function (pts, closed) {
               if (pts.length < 2) return;
               var lyr = closed ? L.polygon(pts, style) : L.polyline(pts, style);
-              lyr.bindTooltip(nm, { sticky: true }); grp.addLayer(lyr);
+              lyr.bindTooltip(nm, { sticky: true, className: "area-tip" }); grp.addLayer(lyr);
             };
             if (el.type === "way" && el.geometry) {
               var p = el.geometry.map(function (g) { return [g.lat, g.lon]; });

@@ -1027,7 +1027,11 @@ button.dd-name:hover { text-decoration: underline; }
 /* Proximity markers in the checklist list: green < 500 m, orange ≤ 2 km, red beyond. */
 .dd-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 7px; vertical-align: middle; }
 /* Protected-area hover tooltip (raster overlays). */
-.area-tip { font-size: 0.8rem; line-height: 1.3; max-width: 240px; }
+/* Leaflet tooltips default to white-space:nowrap; override so long names wrap.
+   width:max-content + max-width makes the box grow to the text then wrap at the
+   cap, instead of collapsing to a one-character-per-line column. */
+.leaflet-tooltip.area-tip { white-space: normal; overflow-wrap: break-word; width: max-content; max-width: 240px; }
+.area-tip { font-size: 0.8rem; line-height: 1.3; }
 .area-tip .area-tip-sub { color: var(--ink-muted, #666); font-size: 0.72rem; }
 .area-tip .area-tip-sep { display: block; height: 5px; }
 .dd-dot-near { background: #22a447; }
