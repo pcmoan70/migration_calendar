@@ -1835,7 +1835,11 @@
         else if (act === "filter") applyNameFilter(menuName);
         else if (act === "wiki") openWikipedia(menuSci || menuName);
         else if (act === "birdlife") openBirdLife((labelsByKey[menuKey] && labelsByKey[menuKey].common) || menuName, menuSci || menuName);
-        else if (act === "ebird") openExternal(ebirdUrl(menuKey, menuSci || menuName));
+        else if (act === "ebird") {
+          // With a personal key, show eBird sightings in-app; otherwise the page.
+          if (ebirdKey()) { var er = marker ? marker.getLatLng() : map.getCenter(); showRecent(menuName, menuSci || menuName, er.lat, er.lng, menuKey); }
+          else openExternal(ebirdUrl(menuKey, menuSci || menuName));
+        }
         else if (act === "macaulay") openExternal(macaulayUrl(menuKey, menuSci || menuName));
         else if (act === "xeno") openExternal(xenoCantoUrl(menuSci || menuName));
         else if (act === "distmap") showDistMap(menuName, menuSci || menuName, menuKey);
