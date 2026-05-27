@@ -275,6 +275,15 @@
   var cachedRender = null;
   var renderCache = new Map();
   var RENDER_CACHE_MAX = 50;
+  // Species-Range H3 cell-value cache: "speciesCode:week" -> { h3index: rawProb }.
+  // Accumulates cells across every zoom/pan so revisiting an area needs no new
+  // inference; merged on render. LRU-capped by (species,week) tag.
+  var h3RangeCache = new Map();
+  function h3RangeCacheFor(tag) {
+    var m = h3RangeCache.get(tag);
+    if (!m) { m = {}; h3RangeCache.set(tag, m); if (h3RangeCache.size > 300) h3RangeCache.delete(h3RangeCache.keys().next().value); }
+    return m;
+  }
   var marker = null;
   var currentMode = "range";
   var fieldData = null;       // current probability-ranked species for the field checklist
@@ -1581,9 +1590,9 @@
       document.getElementById("prob-max-val").textContent = hi + "%";
       window.GeoState.save({ probMin: lo, probMax: hi });
       if (currentMode === "barchart" && analysisData) { renderActiveTab(); return; }
-      // Range: re-filter the cached overlay (no re-inference). List/Range: also
-      // refresh the per-point list. The probability range never recomputes the map.
-      if (currentMode === "range" && cachedRender) showCachedWeek();
+      // Range: re-filter the cached overlay (no re-inference — the filter is
+      // applied at draw time). List/Range: also refresh the per-point list.
+      if (currentMode === "range" && cachedRender) paintOverlay();
       rerenderPointList();
     }
     document.getElementById("prob-min").addEventListener("input", onProbRange);
@@ -1879,7 +1888,45 @@
   function paintOverlay() {
     if (!cachedRender || !map) return;
     if (!window.h3) { paintOverlaySmooth(); return; }
-    try { paintOverlayH3(); } catch (e) { console.warn("h3 overlay", e); }   // never silently swap to squares
+    try { if (cachedRender.h3range) paintRangeH3(); else paintOverlayH3(); } catch (e) { console.warn("h3 overlay", e); }
+  }
+
+  // Draw the Species-Range overlay from the per-cell H3 cache (Richness still
+  // uses the grid-sampling path in paintOverlayH3).
+  function paintRangeH3() {
+    ensureOverlayCanvas();
+    var cache = h3RangeCache.get(cachedRender.tag) || {};
+    var size = map.getSize();
+    if (overlayCanvas.width !== size.x || overlayCanvas.height !== size.y) { overlayCanvas.width = size.x; overlayCanvas.height = size.y; }
+    L.DomUtil.setPosition(overlayCanvas, map.containerPointToLayerPoint([0, 0]));
+    var ctx = overlayCanvas.getContext("2d");
+    ctx.clearRect(0, 0, size.x, size.y);
+    var cells = h3CellsInView(h3ResForView());
+    var i, max = 0, v;
+    for (i = 0; i < cells.length; i++) { v = cache[cells[i]]; if (v != null && v > max) max = v; }
+    if (max <= 0) max = 0.01;
+    cachedRender.maxProb = max;   // so the legend reflects the visible normalisation
+    var pmin = +document.getElementById("prob-min").value / 100;
+    var pmax = +document.getElementById("prob-max").value / 100;
+    for (i = 0; i < cells.length; i++) {
+      var raw = cache[cells[i]];
+      if (raw == null || raw < pmin || raw > pmax) continue;   // not computed, or filtered out
+      var p = Math.pow(raw / max, DISPLAY_GAMMA);
+      if (!(p >= 0.01)) continue;
+      var bnd = window.h3.cellToBoundary(cells[i]);
+      var minLon = 999, maxLon = -999;
+      for (var w = 0; w < bnd.length; w++) { if (bnd[w][1] < minLon) minLon = bnd[w][1]; if (bnd[w][1] > maxLon) maxLon = bnd[w][1]; }
+      if (maxLon - minLon > 180) continue;
+      ctx.beginPath();
+      for (var vtx = 0; vtx < bnd.length; vtx++) {
+        var pt = map.latLngToContainerPoint([bnd[vtx][0], bnd[vtx][1]]);
+        if (vtx === 0) ctx.moveTo(pt.x, pt.y); else ctx.lineTo(pt.x, pt.y);
+      }
+      ctx.closePath();
+      var col = colormapLookup(p);
+      ctx.fillStyle = "rgba(" + col[0] + "," + col[1] + "," + col[2] + "," + Math.min(1, 0.25 + p * 0.75).toFixed(3) + ")";
+      ctx.fill();
+    }
   }
 
   // Enumerate the H3 cells (resolution `res`) covering the current viewport by
@@ -2112,73 +2159,61 @@
     }
   }
 
+  // Species Range overlay, computed and cached per H3 cell. Only the cells
+  // visible at the current zoom that aren't already cached are inferred, so
+  // zooming/panning back over an area costs nothing.
   async function renderRangeMap() {
     if (!animateAll) invalidateAnimation();   // a fresh single-week render makes any precomputed animation stale
     var key = document.getElementById("species-search").dataset.selectedKey;
     updateRangeSpecies();
-    if (!key || !labelsByKey[key]) return;
+    if (!key || !labelsByKey[key] || !window.h3) return;
     if (rendering) { renderGeneration++; return; }
     var gen = ++renderGeneration;
     var lbl = labelsByKey[key], speciesIdx = lbl.index, name = speciesName(lbl);
     var selectedWeek = +document.getElementById("week-select").value;
-    var weeks = weeksToCompute(), nSpecies = labels.length, CHUNK = inferChunk();
-    var g = viewportGrid(), totalPoints = g.nLat * g.nLon;
+    var weeks = weeksToCompute(), CHUNK = inferChunk();
+    var res = h3ResForView(), cells = h3CellsInView(res);
+    var approxStep = +(window.h3.getHexagonEdgeLengthAvg(res, "m") / 111320).toFixed(3);
 
-    // Find weeks with missing cells
-    var weekMissing = [];
+    // Collect the (week, cell) pairs not yet in the cache.
+    var missing = [];
     weeks.forEach(function (w) {
-      var cm = getCellMap(cacheKey(key, w), g.step);
-      var miss = viewportMissing(cm, g);
-      if (miss.length > 0) weekMissing.push({ week: w, missing: miss, cellMap: cm });
+      var cache = h3RangeCacheFor(key + ":" + w);
+      for (var i = 0; i < cells.length; i++) if (!(cells[i] in cache)) missing.push({ w: w, c: cells[i], cache: cache });
     });
 
-    // Fast path: all cached
-    if (weekMissing.length === 0) {
-      var nr = normalizeProbs(buildViewportArray(getCellMap(cacheKey(key, selectedWeek), g.step), g));
-      cachedRender = { grid: g, probs: nr.probs, maxProb: nr.maxProb };
+    if (missing.length === 0) {   // fully cached for this view
+      cachedRender = { h3range: true, tag: key + ":" + selectedWeek };
       paintOverlay();
-      setStatus(t("status.rangeCached", { name: name, week: weekText(selectedWeek), n: totalPoints.toLocaleString(), step: fmtStep(g.step) }));
-      updateLegend();
-      updateMapCsv();
+      setStatus(t("status.rangeCached", { name: name, week: weekText(selectedWeek), n: cells.length.toLocaleString(), step: approxStep }));
+      updateLegend(); updateMapCsv();
       return;
     }
 
     rendering = true;
     showComputingOverlay(true, name);
-    var chunksTotal = totalChunks(weekMissing, CHUNK), chunksDone = 0;
+    var total = Math.ceil(missing.length / CHUNK), done = 0;
     try {
-      for (var wi = 0; wi < weekMissing.length; wi++) {
-        var wm = weekMissing[wi];
-        setStatus(t("status.computing", { name: name, week: weekText(wm.week), n: wm.missing.length, i: wi + 1, total: weekMissing.length }));
-        var inputs = new Float32Array(wm.missing.length * 3);
-        for (var i = 0; i < wm.missing.length; i++) {
-          inputs[i * 3] = wm.missing[i].lat;
-          inputs[i * 3 + 1] = wm.missing[i].lon;
-          inputs[i * 3 + 2] = wm.week;
-        }
-        var rawProbs = new Float32Array(wm.missing.length);
-        for (var start = 0; start < wm.missing.length; start += CHUNK) {
-          if (gen !== renderGeneration) return;
-          var end = Math.min(start + CHUNK, wm.missing.length);
-          // Worker returns just this species' column (end-start floats).
-          var out = await runInference(inputs.subarray(start * 3, end * 3), end - start, { task: "column", speciesIdx: speciesIdx });
-          for (var j = 0; j < end - start; j++) rawProbs[start + j] = out[j];
-          setComputeProgress(++chunksDone / chunksTotal);
-        }
+      for (var s = 0; s < missing.length; s += CHUNK) {
         if (gen !== renderGeneration) return;
-        for (var k = 0; k < wm.missing.length; k++) wm.cellMap.set(cellId(wm.missing[k].lat, wm.missing[k].lon), rawProbs[k]);
-        if (wm.week === selectedWeek) {
-          var nr2 = normalizeProbs(buildViewportArray(wm.cellMap, g));
-          cachedRender = { grid: g, probs: nr2.probs, maxProb: nr2.maxProb };
-          paintOverlay();
+        var batch = missing.slice(s, s + CHUNK);
+        var inputs = new Float32Array(batch.length * 3);
+        for (var j = 0; j < batch.length; j++) {
+          var ll = window.h3.cellToLatLng(batch[j].c);
+          inputs[j * 3] = ll[0]; inputs[j * 3 + 1] = ll[1]; inputs[j * 3 + 2] = batch[j].w;
         }
+        // Worker returns just this species' column (batch.length floats).
+        var out = await runInference(inputs, batch.length, { task: "column", speciesIdx: speciesIdx });
+        for (var k = 0; k < batch.length; k++) batch[k].cache[batch[k].c] = out[k];
+        setComputeProgress(++done / total);
+        setStatus(t("status.computing", { name: name, week: weekText(selectedWeek), n: missing.length, i: done, total: total }));
+        if (gen === renderGeneration) { cachedRender = { h3range: true, tag: key + ":" + selectedWeek }; paintOverlay(); }
       }
-      var nrF = normalizeProbs(buildViewportArray(getCellMap(cacheKey(key, selectedWeek), g.step), g));
-      cachedRender = { grid: g, probs: nrF.probs, maxProb: nrF.maxProb };
+      if (gen !== renderGeneration) return;
+      cachedRender = { h3range: true, tag: key + ":" + selectedWeek };
       paintOverlay();
-      setStatus(t("status.rangeDone", { name: name, week: weekText(selectedWeek), n: totalPoints.toLocaleString(), step: fmtStep(g.step) }));
-      updateLegend();
-      updateMapCsv();
+      setStatus(t("status.rangeDone", { name: name, week: weekText(selectedWeek), n: cells.length.toLocaleString(), step: approxStep }));
+      updateLegend(); updateMapCsv();
     } catch (e) { setStatus(t("status.error", { msg: e.message })); console.error(e); }
     finally { rendering = false; showComputingOverlay(false); if (gen !== renderGeneration) triggerRender(); }
   }
@@ -2204,13 +2239,16 @@
     }
 
     var key = document.getElementById("species-search").dataset.selectedKey;
-    if (!key || !labelsByKey[key]) return;
-    var cm2 = getCellMap(cacheKey(key, week), g.step);
-    if (viewportMissing(cm2, g).length === 0) {
-      var nr = normalizeProbs(buildViewportArray(cm2, g));
-      cachedRender = { grid: g, probs: nr.probs, maxProb: nr.maxProb };
+    if (!key || !labelsByKey[key] || !window.h3) return;
+    // Range: paint from the H3 cache if every visible cell for this week is
+    // cached (e.g. animation playback); otherwise compute the missing cells.
+    var cache = h3RangeCache.get(key + ":" + week);
+    var cells = h3CellsInView(h3ResForView());
+    var allCached = cache && cells.every(function (c) { return c in cache; });
+    if (allCached) {
+      cachedRender = { h3range: true, tag: key + ":" + week };
       paintOverlay();
-      setStatus(t("status.rangeCached", { name: speciesName(labelsByKey[key]), week: weekText(week), n: g.nLat * g.nLon, step: fmtStep(g.step) }));
+      setStatus(t("status.rangeCached", { name: speciesName(labelsByKey[key]), week: weekText(week), n: cells.length, step: "" }));
       updateLegend();
       updateMapCsv();
     } else { renderRangeMap(); }
@@ -3267,19 +3305,18 @@
 
   function buildRangeMapCsv() {
     var key = document.getElementById("species-search").dataset.selectedKey;
-    if (!key || !labelsByKey[key]) return null;
+    if (!key || !labelsByKey[key] || !window.h3) return null;
     var week = +document.getElementById("week-select").value;
-    var g = viewportGrid();
-    var cm = getCellMap(cacheKey(key, week), g.step);
-    var lines = ["latitude,longitude,probability"];
-    for (var iLat = 0; iLat < g.nLat; iLat++) {
-      var lat = g.north - (iLat + 0.5) * g.step;
-      for (var iLon = 0; iLon < g.nLon; iLon++) {
-        var lon = wrapLon(g.west + (iLon + 0.5) * g.step);
-        var val = cm.get(cellId(lat, lon)) || 0;
-        if (val > 0.001) lines.push(lat.toFixed(4) + "," + lon.toFixed(4) + "," + val.toFixed(6));
-      }
-    }
+    var cache = h3RangeCache.get(key + ":" + week) || {};
+    var cells = h3CellsInView(h3ResForView());
+    var lines = ["h3,latitude,longitude,probability"];
+    cells.forEach(function (c) {
+      var val = cache[c];
+      if (val == null || !(val > 0.001)) return;
+      var ll = window.h3.cellToLatLng(c);
+      lines.push(c + "," + ll[0].toFixed(4) + "," + ll[1].toFixed(4) + "," + val.toFixed(6));
+    });
+    if (lines.length === 1) return null;
     var lbl = labelsByKey[key];
     return {
       filename: "Geomodel_range_" + speciesName(lbl).replace(/\s+/g, "_") + "_week" + week + ".csv",
