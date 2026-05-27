@@ -1768,27 +1768,29 @@
     return top + (bot - top) * fr;
   }
 
-  // H3 resolution chosen purely from the current zoom so the on-screen
-  // honeycomb density is consistent: an average hexagon edge of ~26 px. (The
-  // Resolution setting affects the underlying inference grid, not hex size.)
+  // H3 resolution for the overlay. The *scale* (geographic hex size for a given
+  // on-screen size) follows the map zoom (metres-per-pixel); the *number* of
+  // hexes follows the Resolution setting — a higher setting shrinks the target
+  // on-screen edge so more cells cover the view (count ∝ hiResFactor).
   function h3ResForView() {
     var c = map.getCenter(), z = map.getZoom();
     var mpp = 156543.03392 * Math.cos(c.lat * Math.PI / 180) / Math.pow(2, z);
-    var targetM = Math.max(1, 26 * mpp);
+    var edgePx = 26 / Math.sqrt(Math.max(1, hiResFactor));
+    var targetM = Math.max(1, edgePx * mpp);
     var best = 0, bestD = Infinity;
-    for (var r = 0; r <= 13; r++) {
+    for (var r = 0; r <= 14; r++) {
       var d = Math.abs(window.h3.getHexagonEdgeLengthAvg(r, "m") - targetM);
       if (d < bestD) { bestD = d; best = r; }
     }
     return best;
   }
 
-  // The overlay is drawn as filled H3 hexagons sampling the predicted field;
-  // falls back to the smooth heatmap if the H3 library is unavailable.
+  // The distribution overlay is always drawn as filled H3 hexagons (the smooth
+  // heatmap is used only if the H3 library failed to load at all).
   function paintOverlay() {
     if (!cachedRender || !map) return;
-    if (window.h3) { try { paintOverlayH3(); return; } catch (e) { /* fall through */ } }
-    paintOverlaySmooth();
+    if (!window.h3) { paintOverlaySmooth(); return; }
+    try { paintOverlayH3(); } catch (e) { console.warn("h3 overlay", e); }   // never silently swap to squares
   }
 
   function paintOverlayH3() {
@@ -1800,22 +1802,29 @@
     var ctx = overlayCanvas.getContext("2d");
     ctx.clearRect(0, 0, size.x, size.y);
 
-    // Polygon to tile, clamped to valid lat/lon (no antimeridian crossing).
-    var polyN = Math.min(g.north, 89.5), polyS = Math.max(g.south, -89.5), polyW = g.west, polyE = g.east;
+    // Tile only the CURRENT viewport (clamped) — never the whole cached-grid
+    // extent — so the cell count is bounded by the screen and polygonToCells
+    // can't blow up (which previously threw and fell back to square cells).
+    var b = map.getBounds();
+    var polyN = Math.min(b.getNorth(), 89.5), polyS = Math.max(b.getSouth(), -89.5);
+    var polyW = b.getWest(), polyE = b.getEast();
     if (polyE - polyW >= 360) { polyW = -179.9; polyE = 179.9; }
     else { polyW = Math.max(polyW, -179.9); polyE = Math.min(polyE, 179.9); if (polyE <= polyW) { polyW = -179.9; polyE = 179.9; } }
 
     var poly = [[polyN, polyW], [polyN, polyE], [polyS, polyE], [polyS, polyW]];
-    var res = h3ResForView();
-    var cells = window.h3.polygonToCells(poly, res), t = 0;
-    // Too coarse for the viewport (no cell centre inside) — go finer.
-    while (cells.length === 0 && res < 14 && t++ < 4) { res++; cells = window.h3.polygonToCells(poly, res); }
-    // Too many to draw smoothly — go coarser.
+    var res = h3ResForView(), cells = [];
+    try { cells = window.h3.polygonToCells(poly, res); } catch (e) { cells = []; }
+    var t = 0;
+    while (cells.length === 0 && res < 15 && t++ < 4) { res++; try { cells = window.h3.polygonToCells(poly, res); } catch (e) { cells = []; } }
     t = 0;
-    while (cells.length > 8000 && res > 0 && t++ < 6) { res--; cells = window.h3.polygonToCells(poly, res); }
+    while (cells.length > 9000 && res > 0 && t++ < 8) { res--; try { cells = window.h3.polygonToCells(poly, res); } catch (e) { cells = []; } }
 
+    // Only draw hexes whose centre lies within the computed data region, so the
+    // overlay never spills predicted colour outside what was actually evaluated.
     for (var i = 0; i < cells.length; i++) {
       var ll = window.h3.cellToLatLng(cells[i]);
+      var lonU = ll[1]; while (lonU < g.west) lonU += 360; while (lonU > g.east) lonU -= 360;
+      if (ll[0] > g.north + 1e-9 || ll[0] < g.south - 1e-9 || lonU < g.west - 1e-9 || lonU > g.east + 1e-9) continue;
       var p = sampleGridProb(g, probs, ll[0], ll[1]);
       if (!(p >= 0.01)) continue;
       var bnd = window.h3.cellToBoundary(cells[i]);
