@@ -519,8 +519,11 @@
         src: "GBIF",
         dt: o.eventDate || "",
         date: (o.eventDate || "").slice(0, 10) || "—",
+        lat: o.decimalLatitude != null ? o.decimalLatitude : null,
+        lon: o.decimalLongitude != null ? o.decimalLongitude : null,
         place: o.locality || o.verbatimLocality || o.stateProvince || o.county || o.country || "",
         who: (Array.isArray(o.recordedBy) ? o.recordedBy.join(", ") : o.recordedBy) || o.datasetName || "",
+        note: o.occurrenceRemarks || "",
         url: o.key ? "https://www.gbif.org/occurrence/" + o.key : ""
       };
     });
@@ -533,12 +536,19 @@
       "&lat=" + lat.toFixed(4) + "&lng=" + lon.toFixed(4) + "&radius=25";
     var j = await (await fetch(url)).json();
     return ((j && j.results) || []).map(function (o) {
+      // Coordinates: geojson is [lon, lat]; fall back to the "lat,lon" string.
+      var la = null, lo = null;
+      if (o.geojson && o.geojson.coordinates) { lo = o.geojson.coordinates[0]; la = o.geojson.coordinates[1]; }
+      else if (o.location) { var pr = String(o.location).split(","); la = parseFloat(pr[0]); lo = parseFloat(pr[1]); }
       return {
         src: "iNaturalist",
         dt: o.time_observed_at || o.observed_on || "",
         date: o.observed_on || (o.time_observed_at || "").slice(0, 10) || "—",
+        lat: isFinite(la) ? la : null,
+        lon: isFinite(lo) ? lo : null,
         place: o.place_guess || "",
         who: (o.user && (o.user.login || o.user.name)) || "",
+        note: o.description || "",
         url: "https://www.inaturalist.org/observations/" + o.id
       };
     });
@@ -563,8 +573,11 @@
         src: "eBird",
         dt: o.obsDt || "",
         date: (o.obsDt || "").slice(0, 10) || "—",
+        lat: o.lat != null ? o.lat : null,
+        lon: o.lng != null ? o.lng : null,
         place: o.locName || "",
         who: (o.howMany != null ? "×" + o.howMany : ""),
+        note: "",   // the basic geo/recent endpoint carries no observer comments
         url: o.subId ? "https://ebird.org/checklist/" + o.subId : ""
       };
     });
@@ -575,9 +588,10 @@
   function recentCsv() {
     var m = lastRecentMeta || {};
     var lines = ["# " + (m.name || "") + " (" + (m.sci || "") + ") | " + (m.lat != null ? m.lat.toFixed(4) + "°, " + m.lon.toFixed(4) + "°" : "")];
-    lines.push("date,source,place,observer_or_count,url");
+    lines.push("date,source,lat,lon,place,observer_or_count,notes,url");
     lastRecentRows.forEach(function (r) {
-      lines.push([csvEsc(r.date), r.src, csvEsc(r.place), csvEsc(r.who), csvEsc(r.url)].join(","));
+      lines.push([csvEsc(r.date), r.src, r.lat != null ? r.lat : "", r.lon != null ? r.lon : "",
+        csvEsc(r.place), csvEsc(r.who), csvEsc(r.note || ""), csvEsc(r.url)].join(","));
     });
     return lines.join("\n");
   }
