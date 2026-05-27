@@ -539,11 +539,35 @@
     });
   }
 
-  // Show recent observations of a species near the clicked location: last
-  // 2 months, most recent first, up to 100. GBIF is the primary source (the
-  // Nordic atlases publish to it in near-real-time); iNaturalist's live API is
-  // the fallback where GBIF lags.
-  async function showRecent(name, sci, lat, lon) {
+  // User's personal eBird API token (kept in localStorage; never shared).
+  function ebirdKey() { return (window.GeoState.get("ebirdKey", "") || "").trim(); }
+
+  // Recent eBird observations of one species near a point. The app's species
+  // keys ARE eBird species codes, so this is a single call. eBird caps the
+  // lookback at 30 days and the radius at 50 km. Needs the user's API token.
+  async function ebirdRecent(key, lat, lon) {
+    var tok = ebirdKey();
+    if (!tok || !key) return [];
+    var url = "https://api.ebird.org/v2/data/obs/geo/recent/" + encodeURIComponent(key) +
+      "?lat=" + lat.toFixed(4) + "&lng=" + lon.toFixed(4) + "&dist=25&back=30&maxResults=100&includeProvisional=true";
+    var r = await fetch(url, { headers: { "X-eBirdApiToken": tok } });
+    if (!r.ok) return [];
+    var j = await r.json();
+    return ((j && j.length) ? j : []).map(function (o) {
+      return {
+        date: (o.obsDt || "").slice(0, 10) || "—",
+        place: o.locName || "",
+        who: (o.howMany != null ? "×" + o.howMany : ""),
+        url: o.subId ? "https://ebird.org/checklist/" + o.subId : ""
+      };
+    });
+  }
+
+  // Show recent observations of a species near the clicked location, most
+  // recent first. When the user has set an eBird API key, eBird is the primary
+  // source for birds (last 30 days); otherwise — and as a fallback — GBIF (the
+  // Nordic atlases publish there in near-real-time), then iNaturalist's live API.
+  async function showRecent(name, sci, lat, lon, key) {
     var body = document.getElementById("recent-body");
     document.getElementById("recent-title").textContent = name;
     body.innerHTML = '<div class="spinner" style="margin:24px auto"></div>';
@@ -559,8 +583,9 @@
     var gbifBase = "https://www.gbif.org/occurrence/search?q=" + encodeURIComponent(sci) +
       "&geometry=" + encodeURIComponent(gbifGeometry(lat, lon, 12.5));
     var countryParam = "";
+    var ebLink = (key && isBirdKey(key)) ? '<a href="' + escapeHtml(ebirdUrl(key, sci)) + '" target="_blank" rel="noopener">eBird</a> · ' : "";
     var links = function () {
-      return '<div class="recent-links"><a class="recent-gbif" href="' + escapeHtml(gbifBase + countryParam) + '" target="_blank" rel="noopener">GBIF</a>' +
+      return '<div class="recent-links">' + ebLink + '<a class="recent-gbif" href="' + escapeHtml(gbifBase + countryParam) + '" target="_blank" rel="noopener">GBIF</a>' +
         ' · <a href="' + escapeHtml(inatWeb) + '" target="_blank" rel="noopener">' + escapeHtml(t("recent.viewall")) + '</a></div>';
     };
     countryCode(lat, lon).then(function (cc) {
@@ -571,7 +596,7 @@
       if (a) a.setAttribute("href", gbifBase + countryParam);
     });
 
-    function render(rows, src) {
+    function render(rows, src, win) {
       if (token !== recentToken) return;
       if (!rows.length) { body.innerHTML = '<p class="recent-none">' + escapeHtml(t("recent.none")) + "</p>" + links(); return; }
       var html = rows.map(function (r) {
@@ -579,11 +604,21 @@
         var cell = r.url ? '<a href="' + escapeHtml(r.url) + '" target="_blank" rel="noopener">' + escapeHtml(place) + "</a>" : escapeHtml(place);
         return '<tr><td class="rc-date">' + escapeHtml(r.date) + '</td><td class="rc-place">' + cell + '</td><td class="rc-who">' + escapeHtml(r.who) + "</td></tr>";
       }).join("");
-      body.innerHTML = '<div class="recent-src">' + escapeHtml(src + " · " + d1 + " – " + d2) + "</div>" +
+      body.innerHTML = '<div class="recent-src">' + escapeHtml(src + " · " + (win || (d1 + " – " + d2))) + "</div>" +
         '<table class="recent-table"><tbody>' + html + "</tbody></table>" + links();
     }
 
     try {
+      // eBird first when the user has a key and this is a bird (30-day window).
+      if (key && isBirdKey(key) && ebirdKey()) {
+        var eb = await ebirdRecent(key, lat, lon);
+        if (token !== recentToken) return;
+        if (eb.length) {
+          var ed1 = fmtD(new Date(Date.now() - 30 * 864e5));
+          render(eb, "eBird", ed1 + " – " + d2);
+          return;
+        }
+      }
       var rows = await gbifRecent(sci, lat, lon, range);
       if (token !== recentToken) return;
       if (rows.length) { render(rows, "GBIF"); return; }
@@ -823,6 +858,11 @@
                 '<select id="h3cache-mb">' +
                   '<option value="0" data-i18n="opt.off">Off</option><option value="1">1 MB</option><option value="2">2 MB</option><option value="5">5 MB</option>' +
                 '</select>' +
+              '</div>' +
+              '<div class="ctrl-group" id="ebird-key-wrap">' +
+                '<label for="ebird-key" data-i18n="ctrl.ebirdkey">eBird API key</label>' +
+                '<input id="ebird-key" type="text" autocomplete="off" spellcheck="false" />' +
+                '<a id="ebird-key-link" href="https://ebird.org/api/keygen" target="_blank" rel="noopener" data-i18n="ctrl.ebirdkeyget">Get a free key</a>' +
               '</div>' +
               '<div class="ctrl-group" id="barchart-threshold-wrap" style="display:none">' +
                 '<label data-i18n="ctrl.bcthreshold">Probability range</label>' +
@@ -1435,6 +1475,11 @@
       saveH3Cache();   // re-fit to the new cap (or clear when Off)
     });
 
+    // Personal eBird API key (enables eBird recent-sightings in the Recent panel).
+    var ebKeyEl = document.getElementById("ebird-key");
+    ebKeyEl.value = window.GeoState.get("ebirdKey", "") || "";
+    ebKeyEl.addEventListener("change", function () { window.GeoState.save({ ebirdKey: this.value.trim() }); });
+
     document.getElementById("maptype-select").addEventListener("change", function () {
       setBasemap(this.value);
     });
@@ -1794,7 +1839,7 @@
         else if (act === "macaulay") openExternal(macaulayUrl(menuKey, menuSci || menuName));
         else if (act === "xeno") openExternal(xenoCantoUrl(menuSci || menuName));
         else if (act === "distmap") showDistMap(menuName, menuSci || menuName, menuKey);
-        else if (act === "recent") { var rl = marker ? marker.getLatLng() : map.getCenter(); showRecent(menuName, menuSci || menuName, rl.lat, rl.lng); }
+        else if (act === "recent") { var rl = marker ? marker.getLatLng() : map.getCenter(); showRecent(menuName, menuSci || menuName, rl.lat, rl.lng, menuKey); }
         spMenu.style.display = "none";
       });
     });
