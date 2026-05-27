@@ -684,7 +684,7 @@
       var rows = results[0].concat(results[1], results[2]);
       rows.sort(function (a, b) { return String(b.dt || b.date || "").localeCompare(String(a.dt || a.date || "")); });
       lastRecentRows = rows;
-      lastRecentMeta = { name: name, sci: sci, lat: lat, lon: lon };
+      lastRecentMeta = { key: key, name: name, sci: sci, lat: lat, lon: lon };
       render(rows);
     } catch (e) {
       if (token !== recentToken) return;
@@ -1267,6 +1267,7 @@
     refreshHiddenUI();      // re-localize hidden-species chip names
     refreshChecklists();    // re-localize the "Checklist (N)" button text
     if (document.getElementById("field-page").style.display === "flex") renderFieldList();  // re-localize activity labels if open
+    if (typeof refreshDetections === "function") refreshDetections();   // re-localize plotted "Show in map" species names + legend
     refreshCurrentView();   // re-render species names in the active panel
   }
 
@@ -1543,12 +1544,15 @@
   // source record. Persisted so they survive a reload; a legend lists/removes
   // each species.
   var DET_COLORS = ["#e6194B", "#3cb44b", "#4363d8", "#f58231", "#911eb4", "#42d4f4", "#f032e6", "#469990", "#9A6324", "#800000", "#808000", "#000075", "#a9a9a9", "#fabed4", "#bfef45"];
-  var detPlot = {};     // name -> { color, rows:[{lat,lon,url,date,src,place}], group }
+  var detPlot = {};     // speciesKey -> { key, name (fallback), color, rows, group }
   var detLegend = null;
   function detSlim(rows) {
     return (rows || []).filter(function (r) { return r.lat != null && r.lon != null; })
       .map(function (r) { return { lat: +r.lat, lon: +r.lon, url: r.url || "", date: r.date || "", src: r.src || "", place: r.place || "" }; });
   }
+  // Localized display name for a plotted species (re-derived from the key so it
+  // follows the UI language); falls back to the name stored at plot time.
+  function detName(e) { var lbl = labelsByKey[e.key]; return (lbl && speciesName(lbl)) || e.name || e.key; }
   function renderDetGroup(name, rows, color) {
     var g = L.layerGroup();
     rows.forEach(function (r) {
@@ -1559,34 +1563,46 @@
     });
     return g;
   }
-  function plotDetections(name, rows, fit) {
+  function plotDetections(key, name, rows, fit) {
     var slim = detSlim(rows);
     if (!slim.length) { setStatus(t("det.none")); return; }
-    var color = (detPlot[name] && detPlot[name].color) || DET_COLORS[Object.keys(detPlot).length % DET_COLORS.length];
-    if (detPlot[name]) map.removeLayer(detPlot[name].group);
-    var g = renderDetGroup(name, slim, color); g.addTo(map);
-    detPlot[name] = { color: color, rows: slim, group: g };
+    var color = (detPlot[key] && detPlot[key].color) || DET_COLORS[Object.keys(detPlot).length % DET_COLORS.length];
+    if (detPlot[key]) map.removeLayer(detPlot[key].group);
+    var e = { key: key, name: name, color: color, rows: slim, group: null };
+    e.group = renderDetGroup(detName(e), slim, color); e.group.addTo(map);
+    detPlot[key] = e;
     updateDetLegend(); saveDetections();
-    if (fit) { try { map.fitBounds(g.getBounds().pad(0.25)); } catch (e) { /* single point / bad bounds */ } }
+    if (fit) { try { map.fitBounds(e.group.getBounds().pad(0.25)); } catch (err) { /* single point / bad bounds */ } }
   }
-  function removeDetection(name) { if (detPlot[name]) { map.removeLayer(detPlot[name].group); delete detPlot[name]; updateDetLegend(); saveDetections(); } }
-  function clearDetections() { Object.keys(detPlot).forEach(function (n) { map.removeLayer(detPlot[n].group); }); detPlot = {}; updateDetLegend(); saveDetections(); }
+  function removeDetection(key) { if (detPlot[key]) { map.removeLayer(detPlot[key].group); delete detPlot[key]; updateDetLegend(); saveDetections(); } }
+  function clearDetections() { Object.keys(detPlot).forEach(function (k) { map.removeLayer(detPlot[k].group); }); detPlot = {}; updateDetLegend(); saveDetections(); }
+  // Re-render plotted points + legend in the current language (called on lang change).
+  function refreshDetections() {
+    Object.keys(detPlot).forEach(function (k) {
+      var e = detPlot[k];
+      map.removeLayer(e.group);
+      e.group = renderDetGroup(detName(e), e.rows, e.color); e.group.addTo(map);
+    });
+    updateDetLegend();
+  }
   function saveDetections() {
-    var out = {}; Object.keys(detPlot).forEach(function (n) { out[n] = { color: detPlot[n].color, rows: detPlot[n].rows.slice(0, 150) }; });
+    var out = {}; Object.keys(detPlot).forEach(function (k) { var e = detPlot[k]; out[k] = { key: e.key, name: e.name, color: e.color, rows: e.rows.slice(0, 150) }; });
     window.GeoState.save({ mapDetections: out });
   }
   function loadDetections() {
     var saved = window.GeoState.get("mapDetections", {}) || {};
-    Object.keys(saved).forEach(function (n) {
-      var d = saved[n]; if (!d || !d.rows || !d.rows.length) return;
-      var g = renderDetGroup(n, d.rows, d.color); g.addTo(map);
-      detPlot[n] = { color: d.color, rows: d.rows, group: g };
+    Object.keys(saved).forEach(function (sk) {
+      var d = saved[sk]; if (!d || !d.rows || !d.rows.length) return;
+      var key = d.key || sk;   // older builds keyed by display name and had no .key
+      var e = { key: key, name: d.name || sk, color: d.color, rows: d.rows, group: null };
+      e.group = renderDetGroup(detName(e), d.rows, d.color); e.group.addTo(map);
+      detPlot[key] = e;
     });
     updateDetLegend();
   }
   function updateDetLegend() {
-    var names = Object.keys(detPlot);
-    if (!names.length) { if (detLegend) { map.removeControl(detLegend); detLegend = null; } return; }
+    var keys = Object.keys(detPlot);
+    if (!keys.length) { if (detLegend) { map.removeControl(detLegend); detLegend = null; } return; }
     if (!detLegend) {
       detLegend = L.control({ position: "bottomleft" });
       detLegend.onAdd = function () { var d = L.DomUtil.create("div", "det-legend"); d.id = "det-legend"; L.DomEvent.disableClickPropagation(d); L.DomEvent.disableScrollPropagation(d); return d; };
@@ -1594,12 +1610,12 @@
     }
     var el = document.getElementById("det-legend");
     el.innerHTML = '<div class="det-legend-head"><span>' + escapeHtml(t("det.title")) + '</span><button type="button" class="det-clear">' + escapeHtml(t("det.clearAll")) + "</button></div>" +
-      names.map(function (n) {
-        var d = detPlot[n];
-        return '<div class="det-row"><span class="det-sw" style="background:' + d.color + '"></span><span class="det-nm" title="' + escapeHtml(n) + '">' + escapeHtml(n) + '</span><span class="det-ct">' + d.rows.length + '</span><button type="button" class="det-del" data-name="' + escapeHtml(n) + '" aria-label="remove">×</button></div>';
+      keys.map(function (k) {
+        var e = detPlot[k], nm = escapeHtml(detName(e));
+        return '<div class="det-row"><span class="det-sw" style="background:' + e.color + '"></span><span class="det-nm" title="' + nm + '">' + nm + '</span><span class="det-ct">' + e.rows.length + '</span><button type="button" class="det-del" data-key="' + escapeHtml(k) + '" aria-label="remove">×</button></div>';
       }).join("");
     el.querySelector(".det-clear").addEventListener("click", clearDetections);
-    el.querySelectorAll(".det-del").forEach(function (b) { b.addEventListener("click", function () { removeDetection(this.getAttribute("data-name")); }); });
+    el.querySelectorAll(".det-del").forEach(function (b) { b.addEventListener("click", function () { removeDetection(this.getAttribute("data-key")); }); });
   }
 
   var arcOverlays = [];   // active-overlay refs for hover identify: {layer, kind, defs}
@@ -1815,7 +1831,7 @@
         downloadCsv("sightings_" + String(nm).replace(/[^\w-]+/g, "_") + ".csv", recentCsv());
       } else if (e.target.closest("#recent-map")) {
         if (!lastRecentRows.length || !lastRecentMeta) return;
-        plotDetections(lastRecentMeta.name, lastRecentRows, true);   // plot + zoom to points
+        plotDetections(lastRecentMeta.key, lastRecentMeta.name, lastRecentRows, true);   // plot + zoom to points
         hideRecent();
       }
     });
