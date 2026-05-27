@@ -1220,6 +1220,9 @@
     map.on("moveend", function () {
       var c = map.getCenter();
       window.GeoState.save({ view: { lat: c.lat, lon: c.lng, zoom: map.getZoom() } });
+      // Re-rank an open species search by likelihood at the new centre.
+      var sRes = document.getElementById("species-results"), sInp = document.getElementById("species-search");
+      if (sRes && sInp && sRes.style.display === "block") showSearch(sInp, sRes);
       if (currentMode !== "range" && currentMode !== "richness") return;
       if (animating) return;   // don't re-render mid-animation
       paintOverlay();
@@ -1710,8 +1713,34 @@
     });
   }
 
+  // Per-species probabilities at the current map centre/week, used to rank the
+  // species search by local likelihood. Computed lazily (one inference) and
+  // cached; a centre/week change triggers a recompute that refreshes the
+  // open dropdown (also re-run on map moveend).
+  var searchProbs = null, searchProbsKey = null, searchProbsPending = null;
+  function searchKeyNow() {
+    if (!map) return null;
+    var c = map.getCenter();
+    return c.lat.toFixed(2) + "," + c.lng.toFixed(2) + ":" + (document.getElementById("week-select") || {}).value;
+  }
+  function searchProbsCurrent() {
+    var key = searchKeyNow();
+    if (searchProbs && searchProbsKey === key) return searchProbs;
+    if (key && searchProbsPending !== key) {
+      searchProbsPending = key;
+      var c = map.getCenter(), wk = +document.getElementById("week-select").value;
+      runInference(new Float32Array([c.lat, c.lng, wk]), 1).then(function (out) {
+        searchProbs = out; searchProbsKey = key; searchProbsPending = null;
+        var inp = document.getElementById("species-search"), res = document.getElementById("species-results");
+        if (inp && res && res.style.display === "block") showSearch(inp, res);
+      }).catch(function () { searchProbsPending = null; });
+    }
+    return null;
+  }
+
   function showSearch(inputEl, resultsEl) {
     var q = inputEl.value.trim().toLowerCase();
+    var probs = searchProbsCurrent();   // rank by likelihood at the map centre
     var matches;
     if (q.length === 0) {
       matches = FEATURED_SPECIES.map(function (f) { return labelsByKey[f.key]; })
@@ -1722,8 +1751,10 @@
         return speciesName(l).toLowerCase().includes(q) ||
                l.common.toLowerCase().includes(q) ||
                l.sci.toLowerCase().includes(q) || l.key.includes(q);
-      }).slice(0, 30);
+      });
     }
+    if (probs) matches.sort(function (a, b) { return (probs[b.index] || 0) - (probs[a.index] || 0); });
+    matches = matches.slice(0, 30);
     resultsEl.innerHTML = matches.map(function (l) {
       return '<div class="sr-item" data-key="' + l.key + '">' + escapeHtml(speciesName(l)) + ' <span class="sr-sci">' + escapeHtml(l.sci) + '</span></div>';
     }).join("");
