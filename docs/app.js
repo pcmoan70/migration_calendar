@@ -1371,6 +1371,8 @@
       if (["list", "barchart", "range"].indexOf(currentMode) >= 0) onMapClick(e);
     });
 
+    setupAreaOverlays();   // protected/priority-area overlay toggles (off by default)
+
     map.on("moveend", function () {
       var c = map.getCenter();
       window.GeoState.save({ view: { lat: c.lat, lon: c.lng, zoom: map.getZoom() } });
@@ -1406,6 +1408,90 @@
     var sel = document.getElementById("maptype-select");
     if (sel) sel.value = which;
     window.GeoState.save({ basemap: which });
+  }
+
+  // ---- Protected / priority area overlays ----------------------------------
+  // Shown as the official providers' map tiles (display only — geometry is
+  // never downloaded or bundled, which keeps within each source's licence).
+  // Each layer carries the attribution it requires; Leaflet shows it while the
+  // layer is active. Non-commercial use; see the i18n "About" note.
+  //   WDPA   — UNEP-WCMC & IUCN, Protected Planet (national parks, reserves,
+  //            marine areas, IUCN category/designation/status).
+  //   Ramsar — the Ramsar-designated subset of WDPA (wetlands).
+  //   Natura 2000 — EEA (EU Birds-Directive SPAs + Habitats-Directive sites).
+  //   OSM    — OpenStreetMap protected areas via Overpass (open fallback).
+  var WDPA_EXPORT = "https://data-gis.unep-wcmc.org/server/rest/services/ProtectedPlanet/WDPCA/MapServer/export";
+  var N2K_EXPORT = "https://bio.discomap.eea.europa.eu/arcgis/rest/services/ProtectedSites/Natura2000_Dyna_WM/MapServer/export";
+  var RAMSAR_DEF = "desig_eng='Wetland of International Importance (Ramsar Site)'";
+  var WDPA_ATTR = 'Protected areas &copy; <a href="https://www.protectedplanet.net" target="_blank" rel="noopener">UNEP-WCMC &amp; IUCN — Protected Planet (WDPA)</a>';
+  var EEA_ATTR = 'Natura 2000 &copy; <a href="https://www.eea.europa.eu" target="_blank" rel="noopener">European Environment Agency</a>';
+  var OSM_PA_ATTR = 'Protected areas &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors';
+
+  // A Leaflet tile layer backed by an ArcGIS MapServer "export" endpoint: each
+  // 256-px tile is requested as a rendered PNG for its Web-Mercator bbox.
+  var ArcGISExportLayer = L.TileLayer.extend({
+    initialize: function (base, options) { this._base = base; L.TileLayer.prototype.initialize.call(this, "", options || {}); },
+    getTileUrl: function (coords) {
+      var ts = this.getTileSize(), nwP = coords.scaleBy(ts), seP = nwP.add(ts);
+      var a = L.CRS.EPSG3857.project(this._map.unproject(nwP, coords.z));
+      var b = L.CRS.EPSG3857.project(this._map.unproject(seP, coords.z));
+      var bbox = Math.min(a.x, b.x) + "," + Math.min(a.y, b.y) + "," + Math.max(a.x, b.x) + "," + Math.max(a.y, b.y);
+      var u = this._base + "?f=image&format=png32&transparent=true&dpi=96&bboxSR=3857&imageSR=3857" +
+        "&size=" + ts.x + "," + ts.y + "&bbox=" + bbox;
+      if (this.options.arcLayers) u += "&layers=" + encodeURIComponent(this.options.arcLayers);
+      if (this.options.layerDefs) u += "&layerDefs=" + encodeURIComponent(this.options.layerDefs);
+      return u;
+    }
+  });
+
+  // OpenStreetMap protected areas (Overpass) as outlines — refreshed on pan
+  // while active, and only when zoomed in enough to keep the query small.
+  function osmProtectedLayer() {
+    var grp = L.layerGroup(), active = false, token = 0;
+    function load() {
+      if (map.getZoom() < 9) { grp.clearLayers(); return; }
+      var b = map.getBounds();
+      var bbox = b.getSouth().toFixed(4) + "," + b.getWest().toFixed(4) + "," + b.getNorth().toFixed(4) + "," + b.getEast().toFixed(4);
+      var q = "[out:json][timeout:25];(way[\"leisure\"=\"nature_reserve\"](" + bbox + ");relation[\"leisure\"=\"nature_reserve\"](" + bbox +
+        ");way[\"boundary\"=\"protected_area\"](" + bbox + ");relation[\"boundary\"=\"protected_area\"](" + bbox + "););out geom;";
+      var mine = ++token;
+      fetch("https://overpass-api.de/api/interpreter", { method: "POST", body: "data=" + encodeURIComponent(q) })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          if (mine !== token || !active) return;
+          grp.clearLayers();
+          var style = { color: "#1f8a3b", weight: 1.5, opacity: 0.9, fillColor: "#1f8a3b", fillOpacity: 0.08 };
+          (j.elements || []).forEach(function (el) {
+            var nm = (el.tags && el.tags.name) || t("layer.osmpa");
+            var add = function (pts, closed) {
+              if (pts.length < 2) return;
+              var lyr = closed ? L.polygon(pts, style) : L.polyline(pts, style);
+              lyr.bindTooltip(nm, { sticky: true }); grp.addLayer(lyr);
+            };
+            if (el.type === "way" && el.geometry) {
+              var p = el.geometry.map(function (g) { return [g.lat, g.lon]; });
+              add(p, p.length > 2 && p[0][0] === p[p.length - 1][0] && p[0][1] === p[p.length - 1][1]);
+            } else if (el.type === "relation" && el.members) {
+              el.members.forEach(function (m) { if (m.geometry) add(m.geometry.map(function (g) { return [g.lat, g.lon]; }), false); });
+            }
+          });
+        }).catch(function () { /* offline / rate-limited — leave as-is */ });
+    }
+    grp.on("add", function () { active = true; map.attributionControl.addAttribution(OSM_PA_ATTR); load(); });
+    grp.on("remove", function () { active = false; map.attributionControl.removeAttribution(OSM_PA_ATTR); });
+    map.on("moveend", function () { if (active) load(); });
+    return grp;
+  }
+
+  function setupAreaOverlays() {
+    if (!map || !window.L) return;
+    var overlays = {};
+    overlays[t("layer.wdpa")] = new ArcGISExportLayer(WDPA_EXPORT, { opacity: 0.5, attribution: WDPA_ATTR, maxZoom: MAX_ZOOM });
+    overlays[t("layer.ramsar")] = new ArcGISExportLayer(WDPA_EXPORT, { opacity: 0.6, attribution: WDPA_ATTR, maxZoom: MAX_ZOOM,
+      arcLayers: "show:0,1", layerDefs: JSON.stringify({ 0: RAMSAR_DEF, 1: RAMSAR_DEF }) });
+    overlays[t("layer.natura2000")] = new ArcGISExportLayer(N2K_EXPORT, { opacity: 0.5, attribution: EEA_ATTR, maxZoom: MAX_ZOOM });
+    overlays[t("layer.osmpa")] = osmProtectedLayer();
+    L.control.layers(null, overlays, { collapsed: true, position: "topright" }).addTo(map);
   }
 
   // ---- Controls ------------------------------------------------------------
