@@ -2405,9 +2405,14 @@
     ctx.clearRect(0, 0, size.x, size.y);
     var cells = h3CellsInView(h3ResForView());
     var i, max = 0, v;
-    for (i = 0; i < cells.length; i++) { v = cache[cells[i]]; if (v != null && v > max) max = v; }
+    // Normalise to the species' peak across ALL cached cells for this week (not
+    // just those in view) so a low-probability region doesn't rescale to full
+    // colour when you zoom into it (e.g. an Iberian species "appearing" in
+    // Norway). The peak is captured once a broad/zoomed-out view is computed.
+    var allKeys = Object.keys(cache);
+    for (i = 0; i < allKeys.length; i++) { v = cache[allKeys[i]]; if (v != null && v > max) max = v; }
     if (max <= 0) max = 0.01;
-    cachedRender.maxProb = max;   // so the legend reflects the visible normalisation
+    cachedRender.maxProb = max;   // legend reflects this species-wide normalisation
     var pmin = +document.getElementById("prob-min").value / 100;
     var pmax = +document.getElementById("prob-max").value / 100;
     for (i = 0; i < cells.length; i++) {
