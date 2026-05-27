@@ -14,7 +14,7 @@
  *
  * Bump VERSION to invalidate all caches on the next deploy.
  */
-var VERSION = "v35";
+var VERSION = "v36";
 var SHELL_CACHE = "shell-" + VERSION;   // app code + small assets
 var DATA_CACHE = "data-" + VERSION;     // model / labels / taxonomy / vendor libs
 var TILE_CACHE = "tiles-" + VERSION;    // map tiles
@@ -152,8 +152,10 @@ function networkFirst(req, cacheName) {
   // fresh deploy is picked up immediately — GitHub Pages' max-age would
   // otherwise let the SW serve a stale copy even though we try the network
   // first. We keep our own copy in CacheStorage for the offline fallback.
+  // Build from the Request (not just its URL) so request headers — e.g. the
+  // eBird X-eBirdApiToken — are preserved on the network attempt.
   return caches.open(cacheName).then(function (cache) {
-    return fetch(new Request(req.url, { cache: "no-store" }))
+    return fetch(new Request(req, { cache: "no-store" }))
       .then(function (res) {
         if (res && res.ok) cache.put(req, res.clone());
         return res;
