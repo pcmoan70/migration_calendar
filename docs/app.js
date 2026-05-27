@@ -894,6 +894,7 @@
         '<div id="perf-modal" style="display:none"><div id="perf-modal-box">' +
           '<h2 class="perf-title" data-i18n="popup.title">Species distributions and checklists</h2>' +
           '<p data-i18n="popup.perf"></p>' +
+          '<p class="perf-feedback"><span data-i18n="popup.feedback"></span> <a href="mailto:vesmir09@gmail.com">vesmir09@gmail.com</a></p>' +
           '<p class="perf-attrib" data-i18n="footer.attrib"></p>' +
           '<button id="perf-modal-ok" class="demo-btn" data-i18n="popup.ok">OK</button>' +
         '</div></div>' +
@@ -2985,14 +2986,9 @@
     // Rebuilding the CSV string scans every viewport cell; skip it during
     // animation playback (it refreshes when the animation stops).
     if (animating) return;
-    if (currentMode === "range") {
-      // Species Range has no under-map CSV download (per design); the data is
-      // explorable via the species list / timeline instead.
-      hideCsvBtn();
-    } else if (currentMode === "richness") {
-      lastCsvData = buildRichnessCsv();
-      if (lastCsvData) showCsvBtn(); else hideCsvBtn();
-    }
+    // Neither map view (Species Range / Species Richness) shows an under-map
+    // CSV download; map data is explored via the species list / analysis.
+    if (currentMode === "range" || currentMode === "richness") hideCsvBtn();
   }
 
   // ---- Migration animation -------------------------------------------------
