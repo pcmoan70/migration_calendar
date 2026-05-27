@@ -912,6 +912,10 @@
               '<button type="button" class="fcp-num" data-n="10">10</button>' +
             '</div>' +
           '</div>' +
+          '<div id="fc-act-picker" style="display:none">' +
+            '<div class="fcp-head"><span id="fca-name"></span><button type="button" id="fca-close" aria-label="Close">×</button></div>' +
+            '<div id="fca-list"></div>' +
+          '</div>' +
           '<div id="place-picker" style="display:none">' +
             '<div class="fcp-head"><span data-i18n="place.nearby">Nearby places</span><button type="button" id="place-close" aria-label="Close">×</button></div>' +
             '<div id="place-list"></div>' +
@@ -1504,8 +1508,6 @@
         fcTick(key, el.checked);
         if (card) card.classList.toggle("fc-on", el.checked);
         renderFieldList();
-      } else if (el.classList.contains("fc-act")) {
-        cd(key).act = el.value || "";
       } else if (el.classList.contains("fc-note")) {
         cd(key).note = el.value;
         if (card) card.classList.toggle("fc-note-on", !!el.value);
@@ -1529,11 +1531,29 @@
         openFcPicker(btn.getAttribute("data-key"), nm ? nm.textContent : "");
         return;
       }
-      if (e.target.closest(".fc-act") || e.target.closest(".fc-tick") || e.target.closest(".fc-note") || e.target.closest(".fc-add")) return;
+      var actBtn = e.target.closest(".fc-act-btn");
+      if (actBtn) {
+        var cardA = actBtn.closest(".fc-card"), nmA = cardA && cardA.querySelector(".fc-name");
+        openFcActPicker(actBtn.getAttribute("data-key"), nmA ? nmA.textContent : "");
+        return;
+      }
+      if (e.target.closest(".fc-act-btn") || e.target.closest(".fc-tick") || e.target.closest(".fc-note") || e.target.closest(".fc-add")) return;
       var card = e.target.closest(".fc-card");
       if (card) { card.classList.add("fc-note-on"); var note = card.querySelector(".fc-note"); if (note) note.focus(); }
     });
-    fieldList.addEventListener("scroll", hideFcPicker);
+    fieldList.addEventListener("scroll", function () { hideFcPicker(); hideFcActPicker(); });
+    var fcap = document.getElementById("fc-act-picker");
+    fcap.addEventListener("click", function (e) {
+      var it = e.target.closest && e.target.closest(".fca-item");
+      if (it) { setFcAct(fcActKey, it.getAttribute("data-act")); hideFcActPicker(); return; }
+      if (e.target.id === "fca-close") hideFcActPicker();
+    });
+    document.addEventListener("click", function (e) {
+      var p = document.getElementById("fc-act-picker");
+      if (!p || p.style.display === "none") return;
+      if (e.target.closest("#fc-act-picker") || e.target.closest(".fc-act-btn")) return;
+      hideFcActPicker();
+    });
     var fcp = document.getElementById("fc-picker");
     fcp.addEventListener("click", function (e) {
       var num = e.target.closest && e.target.closest(".fcp-num");
@@ -3058,11 +3078,6 @@
       var seen = !!(entries[r.key] && entries[r.key].seen);
       return fieldFilter === "seen" ? seen : !seen;
     });
-    var actOpts = function (sel) {
-      var h = '<option value=""></option>';
-      FIELD_ACTS.forEach(function (a) { h += '<option value="' + a + '"' + (sel === a ? " selected" : "") + ">" + escapeHtml(actName(a)) + "</option>"; });
-      return h;
-    };
     list.innerHTML = shown.map(function (r) {
       var en = entries[r.key] || {}, d = cd(r.key), lbl = labelsByKey[r.key];
       var ents = rec ? fcEntriesFor(rec, r.key) : [], n = ents.length;
@@ -3078,7 +3093,7 @@
           '<label class="fc-tick"><input type="checkbox" class="fc-seen" data-key="' + escapeHtml(r.key) + '"' + (en.seen ? " checked" : "") + "></label>" +
           '<span class="fc-name sp-link" data-key="' + escapeHtml(r.key) + '" data-name="' + escapeHtml(r.name) + '" data-sci="' + escapeHtml(lbl ? (lbl.sci || "") : "") + '">' + escapeHtml(r.name) + badge + "</span>" +
           '<button type="button" class="fc-count' + (hasN ? " has-n" : "") + '" data-key="' + escapeHtml(r.key) + '">' + (hasN ? d.count : "#") + "</button>" +
-          '<select class="fc-act" data-key="' + escapeHtml(r.key) + '">' + actOpts(d.act) + "</select>" +
+          '<button type="button" class="fc-act-btn' + (d.act ? " has-act" : "") + '" data-key="' + escapeHtml(r.key) + '" title="' + escapeHtml(t("chk.activity")) + '">' + (d.act ? escapeHtml(actName(d.act)) : "🏷") + "</button>" +
           '<button type="button" class="fc-add" data-key="' + escapeHtml(r.key) + '" title="' + escapeHtml(t("fc.add")) + '" aria-label="' + escapeHtml(t("fc.add")) + '">＋</button>' +
           '<input type="text" class="fc-note" data-key="' + escapeHtml(r.key) + '" placeholder="' + escapeHtml(t("th.notes")) + '" value="' + escapeHtml(d.note || "") + '" />' +
         "</div>" + entriesBlock +
@@ -3123,6 +3138,32 @@
   function fcStartHold(delta) {
     fcStep(delta);   // immediate step
     fcHoldTimer = setTimeout(function () { fcHoldInt = setInterval(function () { fcStep(delta); }, 110); }, 400);
+  }
+
+  // ---- Activity picker (field checklist) -----------------------------------
+  // A scrollable bottom sheet of the (long) activity list, opened from the
+  // card's activity button — replaces a cramped <select>. Edits the species'
+  // compose-draft activity (committed only by ＋ or the checkbox).
+  var fcActKey = null;
+  function openFcActPicker(key, name) {
+    fcActKey = key;
+    document.getElementById("fca-name").textContent = name || "";
+    var cur = cd(key).act || "";
+    var h = '<button type="button" class="fca-item fca-none' + (!cur ? " is-active" : "") + '" data-act="">—</button>';
+    FIELD_ACTS.forEach(function (a) {
+      h += '<button type="button" class="fca-item' + (cur === a ? " is-active" : "") + '" data-act="' + escapeHtml(a) + '">' + escapeHtml(actName(a)) + "</button>";
+    });
+    document.getElementById("fca-list").innerHTML = h;
+    var p = document.getElementById("fc-act-picker");
+    p.style.display = "block";
+    var active = p.querySelector(".fca-item.is-active");
+    if (active) active.scrollIntoView({ block: "center" });
+  }
+  function hideFcActPicker() { fcActKey = null; var p = document.getElementById("fc-act-picker"); if (p) p.style.display = "none"; }
+  function setFcAct(key, a) {
+    cd(key).act = a || "";
+    var btn = document.querySelector('#field-list .fc-card[data-key="' + key + '"] .fc-act-btn');
+    if (btn) { btn.textContent = a ? actName(a) : "🏷"; btn.classList.toggle("has-act", !!a); }
   }
 
   // ---- Entry-edit page (per species) ---------------------------------------
