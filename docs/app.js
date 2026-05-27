@@ -926,6 +926,12 @@
                 '<input id="ebird-key" type="text" autocomplete="off" spellcheck="false" />' +
                 '<a id="ebird-key-link" href="https://ebird.org/api/keygen" target="_blank" rel="noopener" data-i18n="ctrl.ebirdkeyget">Get a free key</a>' +
               '</div>' +
+              '<div class="ctrl-group">' +
+                '<label for="hotspot-min" data-i18n="ctrl.hotspotmin">Hotspot min. species</label>' +
+                '<select id="hotspot-min">' +
+                  '<option value="0" data-i18n="opt.off">Off</option><option value="25">25+</option><option value="50">50+</option><option value="100">100+</option><option value="200">200+</option>' +
+                '</select>' +
+              '</div>' +
               '<div class="ctrl-group" id="barchart-threshold-wrap" style="display:none">' +
                 '<label data-i18n="ctrl.bcthreshold">Probability range</label>' +
                 '<div id="prob-range">' +
@@ -1502,8 +1508,11 @@
     return grp;
   }
 
+  // Minimum all-time species for a hotspot to be shown ("real hotspots" filter).
+  function hotspotMin() { return +window.GeoState.get("hotspotMin", 50) || 0; }
   // eBird birding hotspots near the view, as clickable markers (name + all-time
   // species count + last-seen). Uses the user's eBird key; refreshes on pan.
+  // Filtered by all-time species count; richer hotspots get larger markers.
   function ebirdHotspotLayer() {
     var grp = L.layerGroup(), active = false, tok = 0;
     function load() {
@@ -1514,7 +1523,7 @@
       // eBird caps dist at 500 km; cover the viewport (centre→corner) up to that.
       var radius = Math.max(2, Math.min(500, Math.round(haversineKm(c.lat, c.lng, b.getNorth(), b.getEast()))));
       var url = "https://api.ebird.org/v2/ref/hotspot/geo?lat=" + c.lat.toFixed(4) + "&lng=" + c.lng.toFixed(4) + "&dist=" + radius + "&fmt=json";
-      var mine = ++tok;
+      var mine = ++tok, minSp = hotspotMin();
       fetch(url, { headers: { "X-eBirdApiToken": key } })
         .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
         .then(function (rows) {
@@ -1522,8 +1531,10 @@
         grp.clearLayers();
         (rows || []).forEach(function (h) {
           if (h.lat == null || h.lng == null) return;
-          var m = L.circleMarker([h.lat, h.lng], { radius: 5, color: "#8a4b12", weight: 1.5, fillColor: "#f0992e", fillOpacity: 0.85 });
-          var sp = h.numSpeciesAllTime != null ? " · " + h.numSpeciesAllTime + " " + t("layer.species") : "";
+          var n = h.numSpeciesAllTime || 0;
+          if (minSp && n < minSp) return;   // skip trivial hotspots
+          var m = L.circleMarker([h.lat, h.lng], { radius: 4 + Math.min(7, Math.round(n / 40)), color: "#8a4b12", weight: 1.5, fillColor: "#f0992e", fillOpacity: 0.85 });
+          var sp = h.numSpeciesAllTime != null ? " · " + n + " " + t("layer.species") : "";
           var last = h.latestObsDt ? " · " + String(h.latestObsDt).slice(0, 10) : "";
           m.bindTooltip("<b>" + escapeHtml(h.locName || "") + "</b><span class='area-tip-sub'>" + escapeHtml(sp + last) + "</span>", { direction: "top", className: "area-tip" });
           m.on("click", function () { openExternal("https://ebird.org/hotspot/" + h.locId); });
@@ -1532,6 +1543,7 @@
         if (!grp.getLayers().length) setStatus(t("layer.hotspotsNone"));
       }).catch(function (e) { if (active) setStatus(t("status.error", { msg: "eBird hotspots " + e.message })); });
     }
+    grp._reload = function () { if (active) load(); };
     grp.on("add", function () { active = true; map.attributionControl.addAttribution(EBIRD_HS_ATTR); load(); });
     grp.on("remove", function () { active = false; map.attributionControl.removeAttribution(EBIRD_HS_ATTR); });
     map.on("moveend", function () { if (active) load(); });
@@ -1619,6 +1631,7 @@
   }
 
   var arcOverlays = [];   // active-overlay refs for hover identify: {layer, kind, defs}
+  var hotspotsLayer = null;
   function setupAreaOverlays() {
     if (!map || !window.L) return;
     var wdpa = new ArcGISExportLayer(WDPA_EXPORT, { opacity: 0.5, attribution: WDPA_ATTR, maxZoom: MAX_ZOOM });
@@ -1632,7 +1645,8 @@
     overlays[t("layer.wdpa")] = wdpa;
     overlays[t("layer.ramsar")] = ramsar;
     overlays[t("layer.natura2000")] = n2k;
-    overlays[t("layer.hotspots")] = ebirdHotspotLayer();
+    hotspotsLayer = ebirdHotspotLayer();
+    overlays[t("layer.hotspots")] = hotspotsLayer;
     overlays[t("layer.osmpa")] = osmProtectedLayer();
     L.control.layers(null, overlays, { collapsed: true, position: "topright" }).addTo(map);
     setupAreaHover();
@@ -1806,6 +1820,13 @@
     var saveEbKey = function () { setEbirdKey(ebKeyEl.value); };
     ebKeyEl.addEventListener("input", saveEbKey);    // save as typed/pasted, not only on blur
     ebKeyEl.addEventListener("change", saveEbKey);
+
+    var hsMinEl = document.getElementById("hotspot-min");
+    hsMinEl.value = String(+window.GeoState.get("hotspotMin", 50) || 0);
+    hsMinEl.addEventListener("change", function () {
+      window.GeoState.save({ hotspotMin: +this.value || 0 });
+      if (hotspotsLayer && hotspotsLayer._reload) hotspotsLayer._reload();   // re-filter if shown
+    });
 
     document.getElementById("maptype-select").addEventListener("change", function () {
       setBasemap(this.value);
