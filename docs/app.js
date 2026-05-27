@@ -1793,6 +1793,27 @@
     try { paintOverlayH3(); } catch (e) { console.warn("h3 overlay", e); }   // never silently swap to squares
   }
 
+  // Enumerate the H3 cells (resolution `res`) covering the current viewport by
+  // sampling screen points and mapping each to its cell. This is bounded by the
+  // screen and never throws — unlike polygonToCells, which fails on large areas
+  // at some resolutions and previously forced a fall back to square cells.
+  function h3CellsInView(res) {
+    var size = map.getSize(), c = map.getCenter();
+    var mpp = 156543.03392 * Math.cos(c.lat * Math.PI / 180) / Math.pow(2, map.getZoom());
+    var edgePx = Math.max(4, window.h3.getHexagonEdgeLengthAvg(res, "m") / mpp);
+    var stepPx = Math.max(5, edgePx * 0.6);   // sample finer than a hex so none is missed
+    var seen = {}, out = [];
+    for (var y = 0; y <= size.y + stepPx; y += stepPx) {
+      var yy = Math.min(y, size.y);
+      for (var x = 0; x <= size.x + stepPx; x += stepPx) {
+        var ll = map.containerPointToLatLng([Math.min(x, size.x), yy]);
+        var cell = window.h3.latLngToCell(Math.max(-89.9, Math.min(89.9, ll.lat)), wrapLon(ll.lng), res);
+        if (!seen[cell]) { seen[cell] = 1; out.push(cell); }
+      }
+    }
+    return out;
+  }
+
   function paintOverlayH3() {
     ensureOverlayCanvas();
     var g = cachedRender.grid, probs = cachedRender.probs;
@@ -1802,23 +1823,7 @@
     var ctx = overlayCanvas.getContext("2d");
     ctx.clearRect(0, 0, size.x, size.y);
 
-    // Tile only the CURRENT viewport (clamped) — never the whole cached-grid
-    // extent — so the cell count is bounded by the screen and polygonToCells
-    // can't blow up (which previously threw and fell back to square cells).
-    var b = map.getBounds();
-    var polyN = Math.min(b.getNorth(), 89.5), polyS = Math.max(b.getSouth(), -89.5);
-    var polyW = b.getWest(), polyE = b.getEast();
-    if (polyE - polyW >= 360) { polyW = -179.9; polyE = 179.9; }
-    else { polyW = Math.max(polyW, -179.9); polyE = Math.min(polyE, 179.9); if (polyE <= polyW) { polyW = -179.9; polyE = 179.9; } }
-
-    var poly = [[polyN, polyW], [polyN, polyE], [polyS, polyE], [polyS, polyW]];
-    var res = h3ResForView(), cells = [];
-    try { cells = window.h3.polygonToCells(poly, res); } catch (e) { cells = []; }
-    var t = 0;
-    while (cells.length === 0 && res < 15 && t++ < 4) { res++; try { cells = window.h3.polygonToCells(poly, res); } catch (e) { cells = []; } }
-    t = 0;
-    while (cells.length > 9000 && res > 0 && t++ < 8) { res--; try { cells = window.h3.polygonToCells(poly, res); } catch (e) { cells = []; } }
-
+    var cells = h3CellsInView(h3ResForView());
     // Only draw hexes whose centre lies within the computed data region, so the
     // overlay never spills predicted colour outside what was actually evaluated.
     for (var i = 0; i < cells.length; i++) {
