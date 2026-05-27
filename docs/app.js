@@ -1779,7 +1779,9 @@
     var targetM = Math.max(1, edgePx * mpp);
     var best = 0, bestD = Infinity;
     for (var r = 0; r <= 14; r++) {
-      var d = Math.abs(window.h3.getHexagonEdgeLengthAvg(r, "m") - targetM);
+      // Geometric (log) closeness: H3 resolutions are ~2.65x apart, so log
+      // distance centres the on-screen size symmetrically around the target.
+      var d = Math.abs(Math.log(window.h3.getHexagonEdgeLengthAvg(r, "m") / targetM));
       if (d < bestD) { bestD = d; best = r; }
     }
     return best;
