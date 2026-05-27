@@ -1768,14 +1768,15 @@
     return top + (bot - top) * fr;
   }
 
-  // H3 resolution whose average hexagon edge is ~22 px on screen (finer with a
-  // higher Resolution setting).
+  // H3 resolution chosen purely from the current zoom so the on-screen
+  // honeycomb density is consistent: an average hexagon edge of ~26 px. (The
+  // Resolution setting affects the underlying inference grid, not hex size.)
   function h3ResForView() {
     var c = map.getCenter(), z = map.getZoom();
     var mpp = 156543.03392 * Math.cos(c.lat * Math.PI / 180) / Math.pow(2, z);
-    var targetM = Math.max(1, 22 * mpp / Math.max(1, hiResFactor));
-    var best = 4, bestD = Infinity;
-    for (var r = 0; r <= 12; r++) {
+    var targetM = Math.max(1, 26 * mpp);
+    var best = 0, bestD = Infinity;
+    for (var r = 0; r <= 13; r++) {
       var d = Math.abs(window.h3.getHexagonEdgeLengthAvg(r, "m") - targetM);
       if (d < bestD) { bestD = d; best = r; }
     }
@@ -1804,12 +1805,14 @@
     if (polyE - polyW >= 360) { polyW = -179.9; polyE = 179.9; }
     else { polyW = Math.max(polyW, -179.9); polyE = Math.min(polyE, 179.9); if (polyE <= polyW) { polyW = -179.9; polyE = 179.9; } }
 
-    var res = h3ResForView(), cells = [];
-    for (var tries = 0; tries < 4; tries++) {
-      cells = window.h3.polygonToCells([[polyN, polyW], [polyN, polyE], [polyS, polyE], [polyS, polyW]], res);
-      if (cells.length <= 7000 || res === 0) break;
-      res--;
-    }
+    var poly = [[polyN, polyW], [polyN, polyE], [polyS, polyE], [polyS, polyW]];
+    var res = h3ResForView();
+    var cells = window.h3.polygonToCells(poly, res), t = 0;
+    // Too coarse for the viewport (no cell centre inside) — go finer.
+    while (cells.length === 0 && res < 14 && t++ < 4) { res++; cells = window.h3.polygonToCells(poly, res); }
+    // Too many to draw smoothly — go coarser.
+    t = 0;
+    while (cells.length > 8000 && res > 0 && t++ < 6) { res--; cells = window.h3.polygonToCells(poly, res); }
 
     for (var i = 0; i < cells.length; i++) {
       var ll = window.h3.cellToLatLng(cells[i]);
