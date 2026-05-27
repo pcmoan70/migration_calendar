@@ -556,7 +556,22 @@
   }
 
   // User's personal eBird API token (kept in localStorage; never shared).
-  function ebirdKey() { return (window.GeoState.get("ebirdKey", "") || "").trim(); }
+  // The eBird token lives in its own localStorage entry (not the shared app
+  // state) so it always persists across reloads. Older builds stored it inside
+  // GeoState — migrate that on first read.
+  var EBIRD_KEY_LS = "geomodel-ebird-key";
+  function ebirdKey() {
+    try {
+      var k = localStorage.getItem(EBIRD_KEY_LS);
+      if (k == null) {
+        var old = window.GeoState.get("ebirdKey", "");
+        if (old) { localStorage.setItem(EBIRD_KEY_LS, String(old).trim()); return String(old).trim(); }
+        return "";
+      }
+      return String(k).trim();
+    } catch (e) { return ""; }
+  }
+  function setEbirdKey(v) { try { localStorage.setItem(EBIRD_KEY_LS, (v || "").trim()); } catch (e) { /* storage blocked */ } }
 
   // Recent eBird observations of one species near a point. The app's species
   // keys ARE eBird species codes, so this is a single call. eBird caps the
@@ -1771,8 +1786,10 @@
 
     // Personal eBird API key (enables eBird recent-sightings in the Recent panel).
     var ebKeyEl = document.getElementById("ebird-key");
-    ebKeyEl.value = window.GeoState.get("ebirdKey", "") || "";
-    ebKeyEl.addEventListener("change", function () { window.GeoState.save({ ebirdKey: this.value.trim() }); });
+    ebKeyEl.value = ebirdKey();
+    var saveEbKey = function () { setEbirdKey(ebKeyEl.value); };
+    ebKeyEl.addEventListener("input", saveEbKey);    // save as typed/pasted, not only on blur
+    ebKeyEl.addEventListener("change", saveEbKey);
 
     document.getElementById("maptype-select").addEventListener("change", function () {
       setBasemap(this.value);
