@@ -806,6 +806,7 @@
             '<span class="field-actions">' +
               '<button id="field-pdf" class="demo-btn" title="Download PDF">⬇ PDF</button>' +
               '<button id="field-csv" class="demo-btn" data-i18n="btn.csv" title="Download CSV">⬇ CSV</button>' +
+              '<button id="field-log" class="demo-btn" data-i18n="btn.logcsv" title="Download observation log">⬇ Log</button>' +
               '<button id="field-clear" class="demo-btn demo-btn-light" data-i18n="btn.clear">Clear</button>' +
             '</span>' +
           '</div>' +
@@ -1382,14 +1383,16 @@
       if (!key) return;
       var row = el.closest(".fc-row");
       if (el.classList.contains("fc-seen")) {
-        setFieldEntry(key, { seen: el.checked });
+        // Ticking marks the species present (an entry); unticking removes its
+        // observations from this list.
+        if (el.checked) fcEditLatest(key, {});
+        else fcRemoveSpecies(key);
         if (row) row.classList.toggle("fc-on", el.checked);
       } else if (el.classList.contains("fc-act")) {
-        var mark2 = !!el.value;
-        setFieldEntry(key, { act: el.value || null }, mark2);
-        if (mark2 && row) { var cb2 = row.querySelector(".fc-seen"); if (cb2) cb2.checked = true; row.classList.add("fc-on"); }
+        fcEditLatest(key, { act: el.value || "" });
+        if (el.value && row) { var cb2 = row.querySelector(".fc-seen"); if (cb2) cb2.checked = true; row.classList.add("fc-on"); }
       } else if (el.classList.contains("fc-note")) {
-        setFieldEntry(key, { note: el.value.trim() || null });
+        fcEditLatest(key, { note: el.value.trim() });
       }
       updateFieldSeen();
     }
@@ -1400,6 +1403,8 @@
     // notes field; close the picker on scroll.
     fieldList.addEventListener("click", function (e) {
       if (!e.target.closest) return;
+      var add = e.target.closest(".fc-add");
+      if (add) { fcAddObs(add.getAttribute("data-key")); return; }
       var btn = e.target.closest(".fc-count");
       if (btn) {
         var row0 = btn.closest(".fc-row"), nm = row0 && row0.querySelector(".fc-name");
@@ -1407,7 +1412,7 @@
         return;
       }
       // Click on the card (not a control) reveals the notes input to write in.
-      if (e.target.closest(".fc-act") || e.target.closest(".fc-tick") || e.target.closest(".fc-note")) return;
+      if (e.target.closest(".fc-act") || e.target.closest(".fc-tick") || e.target.closest(".fc-note") || e.target.closest(".fc-add")) return;
       var row = e.target.closest(".fc-row");
       if (row) { row.classList.add("fc-note-on"); var note = row.querySelector(".fc-note"); if (note) note.focus(); }
     });
@@ -1433,16 +1438,22 @@
     document.getElementById("field-csv").addEventListener("click", function () {
       downloadCsv("field_checklist.csv", fieldChecklistCsv());
     });
+    document.getElementById("field-log").addEventListener("click", function () {
+      downloadCsv("field_checklist_log.csv", fieldLogCsv());
+    });
     document.getElementById("field-pdf").addEventListener("click", exportFieldPdf);
     document.getElementById("field-clear").addEventListener("click", function () {
-      saveFieldEntries({}); renderFieldList();
+      fcClear(); renderFieldList();
     });
     // "Nearby places" picker for the title.
     document.getElementById("field-nearby").addEventListener("click", function (e) { e.stopPropagation(); openPlacePicker(); });
     document.getElementById("place-close").addEventListener("click", hidePlacePicker);
     document.getElementById("place-list").addEventListener("click", function (e) {
-      var it = e.target.closest && e.target.closest(".pp-item");
-      if (it) { setFieldTitle(it.getAttribute("data-name")); hidePlacePicker(); }
+      if (!e.target.closest) return;
+      var merge = e.target.closest(".pp-merge");
+      if (merge) { fcMerge(merge.getAttribute("data-id")); hidePlacePicker(); renderFieldList(); setStatus(t("chk.merged")); return; }
+      var it = e.target.closest(".pp-item");
+      if (it && it.getAttribute("data-name")) { setFieldTitle(it.getAttribute("data-name")); hidePlacePicker(); }
     });
 
     // Editable location title — persist into the field-checklist record.
@@ -2290,48 +2301,145 @@
   function openPlacePicker() {
     var p = document.getElementById("place-picker"), list = document.getElementById("place-list");
     p.style.display = "block";
-    list.innerHTML = '<div class="spinner" style="margin:18px auto"></div>';
+    // Section 1: your other checklists — selecting one merges it into this list.
+    var lists = buildChecklistItems(getFieldChecklists()).filter(function (it) { return it.pkey !== fieldKey; });
+    lists.forEach(function (it) { it.dist = (typeof fieldLat === "number" && it.lat != null) ? haversineKm(fieldLat, fieldLon, it.lat, it.lon) : null; });
+    lists.sort(function (a, b) { return (a.dist == null ? Infinity : a.dist) - (b.dist == null ? Infinity : b.dist); });
+    var distLabel = function (d) { return d == null ? "" : (d < 1 ? Math.round(d * 1000) + " m" : d.toFixed(1) + " km"); };
+    var listsHtml = lists.length ? ('<div class="pp-head">' + escapeHtml(t("ctrl.checklists")) + "</div>" +
+      lists.map(function (it) {
+        return '<button type="button" class="pp-item pp-merge" data-id="' + escapeHtml(it.pkey) + '">⤭ ' + escapeHtml(it.name) + '<span class="pp-dist">' + distLabel(it.dist) + "</span></button>";
+      }).join("")) : "";
+    var placesHead = '<div class="pp-head">' + escapeHtml(t("place.nearby")) + "</div>";
+    list.innerHTML = listsHtml + placesHead + '<div class="spinner" style="margin:18px auto"></div>';
     nearbyPlaces(fieldLat, fieldLon).then(function (rows) {
-      if (!rows.length) { list.innerHTML = '<p class="recent-none">' + escapeHtml(t("place.none")) + "</p>"; return; }
-      list.innerHTML = rows.map(function (r) {
-        var d = r.dist < 1 ? Math.round(r.dist * 1000) + " m" : r.dist.toFixed(1) + " km";
-        return '<button type="button" class="pp-item" data-name="' + escapeHtml(r.name) + '">' + escapeHtml(r.name) + '<span class="pp-dist">' + d + "</span></button>";
-      }).join("");
-    }).catch(function () { list.innerHTML = '<p class="recent-none">' + escapeHtml(t("place.none")) + "</p>"; });
+      var placesHtml = rows.length ? rows.map(function (r) {
+        return '<button type="button" class="pp-item" data-name="' + escapeHtml(r.name) + '">' + escapeHtml(r.name) + '<span class="pp-dist">' + distLabel(r.dist) + "</span></button>";
+      }).join("") : '<p class="recent-none">' + escapeHtml(t("place.none")) + "</p>";
+      list.innerHTML = listsHtml + placesHead + placesHtml;
+    }).catch(function () { list.innerHTML = listsHtml + placesHead + '<p class="recent-none">' + escapeHtml(t("place.none")) + "</p>"; });
   }
 
   // ---- Field checklist (mobile live entry) ---------------------------------
-  // Field checklists are stored per location (keyed by placeKey), each with its
-  // own coordinates, title and species entries — so several can coexist and be
-  // listed/sorted independently.
+  // A checklist is a day-scoped record per location, keyed by placeKey@DAY, and
+  // is *built from an append-only observation log*: every sighting (a tick, a
+  // count change, or an explicit ＋) appends an entry stamped with its time and
+  // coordinates. The visible per-species rows are an aggregation of that log,
+  // so no detail (when/where each observation happened) is ever lost.
+  //   record = { id, title, lat, lon, day, createdAt, log: [ entry, … ] }
+  //   entry  = { ts, lat, lon, key, count, act, note }
   function getFieldChecklists() { return window.GeoState.get("fieldChecklists", {}) || {}; }
   function saveFieldChecklists(o) { window.GeoState.save({ fieldChecklists: o }); }
-  function getFieldRecord(pkey) { return getFieldChecklists()[pkey] || null; }
-  function newFieldRecord() { return { lat: fieldLat, lon: fieldLon, title: "", createdAt: new Date().toISOString(), entries: {} }; }
+  function todayStr() { var d = new Date(); return d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2); }
+  function listIdFor(lat, lon, day) { return placeKey(lat, lon) + "@" + (day || todayStr()); }
+  function dayOf(rec) { return rec.day || (rec.createdAt ? String(rec.createdAt).slice(0, 10) : todayStr()); }
 
-  // Species entries of the field checklist currently open.
-  function getFieldEntries() { var r = fieldKey ? getFieldRecord(fieldKey) : null; return (r && r.entries) || {}; }
-  function saveFieldEntries(e) {
-    if (!fieldKey) return;
+  // Migrate a legacy {entries:{key:{seen,count,act,note}}} record to the
+  // log-based shape, synthesising one log entry per recorded species.
+  function migrateFieldRecord(rec, id) {
+    if (!rec || rec.log) return rec;
+    var ts = rec.createdAt ? (Date.parse(rec.createdAt) || Date.now()) : Date.now();
+    var day = rec.createdAt ? String(rec.createdAt).slice(0, 10) : todayStr();
+    var log = [], entries = rec.entries || {};
+    Object.keys(entries).forEach(function (key) {
+      var e = entries[key] || {};
+      if (!e.seen && (e.count == null || e.count === "") && !e.act && !e.note) return;
+      log.push({ ts: ts, lat: rec.lat, lon: rec.lon, key: key, count: e.count != null ? +e.count : 0, act: e.act || "", note: e.note || "" });
+    });
+    return { id: id, title: rec.title || "", lat: rec.lat, lon: rec.lon, day: day, createdAt: rec.createdAt || new Date(ts).toISOString(), log: log };
+  }
+  function getFieldRecord(id) {
+    var all = getFieldChecklists(), rec = all[id];
+    if (!rec) return null;
+    if (!rec.log) { rec = migrateFieldRecord(rec, id); all[id] = rec; saveFieldChecklists(all); }
+    return rec;
+  }
+  function newFieldRecord(id, lat, lon) {
+    return { id: id, title: "", lat: lat, lon: lon, day: todayStr(), createdAt: new Date().toISOString(), log: [] };
+  }
+  // The currently open record (optionally creating it on first write).
+  function curFieldRecord(create) {
+    if (!fieldKey) return null;
+    return getFieldRecord(fieldKey) || (create ? newFieldRecord(fieldKey, fieldLat, fieldLon) : null);
+  }
+  function putFieldRecord(rec) {
     var all = getFieldChecklists();
-    var rec = all[fieldKey] || newFieldRecord();
-    rec.entries = e; rec.lat = fieldLat; rec.lon = fieldLon;
-    // Drop a record that holds neither observations nor a custom title.
-    if (!Object.keys(e).length && !(rec.title || "").trim()) delete all[fieldKey];
-    else all[fieldKey] = rec;
+    if (!rec.log.length && !(rec.title || "").trim()) delete all[rec.id];   // drop empty + untitled
+    else all[rec.id] = rec;
     saveFieldChecklists(all);
     refreshChecklists();
   }
-  // Persist the title for the current field point (creating its record).
-  function persistFieldTitle(v) {
-    if (!fieldKey) return;
-    var all = getFieldChecklists();
-    var rec = all[fieldKey] || newFieldRecord();
-    rec.title = v; rec.lat = fieldLat; rec.lon = fieldLon;
-    if (!v && !Object.keys(rec.entries || {}).length) delete all[fieldKey];
-    else all[fieldKey] = rec;
-    saveFieldChecklists(all);
+
+  // Aggregate a record's log into per-species rows (summed count, seen flag,
+  // most-recent activity/note, and the number of distinct observations).
+  function fcAggregate(rec) {
+    var agg = {};
+    ((rec && rec.log) || []).forEach(function (e) {
+      var a = agg[e.key] || (agg[e.key] = { count: 0, n: 0, act: "", note: "", lastTs: -1 });
+      a.count += (+e.count || 0); a.n++;
+      if ((e.ts || 0) >= a.lastTs) { a.lastTs = e.ts || 0; a.act = e.act || ""; a.note = e.note || ""; }
+    });
+    return agg;
+  }
+  // Render-shaped view of the open list ({key:{seen,count,act,note,n}}).
+  function getFieldEntries() {
+    var rec = curFieldRecord(false); if (!rec) return {};
+    var agg = fcAggregate(rec), out = {};
+    Object.keys(agg).forEach(function (k) {
+      var a = agg[k], c = a.count > 0 ? a.count : 0;
+      out[k] = { seen: true, count: c > 0 ? c : null, act: a.act || undefined, note: a.note || undefined, n: a.n };
+    });
+    return out;
+  }
+  function fcSum(rec, key) { var s = 0; rec.log.forEach(function (e) { if (e.key === key) s += (+e.count || 0); }); return Math.max(0, s); }
+  function fcLatest(rec, key) { var last = null; rec.log.forEach(function (e) { if (e.key === key && (!last || (e.ts || 0) >= (last.ts || 0))) last = e; }); return last; }
+  function fcCount(key) { var rec = curFieldRecord(false); return rec ? fcSum(rec, key) : 0; }
+
+  // Append a brand-new observation entry (the ＋ action, or a first tick).
+  function fcAppend(key, count, note, act) {
+    var rec = curFieldRecord(true); if (!rec) return;
+    rec.log.push({ ts: Date.now(), lat: fieldLat, lon: fieldLon, key: key, count: +count || 0, act: act || "", note: note || "" });
+    rec.lat = fieldLat; rec.lon = fieldLon;
+    putFieldRecord(rec);
+  }
+  // Edit the most-recent entry of a species (creating one if none exists).
+  function fcEditLatest(key, patch) {
+    var rec = curFieldRecord(true); if (!rec) return;
+    var last = fcLatest(rec, key);
+    if (!last) { last = { ts: Date.now(), lat: fieldLat, lon: fieldLon, key: key, count: 0, act: "", note: "" }; rec.log.push(last); }
+    for (var k in patch) last[k] = patch[k];
+    putFieldRecord(rec);
+  }
+  // Set a species' total count by adjusting its most-recent entry.
+  function fcSetTotal(key, target) {
+    var rec = curFieldRecord(true); if (!rec) return;
+    target = Math.max(0, target | 0);
+    var last = fcLatest(rec, key);
+    if (!last) { last = { ts: Date.now(), lat: fieldLat, lon: fieldLon, key: key, count: 0, act: "", note: "" }; rec.log.push(last); }
+    var others = fcSum(rec, key) - (+last.count || 0);
+    last.count = Math.max(0, target - others);
+    putFieldRecord(rec);
+  }
+  function fcRemoveSpecies(key) {
+    var rec = curFieldRecord(false); if (!rec) return;
+    rec.log = rec.log.filter(function (e) { return e.key !== key; });
+    putFieldRecord(rec);
+  }
+  function fcClear() { var rec = curFieldRecord(false); if (!rec) return; rec.log = []; putFieldRecord(rec); }
+  // Merge another list's observations into the open one, then delete the other.
+  function fcMerge(otherId) {
+    if (!fieldKey || otherId === fieldKey) return;
+    var rec = curFieldRecord(true), other = getFieldRecord(otherId);
+    if (!rec || !other) return;
+    rec.log = rec.log.concat(other.log).sort(function (a, b) { return (a.ts || 0) - (b.ts || 0); });
+    var all = getFieldChecklists(); delete all[otherId]; all[rec.id] = rec; saveFieldChecklists(all);
     refreshChecklists();
+  }
+  // Persist the title for the current list (creating its record).
+  function persistFieldTitle(v) {
+    var rec = curFieldRecord(true); if (!rec) return;
+    rec.title = v; rec.lat = fieldLat; rec.lon = fieldLon;
+    putFieldRecord(rec);
   }
   // Old per-point titles (pre per-location records); read-only migration fallback.
   function getFieldTitles() { return window.GeoState.get("fieldTitles", {}) || {}; }
@@ -2346,7 +2454,9 @@
   }
 
   // Build the probability-ranked species list for the clicked/located point.
-  async function renderFieldChecklist(lat, lon) {
+  // listId pins a specific (possibly past-day) list; otherwise today's list at
+  // this place is started/continued.
+  async function renderFieldChecklist(lat, lon, listId) {
     fieldQuery = ""; fieldFilter = "all";   // fresh filters each open
     var fs = document.getElementById("field-search"); if (fs) fs.value = "";
     var ff = document.getElementById("field-filter");
@@ -2370,9 +2480,10 @@
       // detailed location (resolved async; coordinates meanwhile).
       var fcEl = document.getElementById("field-coords");
       var pkey = placeKey(lat, lon);
-      fcEl.dataset.pkey = pkey;
-      fieldKey = pkey;
-      var rec = getFieldRecord(pkey);
+      var id = listId || listIdFor(lat, lon);   // today's list at this place by default
+      fcEl.dataset.pkey = id;
+      fieldKey = id;
+      var rec = getFieldRecord(id);
       var saved = (rec && rec.title) || getFieldTitles()[pkey];
       fcEl.value = saved || (lat.toFixed(4) + "°, " + lon.toFixed(4) + "°");
       var ptok = ++fieldPlaceToken;
@@ -2486,7 +2597,16 @@
     if (!fieldData) return;
     var entries = getFieldEntries();
     var list = document.getElementById("field-list");
-    var shown = fieldData.filter(function (r) {
+    // Rows = the point's inferred species, plus any observed species not in that
+    // set (e.g. brought in by a merge) so nothing recorded is ever hidden.
+    var rows = fieldData.slice(), have = {};
+    fieldData.forEach(function (r) { have[r.key] = 1; });
+    Object.keys(entries).forEach(function (k) {
+      if (have[k]) return;
+      var lbl = labelsByKey[k];
+      rows.push({ key: k, name: lbl ? speciesName(lbl) : k, prob: null });
+    });
+    var shown = rows.filter(function (r) {
       if (!fuzzyMatch(r.name, fieldQuery)) return false;
       if (fieldFilter === "all") return true;
       var seen = !!(entries[r.key] && entries[r.key].seen);
@@ -2500,12 +2620,14 @@
     list.innerHTML = shown.map(function (r) {
       var en = entries[r.key] || {};
       var on = (en.seen ? " fc-on" : "") + (en.note ? " fc-note-on" : "");
+      var badge = en.n > 1 ? '<span class="fc-ncount" title="' + en.n + ' observations">×' + en.n + "</span>" : "";
       return '<div class="fc-row' + on + '" data-key="' + escapeHtml(r.key) + '">' +
         '<label class="fc-tick"><input type="checkbox" class="fc-seen" data-key="' + escapeHtml(r.key) + '"' + (en.seen ? " checked" : "") + "></label>" +
-        '<span class="fc-name">' + escapeHtml(r.name) + "</span>" +
+        '<span class="fc-name">' + escapeHtml(r.name) + badge + "</span>" +
         '<button type="button" class="fc-count' + (en.count != null ? " has-n" : "") + '" data-key="' + escapeHtml(r.key) + '">' + (en.count != null ? en.count : "#") + "</button>" +
         '<select class="fc-act" data-key="' + escapeHtml(r.key) + '">' + actOpts(en.act) + "</select>" +
         '<input type="text" class="fc-note" data-key="' + escapeHtml(r.key) + '" placeholder="' + escapeHtml(t("th.notes")) + '" value="' + escapeHtml(en.note || "") + '" />' +
+        '<button type="button" class="fc-add" data-key="' + escapeHtml(r.key) + '" title="' + escapeHtml(t("fc.add")) + '" aria-label="' + escapeHtml(t("fc.add")) + '">＋</button>' +
         "</div>";
     }).join("");
     if (!shown.length) list.innerHTML = '<p class="fc-empty">' + escapeHtml(t("analysis.empty")) + "</p>";
@@ -2526,30 +2648,28 @@
   function openFcPicker(key, name) {
     fcPickerKey = key;
     document.getElementById("fcp-name").textContent = name || "";
-    document.getElementById("fcp-val").textContent = (getFieldEntries()[key] || {}).count || 0;
+    document.getElementById("fcp-val").textContent = fcCount(key);
     document.getElementById("fc-picker").style.display = "block";
   }
   function hideFcPicker() { fcPickerKey = null; var p = document.getElementById("fc-picker"); if (p) p.style.display = "none"; }
-  // Set the count for a species and reflect it in the row, badge and picker.
+  // Set a species' total count (adjusting its latest observation) and reflect
+  // it in the row, badge and picker.
   function setFcCount(key, val) {
     val = Math.max(0, val | 0);
-    setFieldEntry(key, { count: val > 0 ? val : null }, val > 0);
+    fcSetTotal(key, val);
     var btn = document.querySelector('#field-list .fc-count[data-key="' + key + '"]');
     if (btn) {
       btn.textContent = val > 0 ? val : "#";
       btn.classList.toggle("has-n", val > 0);
       var row = btn.closest(".fc-row");
-      if (row) {
-        if (val > 0) { var cb = row.querySelector(".fc-seen"); if (cb) cb.checked = true; }
-        row.classList.toggle("fc-on", (getFieldEntries()[key] || {}).seen === true);
-      }
+      if (row) { var cb = row.querySelector(".fc-seen"); if (cb) cb.checked = true; row.classList.add("fc-on"); }
     }
     var v = document.getElementById("fcp-val"); if (v) v.textContent = val;
     updateFieldSeen();
   }
   function fcStep(delta) {
     if (!fcPickerKey) return;
-    setFcCount(fcPickerKey, ((getFieldEntries()[fcPickerKey] || {}).count || 0) + delta);
+    setFcCount(fcPickerKey, fcCount(fcPickerKey) + delta);
   }
   function fcStopHold() { clearTimeout(fcHoldTimer); clearInterval(fcHoldInt); fcHoldTimer = fcHoldInt = null; }
   function fcStartHold(delta) {
@@ -2557,17 +2677,16 @@
     fcHoldTimer = setTimeout(function () { fcHoldInt = setInterval(function () { fcStep(delta); }, 110); }, 400);
   }
 
-  // Update one species' field entry and persist. mark=true also ticks "seen".
-  function setFieldEntry(key, patch, mark) {
-    var entries = getFieldEntries();
-    var en = entries[key] || {};
-    for (var k in patch) en[k] = patch[k];
-    if (mark) en.seen = true;
-    // Drop empty entries to keep storage tidy.
-    if (!en.seen && (en.count == null || en.count === "") && !en.act && !en.note) delete entries[key];
-    else entries[key] = en;
-    saveFieldEntries(entries);
-    return entries[key];
+  // Add a fresh observation entry for a species (the ＋): new timestamp +
+  // location, count 1, carrying over the species' latest activity; its note is
+  // then editable in the row's note field.
+  function fcAddObs(key) {
+    var rec = curFieldRecord(false);
+    var last = rec ? fcLatest(rec, key) : null;
+    fcAppend(key, 1, "", last ? last.act : "");
+    renderFieldList();
+    var note = document.querySelector('#field-list .fc-row[data-key="' + key + '"] .fc-note');
+    if (note) { var row = note.closest(".fc-row"); if (row) row.classList.add("fc-note-on"); note.focus(); }
   }
 
   function fieldChecklistCsv() {
@@ -3110,6 +3229,22 @@
     return null;
   }
 
+  // Build display items for the stored checklists. Names get a date suffix
+  // when several lists share the same base name (place/title) — e.g. one per day.
+  function buildChecklistItems(fcs) {
+    var items = [];
+    Object.keys(fcs).forEach(function (id) {
+      var r = getFieldRecord(id); if (!r) return;
+      if (!((r.log && r.log.length) || (r.title || "").trim())) return;
+      var base = (r.title || "").trim() || (r.lat.toFixed(3) + "°, " + r.lon.toFixed(3) + "°");
+      items.push({ pkey: id, base: base, day: dayOf(r), lat: r.lat, lon: r.lon });
+    });
+    var counts = {};
+    items.forEach(function (it) { counts[it.base] = (counts[it.base] || 0) + 1; });
+    items.forEach(function (it) { it.name = counts[it.base] > 1 ? it.base + " · " + it.day : it.base; });
+    return items;
+  }
+
   // Dropdown listing the saved Checklists, nearest first.
   function refreshChecklists() {
     var wrap = document.getElementById("checklists-wrap");
@@ -3118,13 +3253,7 @@
     if (!wrap || !btnText || !panel) return;
 
     var fcs = getFieldChecklists();
-    var items = [];
-    Object.keys(fcs).forEach(function (pkey) {
-      var r = fcs[pkey];
-      var has = Object.keys(r.entries || {}).length || (r.title || "").trim();
-      if (!has) return;
-      items.push({ pkey: pkey, name: r.title || (r.lat.toFixed(3) + "°, " + r.lon.toFixed(3) + "°"), lat: r.lat, lon: r.lon });
-    });
+    var items = buildChecklistItems(fcs);
 
     // Sort by distance to the current map centre (the point of interest).
     var c0 = map ? map.getCenter() : null;
@@ -3167,25 +3296,36 @@
   }
 
   // Re-open a field checklist from the list: re-run inference at its point so
-  // its species rows + saved entries (keyed by the same placeKey) are restored.
-  function openFieldFromList(pkey) {
-    var r = getFieldRecord(pkey);
+  // its species rows are rebuilt, pinned to that exact (possibly past-day) list.
+  function openFieldFromList(id) {
+    var r = getFieldRecord(id);
     if (!r) return;
-    renderFieldChecklist(r.lat, r.lon);   // full-screen overlay; no mode switch
+    renderFieldChecklist(r.lat, r.lon, id);   // full-screen overlay; no mode switch
   }
 
-  // CSV for a stored field checklist (works for any record, open or not).
-  function fieldRecordCsv(pkey) {
-    var r = getFieldRecord(pkey); if (!r) return "";
-    var entries = r.entries || {};
-    var esc = function (v) { var s = String(v == null ? "" : v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+  function csvEsc(v) { var s = String(v == null ? "" : v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
+  // Aggregated CSV for a stored field checklist (works for any record).
+  function fieldRecordCsv(id) {
+    var r = getFieldRecord(id); if (!r) return "";
     var title = (r.title || "").trim() || (r.lat.toFixed(4) + "°, " + r.lon.toFixed(4) + "°");
-    var lines = ["# " + title + " | " + (r.createdAt || "").slice(0, 10)];
+    var agg = fcAggregate(r), lines = ["# " + title + " | " + dayOf(r)];
     lines.push("species,common_name,count,activity,notes");
-    Object.keys(entries).forEach(function (key) {
-      var e = entries[key]; if (!e.seen && (e.count == null || e.count === "") && !e.act && !e.note) return;
-      var name = (labelsByKey[key] && speciesName(labelsByKey[key])) || key;
-      lines.push([key, esc(name), e.count != null ? e.count : "", e.act ? actName(e.act) : "", esc(e.note || "")].join(","));
+    Object.keys(agg).forEach(function (key) {
+      var a = agg[key], name = (labelsByKey[key] && speciesName(labelsByKey[key])) || key;
+      lines.push([key, csvEsc(name), a.count > 0 ? a.count : "", a.act ? actName(a.act) : "", csvEsc(a.note || "")].join(","));
+    });
+    return lines.join("\n");
+  }
+  // Raw observation-log CSV: one row per logged sighting (time + coordinates).
+  function fieldLogCsv(id) {
+    var r = id ? getFieldRecord(id) : curFieldRecord(false); if (!r) return "";
+    var title = (r.title || "").trim() || (r.lat.toFixed(4) + "°, " + r.lon.toFixed(4) + "°");
+    var lines = ["# " + title + " | " + dayOf(r) + " | observation log"];
+    lines.push("timestamp,lat,lon,species,common_name,count,activity,notes");
+    (r.log || []).slice().sort(function (a, b) { return (a.ts || 0) - (b.ts || 0); }).forEach(function (e) {
+      var name = (labelsByKey[e.key] && speciesName(labelsByKey[e.key])) || e.key;
+      lines.push([new Date(e.ts).toISOString(), e.lat != null ? e.lat.toFixed(5) : "", e.lon != null ? e.lon.toFixed(5) : "",
+        e.key, csvEsc(name), (+e.count || 0), e.act ? actName(e.act) : "", csvEsc(e.note || "")].join(","));
     });
     return lines.join("\n");
   }

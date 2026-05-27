@@ -235,6 +235,11 @@ input:focus-visible {
   image-rendering: auto;
 }
 
+/* Map-click chooser popup: stack the "Species list" / "Checklist" choices
+   vertically rather than side by side. */
+.map-choose { display: flex; flex-direction: column; gap: 6px; min-width: 160px; }
+.map-choose .demo-btn { width: 100%; }
+
 /* ---- Leaflet control styling (match the app theme) ---- */
 .leaflet-bar,
 .leaflet-control-layers {
@@ -1474,6 +1479,24 @@ table.recent-table .rc-who { color: var(--md-default-fg-color--light, #888); whi
   border: 1px solid var(--md-default-fg-color--lightest, #ccc); border-radius: 6px;
   background: var(--md-default-bg-color, #fff); color: var(--md-default-fg-color--light, #999); }
 .fc-count.has-n { color: #fff; background: var(--md-accent-fg-color, var(--brand)); border-color: var(--md-accent-fg-color, var(--brand)); font-weight: 700; }
+/* ＋ : add a new timestamped/geolocated observation entry for this species. */
+.fc-add {
+  flex: 0 0 auto; width: 36px; height: 36px; box-sizing: border-box; cursor: pointer;
+  font-size: 1.1rem; line-height: 1; font-weight: 700;
+  border: 1px solid var(--brand); border-radius: 6px;
+  background: var(--surface); color: var(--brand);
+}
+.fc-add:active { background: var(--brand-soft); }
+/* "×N" badge on the name when a species has more than one logged observation. */
+.fc-ncount {
+  margin-left: 6px; font-size: 0.72rem; font-weight: 700; color: var(--brand-strong);
+  background: var(--brand-soft); border-radius: 999px; padding: 1px 7px; vertical-align: middle;
+}
+/* Section header inside the ▾ place / lists picker. */
+.pp-head {
+  padding: 8px 14px 4px; font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.04em; color: var(--ink-muted);
+}
 
 /* Count quick-select bottom sheet */
 #fc-picker {
