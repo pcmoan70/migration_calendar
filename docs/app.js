@@ -1483,15 +1483,72 @@
     return grp;
   }
 
+  var arcOverlays = [];   // active-overlay refs for hover identify: {layer, kind, defs}
   function setupAreaOverlays() {
     if (!map || !window.L) return;
-    var overlays = {};
-    overlays[t("layer.wdpa")] = new ArcGISExportLayer(WDPA_EXPORT, { opacity: 0.5, attribution: WDPA_ATTR, maxZoom: MAX_ZOOM });
-    overlays[t("layer.ramsar")] = new ArcGISExportLayer(WDPA_EXPORT, { opacity: 0.6, attribution: WDPA_ATTR, maxZoom: MAX_ZOOM,
+    var wdpa = new ArcGISExportLayer(WDPA_EXPORT, { opacity: 0.5, attribution: WDPA_ATTR, maxZoom: MAX_ZOOM });
+    var ramsar = new ArcGISExportLayer(WDPA_EXPORT, { opacity: 0.6, attribution: WDPA_ATTR, maxZoom: MAX_ZOOM,
       arcLayers: "show:0,1", layerDefs: JSON.stringify({ 0: RAMSAR_DEF, 1: RAMSAR_DEF }) });
-    overlays[t("layer.natura2000")] = new ArcGISExportLayer(N2K_EXPORT, { opacity: 0.5, attribution: EEA_ATTR, maxZoom: MAX_ZOOM });
+    var n2k = new ArcGISExportLayer(N2K_EXPORT, { opacity: 0.5, attribution: EEA_ATTR, maxZoom: MAX_ZOOM });
+    arcOverlays = [{ layer: wdpa, kind: "wdpa" },
+      { layer: ramsar, kind: "wdpa", defs: ramsar.options.layerDefs },
+      { layer: n2k, kind: "natura" }];
+    var overlays = {};
+    overlays[t("layer.wdpa")] = wdpa;
+    overlays[t("layer.ramsar")] = ramsar;
+    overlays[t("layer.natura2000")] = n2k;
     overlays[t("layer.osmpa")] = osmProtectedLayer();
     L.control.layers(null, overlays, { collapsed: true, position: "topright" }).addTo(map);
+    setupAreaHover();
+  }
+
+  // Hover over an active raster overlay → ArcGIS "identify" at the cursor → a
+  // tooltip with the area's name and designation/category. Debounced; the OSM
+  // vector layer already carries its own per-feature tooltips.
+  function setupAreaHover() {
+    var tip = L.tooltip({ direction: "top", offset: [0, -4], opacity: 0.96, className: "area-tip" });
+    var timer = null, tok = 0;
+    var hide = function () { if (map.hasLayer(tip)) map.removeLayer(tip); };
+    var pick = function (a, keys) { for (var i = 0; i < keys.length; i++) { var v = a[keys[i]]; if (v != null && v !== "" && String(v).toLowerCase() !== "null") return v; } return ""; };
+    function label(results) {
+      return (results || []).slice(0, 3).map(function (rs) {
+        var a = rs.attributes || {};
+        var name = pick(a, ["name", "NAME", "sitename", "SITENAME", "orig_name", "ORIG_NAME"]) || rs.layerName || "";
+        var bits = [];
+        var desig = pick(a, ["desig_eng", "DESIG_ENG"]); if (desig) bits.push(desig);
+        var iucn = pick(a, ["iucn_cat", "IUCN_CAT"]); if (iucn && String(iucn).indexOf("Not") < 0) bits.push("IUCN " + iucn);
+        var st = pick(a, ["sitetype", "SITETYPE"]); if (st) bits.push(({ A: "SPA · Birds Directive", B: "SCI/SAC · Habitats", C: "SPA + SCI/SAC" })[st] || st);
+        var code = pick(a, ["sitecode", "SITECODE"]); if (code) bits.push(code);
+        var status = pick(a, ["status", "STATUS"]); if (status) bits.push(status);
+        if (!name && !bits.length) return "";
+        return "<b>" + escapeHtml(String(name)) + "</b>" + (bits.length ? "<br><span class='area-tip-sub'>" + escapeHtml(bits.join(" · ")) + "</span>" : "");
+      }).filter(Boolean).join("<span class='area-tip-sep'></span>");
+    }
+    function identify(o, latlng) {
+      var sz = map.getSize(), b = map.getBounds();
+      var sw = L.CRS.EPSG3857.project(b.getSouthWest()), ne = L.CRS.EPSG3857.project(b.getNorthEast());
+      var pt = L.CRS.EPSG3857.project(latlng);
+      var u = o.layer._base.replace(/\/export$/, "/identify") +
+        "?f=json&returnGeometry=false&sr=3857&geometryType=esriGeometryPoint&tolerance=5" +
+        "&geometry=" + pt.x + "," + pt.y + "&mapExtent=" + sw.x + "," + sw.y + "," + ne.x + "," + ne.y +
+        "&imageDisplay=" + sz.x + "," + sz.y + ",96&layers=all";
+      if (o.defs) u += "&layerDefs=" + encodeURIComponent(o.defs);
+      return fetch(u).then(function (r) { return r.json(); }).then(function (j) { return j.results || []; });
+    }
+    map.on("mousemove", function (e) {
+      var active = arcOverlays.filter(function (o) { return map.hasLayer(o.layer); });
+      if (!active.length) { hide(); return; }
+      clearTimeout(timer);
+      var ll = e.latlng, my = ++tok;
+      timer = setTimeout(function () {
+        Promise.all(active.map(function (o) { return identify(o, ll).catch(function () { return []; }); })).then(function (lists) {
+          if (my !== tok) return;
+          var html = lists.map(label).filter(Boolean).join("<span class='area-tip-sep'></span>");
+          if (html) { tip.setLatLng(ll).setContent(html); if (!map.hasLayer(tip)) tip.addTo(map); } else hide();
+        });
+      }, 280);
+    });
+    map.on("mouseout movestart zoomstart", hide);
   }
 
   // ---- Controls ------------------------------------------------------------

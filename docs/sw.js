@@ -14,7 +14,7 @@
  *
  * Bump VERSION to invalidate all caches on the next deploy.
  */
-var VERSION = "v41";
+var VERSION = "v42";
 var SHELL_CACHE = "shell-" + VERSION;   // app code + small assets
 var DATA_CACHE = "data-" + VERSION;     // model / labels / taxonomy / vendor libs
 var TILE_CACHE = "tiles-" + VERSION;    // map tiles
@@ -109,6 +109,9 @@ self.addEventListener("fetch", function (event) {
   var sameOrigin = url.origin === self.location.origin;
 
   if (TILE_HOSTS.test(url.hostname)) {
+    // ArcGIS "identify"/"query" calls share the tile hosts but are tiny,
+    // position-specific JSON — don't let them fill (and evict) the tile cache.
+    if (/\/(identify|query|find)/i.test(url.pathname)) return;
     event.respondWith(cacheFirstCapped(req, TILE_CACHE, MAX_TILES));
     return;
   }
