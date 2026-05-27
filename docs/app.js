@@ -285,6 +285,7 @@
   var fieldKey = null;        // listId (placeKey@day) of the field checklist currently open
   var fieldNameCache = {};    // placeKey -> resolved place name (auto-title for new lists)
   var fieldGeoWatch = null;   // geolocation watch id while a checklist is open
+  var entryEditKey = null;    // species whose observations the entry-edit page is showing
   var rendering = false;
   var renderGeneration = 0;
   var moveEndTimer = null;
@@ -859,6 +860,16 @@
             '<div id="place-list"></div>' +
           '</div>' +
         '</div>' +
+        '<div id="entry-page" style="display:none">' +
+          '<div class="field-page-bar">' +
+            '<button id="entry-back" class="fp-back" title="Back">‹</button>' +
+            '<span id="entry-title" class="field-place"></span>' +
+            '<span class="field-actions">' +
+              '<button id="entry-merge" class="demo-btn" data-i18n="chk.merge">Merge</button>' +
+            '</span>' +
+          '</div>' +
+          '<div id="entry-list"></div>' +
+        '</div>' +
         '<div id="barchart-panel">' +
           '<h3 id="bc-title" data-i18n="panel.bcTitle">Location analysis</h3>' +
           '<div id="an-tabs">' +
@@ -1407,43 +1418,44 @@
       this.querySelectorAll(".chk-filter-btn").forEach(function (x) { x.classList.toggle("is-active", x === b); });
       renderFieldList();
     });
+    // Compose-line edits: the checkbox commits/clears the "seen" flag; the
+    // activity and note inputs update the (uncommitted) compose draft.
     function fieldRowUpdate(el) {
       var key = el.getAttribute && el.getAttribute("data-key");
       if (!key) return;
-      var row = el.closest(".fc-row");
+      var card = el.closest(".fc-card");
       if (el.classList.contains("fc-seen")) {
-        // Ticking marks the species present (an entry); unticking removes its
-        // observations from this list.
-        if (el.checked) fcEditLatest(key, {});
-        else fcRemoveSpecies(key);
-        if (row) row.classList.toggle("fc-on", el.checked);
+        fcTick(key, el.checked);
+        if (card) card.classList.toggle("fc-on", el.checked);
+        renderFieldList();
       } else if (el.classList.contains("fc-act")) {
-        fcEditLatest(key, { act: el.value || "" });
-        if (el.value && row) { var cb2 = row.querySelector(".fc-seen"); if (cb2) cb2.checked = true; row.classList.add("fc-on"); }
+        cd(key).act = el.value || "";
       } else if (el.classList.contains("fc-note")) {
-        fcEditLatest(key, { note: el.value.trim() });
+        cd(key).note = el.value;
+        if (card) card.classList.toggle("fc-note-on", !!el.value);
       }
       updateFieldSeen();
     }
     var fieldList = document.getElementById("field-list");
     fieldList.addEventListener("input", function (e) { fieldRowUpdate(e.target); });
     fieldList.addEventListener("change", function (e) { fieldRowUpdate(e.target); });
-    // Tap a count → open the quick-select; tap the row (name) → reveal the
-    // notes field; close the picker on scroll.
+    // ＋ commits the compose draft; the # opens the count picker; tapping the
+    // recent-entries area opens the edit page; tapping empty card reveals note.
     fieldList.addEventListener("click", function (e) {
       if (!e.target.closest) return;
       var add = e.target.closest(".fc-add");
-      if (add) { fcAddObs(add.getAttribute("data-key")); return; }
+      if (add) { fcCommitCompose(add.getAttribute("data-key")); renderFieldList(); return; }
+      var ents = e.target.closest(".fc-entries");
+      if (ents) { openEntryEdit(ents.getAttribute("data-key")); return; }
       var btn = e.target.closest(".fc-count");
       if (btn) {
-        var row0 = btn.closest(".fc-row"), nm = row0 && row0.querySelector(".fc-name");
+        var card0 = btn.closest(".fc-card"), nm = card0 && card0.querySelector(".fc-name");
         openFcPicker(btn.getAttribute("data-key"), nm ? nm.textContent : "");
         return;
       }
-      // Click on the card (not a control) reveals the notes input to write in.
       if (e.target.closest(".fc-act") || e.target.closest(".fc-tick") || e.target.closest(".fc-note") || e.target.closest(".fc-add")) return;
-      var row = e.target.closest(".fc-row");
-      if (row) { row.classList.add("fc-note-on"); var note = row.querySelector(".fc-note"); if (note) note.focus(); }
+      var card = e.target.closest(".fc-card");
+      if (card) { card.classList.add("fc-note-on"); var note = card.querySelector(".fc-note"); if (note) note.focus(); }
     });
     fieldList.addEventListener("scroll", hideFcPicker);
     var fcp = document.getElementById("fc-picker");
@@ -1501,6 +1513,28 @@
       e.stopPropagation();
       var m = document.getElementById("field-far-msg");
       m.style.display = m.style.display === "none" ? "" : "none";
+    });
+
+    // Entry-edit page: back, per-entry edits, delete, and merge selected.
+    document.getElementById("entry-back").addEventListener("click", closeEntryEdit);
+    var entryList = document.getElementById("entry-list");
+    entryList.addEventListener("change", function (e) {
+      var el = e.target, id = el.getAttribute && el.getAttribute("data-id"); if (!id) return;
+      if (el.classList.contains("ent-count")) { var v = el.value.trim(); fcUpdateEntry(id, { count: v === "" ? null : (/^[0-9]+$/.test(v) ? +v : v) }); }
+      else if (el.classList.contains("ent-act")) fcUpdateEntry(id, { act: el.value || "" });
+      else if (el.classList.contains("ent-note")) fcUpdateEntry(id, { note: el.value });
+    });
+    entryList.addEventListener("click", function (e) {
+      var del = e.target.closest && e.target.closest(".ent-del");
+      if (!del) return;
+      fcDeleteEntry(del.getAttribute("data-id"));
+      var rec = curFieldRecord(false);
+      if (!rec || !fcEntriesFor(rec, entryEditKey).length) closeEntryEdit(); else renderEntryEdit();
+    });
+    document.getElementById("entry-merge").addEventListener("click", function () {
+      var ids = Array.prototype.map.call(document.querySelectorAll("#entry-list .ent-sel:checked"), function (c) { return c.getAttribute("data-id"); });
+      if (ids.length < 2) { setStatus(t("chk.mergehint")); return; }
+      fcMergeEntries(ids); renderEntryEdit();
     });
 
     // Back from the full-screen Species-List page to the map.
@@ -2477,22 +2511,26 @@
     if (!rec || rec.log) return rec;
     var ts = rec.createdAt ? (Date.parse(rec.createdAt) || Date.now()) : Date.now();
     var day = rec.createdAt ? String(rec.createdAt).slice(0, 10) : todayStr();
-    var log = [], entries = rec.entries || {};
+    var log = [], seen = {}, entries = rec.entries || {};
     Object.keys(entries).forEach(function (key) {
       var e = entries[key] || {};
       if (!e.seen && (e.count == null || e.count === "") && !e.act && !e.note) return;
-      log.push({ ts: ts, lat: rec.lat, lon: rec.lon, key: key, count: e.count != null ? +e.count : 0, act: e.act || "", note: e.note || "" });
+      log.push({ id: "e" + (ts).toString(36) + Math.random().toString(36).slice(2, 6), ts: ts, lat: rec.lat, lon: rec.lon, key: key, count: e.count != null ? +e.count : null, act: e.act || "", note: e.note || "" });
+      seen[key] = true;
     });
-    return { id: id, title: rec.title || "", lat: rec.lat, lon: rec.lon, day: day, createdAt: rec.createdAt || new Date(ts).toISOString(), log: log };
+    return { id: id, title: rec.title || "", lat: rec.lat, lon: rec.lon, day: day, createdAt: rec.createdAt || new Date(ts).toISOString(), log: log, seen: seen };
   }
   function getFieldRecord(id) {
-    var all = getFieldChecklists(), rec = all[id];
+    var all = getFieldChecklists(), rec = all[id], changed = false;
     if (!rec) return null;
-    if (!rec.log) { rec = migrateFieldRecord(rec, id); all[id] = rec; saveFieldChecklists(all); }
+    if (!rec.log) { rec = migrateFieldRecord(rec, id); all[id] = rec; changed = true; }
+    if (!rec.seen) { rec.seen = {}; rec.log.forEach(function (e) { rec.seen[e.key] = true; }); changed = true; }   // backfill seen flags
+    rec.log.forEach(function (e) { if (!e.id) { e.id = "e" + (e.ts || Date.now()).toString(36) + Math.random().toString(36).slice(2, 6); changed = true; } });
+    if (changed) { all[id] = rec; saveFieldChecklists(all); }
     return rec;
   }
   function newFieldRecord(id, lat, lon) {
-    return { id: id, title: "", lat: lat, lon: lon, day: todayStr(), createdAt: new Date().toISOString(), log: [] };
+    return { id: id, title: "", lat: lat, lon: lon, day: todayStr(), createdAt: new Date().toISOString(), log: [], seen: {} };
   }
   // The currently open record (optionally creating it on first write).
   function curFieldRecord(create) {
@@ -2507,68 +2545,112 @@
       if (nm) rec.title = nm;
     }
     var all = getFieldChecklists();
-    if (!rec.log.length && !(rec.title || "").trim()) delete all[rec.id];   // drop empty + untitled
+    var hasSeen = rec.seen && Object.keys(rec.seen).length;
+    if (!rec.log.length && !hasSeen && !(rec.title || "").trim()) delete all[rec.id];   // drop empty + untitled
     else all[rec.id] = rec;
     saveFieldChecklists(all);
     refreshChecklists();
   }
 
-  // Aggregate a record's log into per-species rows (summed count, seen flag,
-  // most-recent activity/note, and the number of distinct observations).
+  // Sum a (possibly merged, comma-listed) count value numerically.
+  function countNum(c) {
+    if (c == null || c === "") return 0;
+    if (typeof c === "number") return c;
+    return String(c).split(/[^0-9.]+/).reduce(function (s, x) { return s + (+x || 0); }, 0);
+  }
+  // Aggregate a record's log into per-species rows (summed count, latest
+  // activity/note, number of distinct observations). Seen is a separate flag.
   function fcAggregate(rec) {
     var agg = {};
     ((rec && rec.log) || []).forEach(function (e) {
       var a = agg[e.key] || (agg[e.key] = { count: 0, n: 0, act: "", note: "", lastTs: -1 });
-      a.count += (+e.count || 0); a.n++;
+      a.count += countNum(e.count); a.n++;
       if ((e.ts || 0) >= a.lastTs) { a.lastTs = e.ts || 0; a.act = e.act || ""; a.note = e.note || ""; }
     });
     return agg;
   }
-  // Render-shaped view of the open list ({key:{seen,count,act,note,n}}).
+  // Render-shaped view ({key:{seen,count,act,note,n}}) used by exports/badge.
+  // `seen` is the checkbox flag (rec.seen), independent of having entries.
   function getFieldEntries() {
     var rec = curFieldRecord(false); if (!rec) return {};
-    var agg = fcAggregate(rec), out = {};
+    var agg = fcAggregate(rec), seenSet = rec.seen || {}, out = {};
     Object.keys(agg).forEach(function (k) {
       var a = agg[k], c = a.count > 0 ? a.count : 0;
-      out[k] = { seen: true, count: c > 0 ? c : null, act: a.act || undefined, note: a.note || undefined, n: a.n };
+      out[k] = { seen: !!seenSet[k], count: c > 0 ? c : null, act: a.act || undefined, note: a.note || undefined, n: a.n };
     });
+    Object.keys(seenSet).forEach(function (k) { if (!out[k]) out[k] = { seen: true, count: null, n: 0 }; });
     return out;
   }
-  function fcSum(rec, key) { var s = 0; rec.log.forEach(function (e) { if (e.key === key) s += (+e.count || 0); }); return Math.max(0, s); }
   function fcLatest(rec, key) { var last = null; rec.log.forEach(function (e) { if (e.key === key && (!last || (e.ts || 0) >= (last.ts || 0))) last = e; }); return last; }
-  function fcCount(key) { var rec = curFieldRecord(false); return rec ? fcSum(rec, key) : 0; }
+  // A species' log entries (chronological).
+  function fcEntriesFor(rec, key) { return ((rec && rec.log) || []).filter(function (e) { return e.key === key; }).sort(function (a, b) { return (a.ts || 0) - (b.ts || 0); }); }
+  function fcIsSeen(key) { var rec = curFieldRecord(false); return !!(rec && rec.seen && rec.seen[key]); }
 
-  // Append a brand-new observation entry (the ＋ action, or a first tick).
+  // Transient per-species compose draft backing the top-line inputs (count,
+  // activity, note); not persisted until committed via ＋ or a first tick.
+  var composeDraft = {};
+  function cd(key) { return composeDraft[key] || (composeDraft[key] = { count: null, act: "", note: "" }); }
+  function eid() { return "e" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+
+  // Append an observation entry to the open list (with id, time, location).
   function fcAppend(key, count, note, act) {
     var rec = curFieldRecord(true); if (!rec) return;
-    rec.log.push({ ts: Date.now(), lat: fieldLat, lon: fieldLon, key: key, count: +count || 0, act: act || "", note: note || "" });
+    rec.log.push({ id: eid(), ts: Date.now(), lat: fieldLat, lon: fieldLon, key: key, count: (count != null && count !== "" ? count : null), act: act || "", note: (note || "").trim() });
+    rec.seen = rec.seen || {}; rec.seen[key] = true;
     rec.lat = fieldLat; rec.lon = fieldLon;
     putFieldRecord(rec);
   }
-  // Edit the most-recent entry of a species (creating one if none exists).
-  function fcEditLatest(key, patch) {
+  // ＋ : commit the species' compose draft as a new entry, then clear it.
+  function fcCommitCompose(key) {
+    var d = composeDraft[key] || {};
+    fcAppend(key, d.count, d.note, d.act);
+    composeDraft[key] = { count: null, act: "", note: "" };
+  }
+  // Checkbox: mark/unmark seen. Ticking a species with no entries writes a
+  // first (possibly "present"/uncounted) entry from the compose draft;
+  // unticking only clears the flag — it never deletes entries.
+  function fcTick(key, on) {
     var rec = curFieldRecord(true); if (!rec) return;
-    var last = fcLatest(rec, key);
-    if (!last) { last = { ts: Date.now(), lat: fieldLat, lon: fieldLon, key: key, count: 0, act: "", note: "" }; rec.log.push(last); }
-    for (var k in patch) last[k] = patch[k];
+    rec.seen = rec.seen || {};
+    if (on) {
+      rec.seen[key] = true;
+      if (!fcEntriesFor(rec, key).length) { var d = composeDraft[key] || {}; rec.log.push({ id: eid(), ts: Date.now(), lat: fieldLat, lon: fieldLon, key: key, count: (d.count != null && d.count !== "" ? d.count : null), act: d.act || "", note: (d.note || "").trim() }); composeDraft[key] = { count: null, act: "", note: "" }; }
+    } else { delete rec.seen[key]; }
+    rec.lat = fieldLat; rec.lon = fieldLon;
     putFieldRecord(rec);
   }
-  // Set a species' total count by adjusting its most-recent entry.
-  function fcSetTotal(key, target) {
-    var rec = curFieldRecord(true); if (!rec) return;
-    target = Math.max(0, target | 0);
-    var last = fcLatest(rec, key);
-    if (!last) { last = { ts: Date.now(), lat: fieldLat, lon: fieldLon, key: key, count: 0, act: "", note: "" }; rec.log.push(last); }
-    var others = fcSum(rec, key) - (+last.count || 0);
-    last.count = Math.max(0, target - others);
-    putFieldRecord(rec);
-  }
-  function fcRemoveSpecies(key) {
+  function fcUpdateEntry(id, patch) {
     var rec = curFieldRecord(false); if (!rec) return;
-    rec.log = rec.log.filter(function (e) { return e.key !== key; });
+    var e = rec.log.filter(function (x) { return x.id === id; })[0]; if (!e) return;
+    for (var k in patch) e[k] = patch[k];
     putFieldRecord(rec);
   }
-  function fcClear() { var rec = curFieldRecord(false); if (!rec) return; rec.log = []; putFieldRecord(rec); }
+  function fcDeleteEntry(id) {
+    var rec = curFieldRecord(false); if (!rec) return;
+    rec.log = rec.log.filter(function (e) { return e.id !== id; });
+    putFieldRecord(rec);
+  }
+  // Merge selected entries into one that LISTS the values (counts/activities/
+  // notes joined), keeping the earliest time and its location.
+  function fcMergeEntries(ids) {
+    var rec = curFieldRecord(false); if (!rec) return;
+    var sel = rec.log.filter(function (e) { return ids.indexOf(e.id) >= 0; });
+    if (sel.length < 2) return;
+    sel.sort(function (a, b) { return (a.ts || 0) - (b.ts || 0); });
+    var counts = [], acts = [], notes = [];
+    sel.forEach(function (e) {
+      if (e.count != null && e.count !== "") counts.push(String(e.count));
+      String(e.act || "").split(" / ").forEach(function (a) { if (a && acts.indexOf(a) < 0) acts.push(a); });
+      if (e.note) notes.push(e.note);
+    });
+    var merged = { id: eid(), key: sel[0].key, ts: sel[0].ts, lat: sel[0].lat, lon: sel[0].lon,
+      count: counts.length ? counts.join(", ") : null, act: acts.join(" / "), note: notes.join(" | ") };
+    var first = rec.log.indexOf(sel[0]);
+    rec.log = rec.log.filter(function (e) { return ids.indexOf(e.id) < 0; });
+    rec.log.splice(Math.max(0, first), 0, merged);
+    putFieldRecord(rec);
+  }
+  function fcClear() { var rec = curFieldRecord(false); if (!rec) return; rec.log = []; rec.seen = {}; putFieldRecord(rec); }
   // Merge another list's observations into the open one, then delete the other.
   function fcMerge(otherId) {
     if (!fieldKey || otherId === fieldKey) return;
@@ -2626,7 +2708,7 @@
   // listId pins a specific (possibly past-day) list; otherwise today's list at
   // this place is started/continued.
   async function renderFieldChecklist(lat, lon, listId) {
-    fieldQuery = ""; fieldFilter = "all";   // fresh filters each open
+    fieldQuery = ""; fieldFilter = "all"; composeDraft = {};   // fresh filters + compose drafts each open
     var fs = document.getElementById("field-search"); if (fs) fs.value = "";
     var ff = document.getElementById("field-filter");
     if (ff) ff.querySelectorAll(".chk-filter-btn").forEach(function (x) { x.classList.toggle("is-active", x.getAttribute("data-ffilter") === "all"); });
@@ -2772,12 +2854,25 @@
   }
 
   // Render the (filtered, probability-sorted) field-entry rows.
+  function fmtClock(ts) { var d = new Date(ts || Date.now()); return ("0" + d.getHours()).slice(-2) + ":" + ("0" + d.getMinutes()).slice(-2); }
+  function actLabel(act) { return String(act || "").split(" / ").filter(Boolean).map(function (a) { return actName(a); }).join(" / "); }
+  // Compact one-line summary of a logged observation for the card.
+  function fcEntryStr(e) {
+    var parts = [];
+    if (e.count != null && e.count !== "") parts.push("×" + e.count);
+    var al = actLabel(e.act); if (al) parts.push(al);
+    parts.push(fmtClock(e.ts));
+    if (e.note) parts.push("“" + e.note + "”");
+    return parts.join(" · ");
+  }
+
+  // A card per species: a top "compose" line (checkbox, #, activity, note, ＋)
+  // plus the most recent logged observations as small lines you can tap to edit.
   function renderFieldList() {
     if (!fieldData) return;
     var entries = getFieldEntries();
+    var rec = curFieldRecord(false);
     var list = document.getElementById("field-list");
-    // Rows = the point's inferred species, plus any observed species not in that
-    // set (e.g. brought in by a merge) so nothing recorded is ever hidden.
     var rows = fieldData.slice(), have = {};
     fieldData.forEach(function (r) { have[r.key] = 1; });
     Object.keys(entries).forEach(function (k) {
@@ -2797,16 +2892,24 @@
       return h;
     };
     list.innerHTML = shown.map(function (r) {
-      var en = entries[r.key] || {};
-      var on = (en.seen ? " fc-on" : "") + (en.note ? " fc-note-on" : "");
-      var badge = en.n > 1 ? '<span class="fc-ncount" title="' + en.n + ' observations">×' + en.n + "</span>" : "";
-      return '<div class="fc-row' + on + '" data-key="' + escapeHtml(r.key) + '">' +
-        '<label class="fc-tick"><input type="checkbox" class="fc-seen" data-key="' + escapeHtml(r.key) + '"' + (en.seen ? " checked" : "") + "></label>" +
-        '<span class="fc-name">' + escapeHtml(r.name) + badge + "</span>" +
-        '<button type="button" class="fc-count' + (en.count != null ? " has-n" : "") + '" data-key="' + escapeHtml(r.key) + '">' + (en.count != null ? en.count : "#") + "</button>" +
-        '<select class="fc-act" data-key="' + escapeHtml(r.key) + '">' + actOpts(en.act) + "</select>" +
-        '<input type="text" class="fc-note" data-key="' + escapeHtml(r.key) + '" placeholder="' + escapeHtml(t("th.notes")) + '" value="' + escapeHtml(en.note || "") + '" />' +
-        '<button type="button" class="fc-add" data-key="' + escapeHtml(r.key) + '" title="' + escapeHtml(t("fc.add")) + '" aria-label="' + escapeHtml(t("fc.add")) + '">＋</button>' +
+      var en = entries[r.key] || {}, d = cd(r.key);
+      var ents = rec ? fcEntriesFor(rec, r.key) : [], n = ents.length;
+      var hasN = (d.count != null && d.count !== "");
+      var entLines = ents.slice(-2).reverse().map(function (e) {
+        return '<div class="fc-eline">' + escapeHtml(fcEntryStr(e)) + "</div>";
+      }).join("");
+      if (n > 2) entLines += '<div class="fc-eline fc-emore">' + escapeHtml(t("chk.more", { n: n - 2 })) + "</div>";
+      var entriesBlock = n ? '<div class="fc-entries" data-key="' + escapeHtml(r.key) + '">' + entLines + "</div>" : "";
+      var badge = n > 1 ? '<span class="fc-ncount" title="' + n + '">×' + n + "</span>" : "";
+      return '<div class="fc-card' + (en.seen ? " fc-on" : "") + (d.note ? " fc-note-on" : "") + '" data-key="' + escapeHtml(r.key) + '">' +
+        '<div class="fc-top">' +
+          '<label class="fc-tick"><input type="checkbox" class="fc-seen" data-key="' + escapeHtml(r.key) + '"' + (en.seen ? " checked" : "") + "></label>" +
+          '<span class="fc-name">' + escapeHtml(r.name) + badge + "</span>" +
+          '<button type="button" class="fc-count' + (hasN ? " has-n" : "") + '" data-key="' + escapeHtml(r.key) + '">' + (hasN ? d.count : "#") + "</button>" +
+          '<select class="fc-act" data-key="' + escapeHtml(r.key) + '">' + actOpts(d.act) + "</select>" +
+          '<button type="button" class="fc-add" data-key="' + escapeHtml(r.key) + '" title="' + escapeHtml(t("fc.add")) + '" aria-label="' + escapeHtml(t("fc.add")) + '">＋</button>' +
+          '<input type="text" class="fc-note" data-key="' + escapeHtml(r.key) + '" placeholder="' + escapeHtml(t("th.notes")) + '" value="' + escapeHtml(d.note || "") + '" />' +
+        "</div>" + entriesBlock +
         "</div>";
     }).join("");
     if (!shown.length) list.innerHTML = '<p class="fc-empty">' + escapeHtml(t("analysis.empty")) + "</p>";
@@ -2824,31 +2927,25 @@
 
   // ---- Count quick-select (field checklist) --------------------------------
   var fcPickerKey = null, fcHoldTimer = null, fcHoldInt = null;
+  // The # picker now edits the species' compose-draft count (committed only by
+  // ＋ or the checkbox), not the log.
   function openFcPicker(key, name) {
     fcPickerKey = key;
     document.getElementById("fcp-name").textContent = name || "";
-    document.getElementById("fcp-val").textContent = fcCount(key);
+    document.getElementById("fcp-val").textContent = countNum(cd(key).count);
     document.getElementById("fc-picker").style.display = "block";
   }
   function hideFcPicker() { fcPickerKey = null; var p = document.getElementById("fc-picker"); if (p) p.style.display = "none"; }
-  // Set a species' total count (adjusting its latest observation) and reflect
-  // it in the row, badge and picker.
   function setFcCount(key, val) {
     val = Math.max(0, val | 0);
-    fcSetTotal(key, val);
-    var btn = document.querySelector('#field-list .fc-count[data-key="' + key + '"]');
-    if (btn) {
-      btn.textContent = val > 0 ? val : "#";
-      btn.classList.toggle("has-n", val > 0);
-      var row = btn.closest(".fc-row");
-      if (row) { var cb = row.querySelector(".fc-seen"); if (cb) cb.checked = true; row.classList.add("fc-on"); }
-    }
+    cd(key).count = val > 0 ? val : null;
+    var btn = document.querySelector('#field-list .fc-card[data-key="' + key + '"] .fc-count');
+    if (btn) { btn.textContent = val > 0 ? val : "#"; btn.classList.toggle("has-n", val > 0); }
     var v = document.getElementById("fcp-val"); if (v) v.textContent = val;
-    updateFieldSeen();
   }
   function fcStep(delta) {
     if (!fcPickerKey) return;
-    setFcCount(fcPickerKey, fcCount(fcPickerKey) + delta);
+    setFcCount(fcPickerKey, countNum(cd(fcPickerKey).count) + delta);
   }
   function fcStopHold() { clearTimeout(fcHoldTimer); clearInterval(fcHoldInt); fcHoldTimer = fcHoldInt = null; }
   function fcStartHold(delta) {
@@ -2856,16 +2953,33 @@
     fcHoldTimer = setTimeout(function () { fcHoldInt = setInterval(function () { fcStep(delta); }, 110); }, 400);
   }
 
-  // Add a fresh observation entry for a species (the ＋): new timestamp +
-  // location, count 1, carrying over the species' latest activity; its note is
-  // then editable in the row's note field.
-  function fcAddObs(key) {
-    var rec = curFieldRecord(false);
-    var last = rec ? fcLatest(rec, key) : null;
-    fcAppend(key, 1, "", last ? last.act : "");
-    renderFieldList();
-    var note = document.querySelector('#field-list .fc-row[data-key="' + key + '"] .fc-note');
-    if (note) { var row = note.closest(".fc-row"); if (row) row.classList.add("fc-note-on"); note.focus(); }
+  // ---- Entry-edit page (per species) ---------------------------------------
+  function openEntryEdit(key) { entryEditKey = key; renderEntryEdit(); document.getElementById("entry-page").style.display = "flex"; }
+  function closeEntryEdit() { document.getElementById("entry-page").style.display = "none"; entryEditKey = null; renderFieldList(); }
+  function renderEntryEdit() {
+    var key = entryEditKey, rec = curFieldRecord(false);
+    var lbl = labelsByKey[key];
+    document.getElementById("entry-title").textContent = lbl ? speciesName(lbl) : key;
+    var list = document.getElementById("entry-list");
+    var ents = rec ? fcEntriesFor(rec, key).slice().reverse() : [];   // newest first
+    if (!ents.length) { list.innerHTML = '<p class="fc-empty">' + escapeHtml(t("analysis.empty")) + "</p>"; return; }
+    var actOpts = function (sel) {
+      var h = '<option value=""></option>';
+      FIELD_ACTS.forEach(function (a) { h += '<option value="' + a + '"' + (sel === a ? " selected" : "") + ">" + escapeHtml(actName(a)) + "</option>"; });
+      return h;
+    };
+    list.innerHTML = ents.map(function (e) {
+      var meta = fmtClock(e.ts) + (e.lat != null ? " · " + e.lat.toFixed(3) + "," + e.lon.toFixed(3) : "");
+      var singleAct = e.act && e.act.indexOf(" / ") < 0 ? e.act : "";   // merged activities aren't editable in the dropdown
+      return '<div class="ent-row" data-id="' + escapeHtml(e.id) + '">' +
+        '<label class="ent-sel-wrap"><input type="checkbox" class="ent-sel" data-id="' + escapeHtml(e.id) + '"></label>' +
+        '<input type="text" class="ent-count" data-id="' + escapeHtml(e.id) + '" inputmode="numeric" value="' + escapeHtml(e.count != null ? String(e.count) : "") + '" placeholder="#" />' +
+        '<select class="ent-act" data-id="' + escapeHtml(e.id) + '">' + actOpts(singleAct) + "</select>" +
+        '<input type="text" class="ent-note" data-id="' + escapeHtml(e.id) + '" value="' + escapeHtml(e.note || "") + '" placeholder="' + escapeHtml(t("th.notes")) + '" />' +
+        '<span class="ent-meta">' + escapeHtml(meta) + "</span>" +
+        '<button type="button" class="ent-del" data-id="' + escapeHtml(e.id) + '" aria-label="' + escapeHtml(t("btn.delete")) + '">×</button>' +
+        "</div>";
+    }).join("");
   }
 
   function fieldChecklistCsv() {
@@ -3504,7 +3618,7 @@
     (r.log || []).slice().sort(function (a, b) { return (a.ts || 0) - (b.ts || 0); }).forEach(function (e) {
       var name = (labelsByKey[e.key] && speciesName(labelsByKey[e.key])) || e.key;
       lines.push([new Date(e.ts).toISOString(), e.lat != null ? e.lat.toFixed(5) : "", e.lon != null ? e.lon.toFixed(5) : "",
-        e.key, csvEsc(name), (+e.count || 0), e.act ? actName(e.act) : "", csvEsc(e.note || "")].join(","));
+        e.key, csvEsc(name), csvEsc(e.count != null ? e.count : ""), csvEsc(actLabel(e.act)), csvEsc(e.note || "")].join(","));
     });
     return lines.join("\n");
   }
