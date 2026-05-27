@@ -1078,7 +1078,13 @@
 
   function populateLangSelect() {
     var sel = document.getElementById("lang-select");
-    sel.innerHTML = window.GeoI18N.LANGS.map(function (L) {
+    // Fully-translated (★) languages first, then the rest; alphabetical by
+    // displayed name within each group.
+    var ordered = window.GeoI18N.LANGS.slice().sort(function (a, b) {
+      if (!!a.full !== !!b.full) return a.full ? -1 : 1;
+      return a.name.localeCompare(b.name);
+    });
+    sel.innerHTML = ordered.map(function (L) {
       // ★ marks languages whose interface is fully translated (others fall
       // back to English for UI text).
       var label = L.name + (L.full ? " ★" : "");
