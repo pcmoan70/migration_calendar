@@ -233,6 +233,7 @@ input:focus-visible {
 /* Canvas overlay on map for range heatmap */
 .heatmap-overlay {
   image-rendering: auto;
+  opacity: 0.75;   /* 25% more transparent so the basemap shows through the cells */
 }
 
 /* Map-click chooser popup: stack the "Species list" / "Checklist" choices
