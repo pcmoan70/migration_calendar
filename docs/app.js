@@ -441,7 +441,10 @@
     var tbody = document.getElementById("sp-tbody");
     if (!tbody || !speciesListSort.col) return;
     var agg = tbody._sightingsAgg || {};
-    var rows = Array.prototype.slice.call(tbody.children);
+    // Keep "not in model" rows anchored on top; only sort the model rows.
+    var all = Array.prototype.slice.call(tbody.children);
+    var extras = all.filter(function (tr) { return tr.classList.contains("sp-extra"); });
+    var rows = all.filter(function (tr) { return !tr.classList.contains("sp-extra"); });
     rows.sort(function (a, b) {
       var ka, kb;
       if (speciesListSort.col === "sci") {
@@ -457,6 +460,7 @@
       return speciesListSort.dir === "asc" ? cmp : -cmp;
     });
     var frag = document.createDocumentFragment();
+    extras.forEach(function (tr) { frag.appendChild(tr); });
     rows.forEach(function (tr) { frag.appendChild(tr); });
     tbody.appendChild(frag);
   }
@@ -487,6 +491,12 @@
     var agg = tbody._sightingsAgg, days = speciesAgeFilterDays;
     Array.prototype.forEach.call(tbody.querySelectorAll("tr"), function (tr) {
       if (!days || !agg) { tr.style.display = ""; return; }
+      // sp-extra rows carry their age directly (no sp-link / agg entry).
+      if (tr.classList.contains("sp-extra")) {
+        var d = parseInt(tr.getAttribute("data-age-days"), 10);
+        tr.style.display = (!isNaN(d) && d <= days) ? "" : "none";
+        return;
+      }
       var sl = tr.querySelector(".sp-link"), key = sl && sl.getAttribute("data-key");
       var entry = key && agg[key];
       if (!entry || !entry.latestTs) { tr.style.display = "none"; return; }
@@ -782,25 +792,39 @@
   }
   function aggregateSightings(gbif, inat, ebird) {
     var sci = ensureSciIndex();
-    var agg = Object.create(null);   // key -> { count, latestTs }
+    var agg = Object.create(null);     // model species: key -> { count, latestTs }
+    var extras = Object.create(null);  // species the model doesn't cover: sciLower -> { sci, name, count, latestTs }
     function bump(key, dt) {
       if (!key) return;
       if (!agg[key]) agg[key] = { count: 0, latestTs: 0 };
       agg[key].count++;
       var t = Date.parse(dt); if (!isNaN(t) && t > agg[key].latestTs) agg[key].latestTs = t;
     }
+    function bumpExtra(sciName, commonName, dt) {
+      if (!sciName) return;
+      var k = sciName.toLowerCase();
+      if (!extras[k]) extras[k] = { sci: sciName, name: commonName || "", count: 0, latestTs: 0 };
+      if (!extras[k].name && commonName) extras[k].name = commonName;
+      extras[k].count++;
+      var t = Date.parse(dt); if (!isNaN(t) && t > extras[k].latestTs) extras[k].latestTs = t;
+    }
     (gbif || []).forEach(function (o) {
-      var name = (o.species || o.scientificName || "").toLowerCase();
-      var lbl = sci[name]; if (lbl) bump(lbl.key, o.eventDate);
+      var sciName = o.species || o.scientificName; if (!sciName) return;
+      var lbl = sci[sciName.toLowerCase()];
+      if (lbl) bump(lbl.key, o.eventDate);
+      else bumpExtra(sciName, "", o.eventDate);
     });
     (inat || []).forEach(function (o) {
-      var name = (o.taxon && o.taxon.name || "").toLowerCase();
-      var lbl = sci[name]; if (lbl) bump(lbl.key, o.observed_on || o.time_observed_at);
+      var sciName = o.taxon && o.taxon.name; if (!sciName) return;
+      var lbl = sci[sciName.toLowerCase()];
+      if (lbl) bump(lbl.key, o.observed_on || o.time_observed_at);
+      else bumpExtra(sciName, (o.taxon && o.taxon.preferred_common_name) || "", o.observed_on || o.time_observed_at);
     });
     (ebird || []).forEach(function (o) {
       if (labelsByKey[o.speciesCode]) bump(o.speciesCode, o.obsDt);
+      else bumpExtra(o.sciName || "", o.comName || "", o.obsDt);
     });
-    return agg;
+    return { agg: agg, extras: extras };
   }
   // Cached fetch of every species' recent detections at a point (last 30 days).
   function fetchAllSightingsAt(lat, lon) {
@@ -826,11 +850,12 @@
     var token = lat.toFixed(4) + "," + lon.toFixed(4);
     var tbody = document.getElementById("sp-tbody");
     if (tbody) tbody.dataset.sightingsToken = token;   // supersede if another click arrives
-    fetchAllSightingsAt(lat, lon).then(function (agg) {
+    fetchAllSightingsAt(lat, lon).then(function (result) {
       if (!tbody || tbody.dataset.sightingsToken !== token) return;
+      var agg = result.agg, extras = result.extras;
       tbody._sightingsAgg = agg;
       tbody.querySelectorAll(".det-count").forEach(function (td) {
-        var key = td.getAttribute("data-key");
+        var key = td.getAttribute("data-key"); if (!key) return;   // skip extras rows
         var entry = agg[key];
         var ageTd = td.nextElementSibling;
         if (!entry || !entry.count) {
@@ -843,10 +868,38 @@
           ageTd.textContent = days + "d";
         }
       });
+      prependExtraSightings(tbody, extras);
       // Re-apply the active age filter and sort once data has arrived.
       applyAgeFilter();
       if (speciesListSort.col) sortSpeciesList();
     }).catch(function () { /* keep "…" placeholders silently */ });
+  }
+  // Prepend species the model doesn't cover (matched only via GBIF/iNat/eBird
+  // sci-name) above the model rows so the user sees what's been observed that
+  // isn't in the prediction vocabulary. Capped at 30 to keep lists readable.
+  function prependExtraSightings(tbody, extras) {
+    Array.prototype.slice.call(tbody.querySelectorAll("tr.sp-extra")).forEach(function (tr) { tr.remove(); });
+    var keys = Object.keys(extras || {});
+    if (!keys.length) return;
+    keys.sort(function (a, b) { return (extras[b].count - extras[a].count) || (extras[b].latestTs - extras[a].latestTs); });
+    keys = keys.slice(0, 30);
+    var frag = document.createDocumentFragment();
+    keys.forEach(function (k) {
+      var e = extras[k], name = e.name || e.sci;
+      var days = e.latestTs ? Math.max(0, Math.round((Date.now() - e.latestTs) / 86400000)) : null;
+      var tr = document.createElement("tr");
+      tr.className = "sp-extra";
+      tr.setAttribute("data-age-days", days != null ? days : "");
+      tr.innerHTML = '<td><span class="sp-extra-name" title="' + escapeHtml(t("sp.extraHint")) + '">' + escapeHtml(name) + '</span></td>' +
+        '<td class="name2"></td>' +
+        '<td style="font-style:italic">' + escapeHtml(e.sci) + '</td>' +
+        '<td class="prob-na">—</td><td></td>' +
+        '<td class="num"><button type="button" class="det-count-btn det-count-extra" data-sci="' + escapeHtml(e.sci) + '" data-name="' + escapeHtml(name) + '">' + e.count + '</button></td>' +
+        '<td class="num">' + (days != null ? days + "d" : "") + '</td>' +
+        '<td></td>';
+      frag.appendChild(tr);
+    });
+    tbody.insertBefore(frag, tbody.firstChild);
   }
 
   // User's personal eBird API token (kept in localStorage; never shared).
@@ -2587,11 +2640,17 @@
 
     // Click a count cell in the per-point species list to open the recent-
     // sightings panel for that species (multi-source merge with Show in map).
+    // Extras (not in model) have no species code → query by sci name only.
     document.getElementById("sp-tbody").addEventListener("click", function (e) {
       var btn = e.target.closest && e.target.closest(".det-count-btn");
       if (!btn) return;
+      if (!currentSpView || currentSpView.mode !== "point") return;
+      if (btn.classList.contains("det-count-extra")) {
+        showRecent(btn.getAttribute("data-name") || btn.getAttribute("data-sci"), btn.getAttribute("data-sci"), currentSpView.lat, currentSpView.lon, "");
+        return;
+      }
       var key = btn.getAttribute("data-key"), lbl = labelsByKey[key];
-      if (!lbl || !currentSpView || currentSpView.mode !== "point") return;
+      if (!lbl) return;
       showRecent(speciesName(lbl), lbl.sci, currentSpView.lat, currentSpView.lon, key);
     });
 

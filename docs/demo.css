@@ -1465,6 +1465,12 @@ table.recent-table .rc-srccell { white-space: nowrap; }
 th.clickable-head { cursor: pointer; user-select: none; }
 th.clickable-head:hover { text-decoration: underline; }
 
+/* Species observed at the point that the prediction model doesn't cover —
+   listed above the model rows with a subtle highlight + bold name. */
+tr.sp-extra { background: #fff8e7; }
+tr.sp-extra .sp-extra-name { font-weight: 700; }
+tr.sp-extra td { border-bottom: 1px dashed var(--md-default-fg-color--lightest, #ddd); }
+
 /* Per-point species list: clickable "# Recent" button → opens recent panel. */
 .det-count-btn { cursor: pointer; border: none; background: transparent; padding: 0 2px;
   color: var(--brand-strong, var(--brand)); font: inherit; font-weight: 600; }
