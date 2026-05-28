@@ -372,6 +372,10 @@
   // Age threshold (days since most recent detection) for the species list, cycled
   // by clicking the "Age" column header: 0 (off) → 1 → 3 → 7 → 14 → 21 → 28 → 0.
   var speciesAgeFilterDays = 0;
+  // Active sort for the per-point species list. Default is the natural model
+  // ranking (prob desc, set by the render function). Clicking the Scientific
+  // name or # column header overrides it and toggles asc/desc.
+  var speciesListSort = { col: "", dir: "" };
   var menuKey = null, menuName = "", menuSci = "";  // species the menu targets
 
   function isHidden(key) { return !!hiddenSpecies[key]; }
@@ -422,6 +426,57 @@
   }
   // Header label for the "Age" column reflecting the current threshold.
   function ageHeadLabel() { return speciesAgeFilterDays ? "≤" + speciesAgeFilterDays + "d ▾" : t("th.age"); }
+  // Refresh the sort-arrow indicator on the sortable column headers.
+  function updateSortIndicators() {
+    var pairs = [["sci", "sp-sci-head", "th.sci"], ["count", "sp-count-head", "th.count"]];
+    pairs.forEach(function (p) {
+      var el = document.getElementById(p[1]); if (!el) return;
+      var arrow = speciesListSort.col === p[0] ? (speciesListSort.dir === "asc" ? " ▲" : " ▼") : "";
+      el.textContent = t(p[2]) + arrow;
+    });
+  }
+  // Sort the rendered species-list rows in place by the active column, keeping
+  // the existing filters intact (we only reorder rows, never remove or hide).
+  function sortSpeciesList() {
+    var tbody = document.getElementById("sp-tbody");
+    if (!tbody || !speciesListSort.col) return;
+    var agg = tbody._sightingsAgg || {};
+    var rows = Array.prototype.slice.call(tbody.children);
+    rows.sort(function (a, b) {
+      var ka, kb;
+      if (speciesListSort.col === "sci") {
+        ka = (a.children[2].textContent || "").toLowerCase();
+        kb = (b.children[2].textContent || "").toLowerCase();
+      } else {   // "count"
+        var sa = a.querySelector(".sp-link"), sb = b.querySelector(".sp-link");
+        var keyA = sa && sa.getAttribute("data-key"), keyB = sb && sb.getAttribute("data-key");
+        ka = (agg[keyA] && agg[keyA].count) || 0;
+        kb = (agg[keyB] && agg[keyB].count) || 0;
+      }
+      var cmp = ka < kb ? -1 : ka > kb ? 1 : 0;
+      return speciesListSort.dir === "asc" ? cmp : -cmp;
+    });
+    var frag = document.createDocumentFragment();
+    rows.forEach(function (tr) { frag.appendChild(tr); });
+    tbody.appendChild(frag);
+  }
+  function cycleSpeciesListSort(col) {
+    if (!currentSpView || currentSpView.mode !== "point") return;
+    // Default direction is column-appropriate (alphabetical asc / numerical
+    // desc). Each column cycles: default → opposite → off → default → ...
+    var defaultDir = (col === "sci") ? "asc" : "desc";
+    var oppositeDir = defaultDir === "asc" ? "desc" : "asc";
+    if (speciesListSort.col === col) {
+      if (speciesListSort.dir === defaultDir) speciesListSort.dir = oppositeDir;
+      else { speciesListSort.col = ""; speciesListSort.dir = ""; }
+    } else {
+      speciesListSort.col = col;
+      speciesListSort.dir = defaultDir;
+    }
+    updateSortIndicators();
+    if (speciesListSort.col) sortSpeciesList();
+    else refreshCurrentView();   // off → re-render gives the natural prob desc ranking
+  }
   // Apply the age filter to the per-point species list. Operates on the cached
   // sightings aggregation stored on the tbody so toggling the filter is instant
   // (no re-fetch). Rows with no detection or older than the threshold get
@@ -788,8 +843,9 @@
           ageTd.textContent = days + "d";
         }
       });
-      // Re-apply the active age filter once data has arrived.
+      // Re-apply the active age filter and sort once data has arrived.
       applyAgeFilter();
+      if (speciesListSort.col) sortSpeciesList();
     }).catch(function () { /* keep "…" placeholders silently */ });
   }
 
@@ -1224,7 +1280,7 @@
             '<button id="sp-pdf-btn" class="demo-btn demo-btn-light" title="Download PDF">⬇ PDF</button>' +
           '</div>' +
           '<table id="species-list-table">' +
-            '<thead><tr><th id="sp-species-head" data-i18n="th.species">Species</th><th class="name2" id="sp-name2-head"></th><th data-i18n="th.sci">Scientific name</th><th id="sp-prob-head" data-i18n="th.prob">Probability</th><th></th><th class="num" data-i18n="th.count">#</th><th id="sp-age-head" class="num clickable-head" data-i18n="th.age">Age</th><th id="sp-delta-head"></th></tr></thead>' +
+            '<thead><tr><th id="sp-species-head" data-i18n="th.species">Species</th><th class="name2" id="sp-name2-head"></th><th id="sp-sci-head" class="clickable-head" data-i18n="th.sci">Scientific name</th><th id="sp-prob-head" data-i18n="th.prob">Probability</th><th></th><th id="sp-count-head" class="num clickable-head" data-i18n="th.count">#</th><th id="sp-age-head" class="num clickable-head" data-i18n="th.age">Age</th><th id="sp-delta-head"></th></tr></thead>' +
             '<tbody id="sp-tbody"></tbody>' +
           '</table>' +
         '</div>' +
@@ -2538,6 +2594,12 @@
       if (!lbl || !currentSpView || currentSpView.mode !== "point") return;
       showRecent(speciesName(lbl), lbl.sci, currentSpView.lat, currentSpView.lon, key);
     });
+
+    // Click Scientific name / # column headers to sort the per-point species
+    // list by that column (toggling asc → desc → off, where off returns to the
+    // natural Probability-descending ranking).
+    document.getElementById("sp-sci-head").addEventListener("click", function () { cycleSpeciesListSort("sci"); });
+    document.getElementById("sp-count-head").addEventListener("click", function () { cycleSpeciesListSort("count"); });
 
     // Click the "Age" column header to cycle a recency filter on the per-point
     // species list: off → 1d → 3d → 1w → 2w → 3w → 4w → off. Applies live
@@ -4501,6 +4563,7 @@
     if (sh0) sh0.textContent = speciesHeadLabel();
     var ah0 = document.getElementById("sp-age-head");
     if (ah0) ah0.textContent = ageHeadLabel();
+    updateSortIndicators();
     var week = +document.getElementById("week-select").value;
     var pmin = +document.getElementById("prob-min").value / 100;
     var pmax = +document.getElementById("prob-max").value / 100;
