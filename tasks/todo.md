@@ -50,4 +50,27 @@
 
 ## Review
 
-(populated after implementation)
+Shipped across **v73** (upload) and **v74** (sex toggle).
+
+**v73 — upload feature (`f3cd0b1`)**
+- `entry.grp` and `record.upload[grp]` added; recordGroups / entriesInGroup / aggregateForUpload helpers; EBIRD_BREEDING map (19 codes) and ebirdRecordCsv producing valid Record-Format CSVs.
+- New `#review-page` (full-screen, modeled on `#entry-page`) with one group card per checklist, editable meta block (protocol/time/duration/distance/observers/all-obs/loc/state/country/notes), aggregated species list with editable count/breeding code/note, expandable per-entry "Move to…" menus.
+- "+ Checklist" allocates next free group letter via `nextGroupKey`; the empty group is persisted via `rec.upload[k] = {}`.
+- "Submit to eBird" hook in place but only surfaces a stub message — eBird's submit API is partner-only.
+- 28 new i18n keys, 15 languages.
+- Headless CDP test verified: counts sum (3+2→5), breeding codes (song→S, nestbuild→NB, flyover→F), CSV structure (header + 3 rows), move-to-new-group splits a species across A/B.
+
+**v74 — sex toggle (`70b61b9`)**
+- `cd().sex` and `entry.sex` added (cycle order `"" → m → f → p → fl`).
+- `setFcSex` and `nextSex` helpers; `.fc-sex-btn` cycle button on each card.
+- Sex shown on entry summary lines and editable as a select on the entry-edit page.
+- `aggregateForUpload` tracks `sexCounts`; CSV's Identification details now includes `"3 ♂, 2 ♀, 1 ♀?"`-style breakdown when sex info is present.
+- `chk.sex` key added in 15 languages.
+- Headless verified the 5-state cycle, the CSV aggregation, and the entry-edit round-trip.
+
+## Out of scope (still)
+- Tracking which checklists were already uploaded.
+- iNaturalist upload (the `destinations[]` seam is in place).
+- State/country auto-detection from coords.
+- Per-entry coords in the CSV (eBird Record Format takes one location per checklist).
+
