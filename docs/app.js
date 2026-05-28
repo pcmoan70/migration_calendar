@@ -1503,6 +1503,7 @@
 
     setupAreaOverlays();   // protected/priority-area overlay toggles (off by default)
     loadDetections();      // restore any "Show in map" detection points
+    map.on("movestart zoomstart click", clearSpider);   // collapse hover-spider when the view changes
 
     map.on("moveend", function () {
       var c = map.getCenter();
@@ -1672,14 +1673,32 @@
   // Localized display name for a plotted species (re-derived from the key so it
   // follows the UI language); falls back to the name stored at plot time.
   function detName(e) { var lbl = labelsByKey[e.key]; return (lbl && speciesName(lbl)) || e.name || e.key; }
+  // Recency filter (days) for plotted detections. 0 = no filter.
+  function detRecencyDays() { return +window.GeoState.get("detRecencyDays", 30); }
+  function recentEnough(dateStr, maxDays) {
+    if (!maxDays) return true;            // 0/"All" = no filter
+    if (!dateStr) return false;           // unknown date → exclude when filtering
+    var t = Date.parse(dateStr); if (isNaN(t)) return false;
+    return (Date.now() - t) / 86400000 <= maxDays;
+  }
+  function detTooltipHtml(name, r) {
+    return "<b>" + escapeHtml(name) + "</b><span class='area-tip-sub'>" + escapeHtml([r.src, r.date, r.place].filter(Boolean).join(" · ")) + "</span>";
+  }
   function renderDetGroup(name, rows, color) {
-    var g = L.layerGroup();
+    var g = L.layerGroup(), maxDays = detRecencyDays(), visible = 0;
     rows.forEach(function (r) {
+      if (!recentEnough(r.date, maxDays)) return;
+      visible++;
       var m = L.circleMarker([r.lat, r.lon], { radius: 5, color: "#1a1a1a", weight: 1, opacity: 0.9, fillColor: color, fillOpacity: 0.9 });
-      m.bindTooltip("<b>" + escapeHtml(name) + "</b><span class='area-tip-sub'>" + escapeHtml([r.src, r.date, r.place].filter(Boolean).join(" · ")) + "</span>", { direction: "top", className: "area-tip" });
+      m.bindTooltip(detTooltipHtml(name, r), { direction: "top", className: "area-tip" });
+      // Metadata for the hover spider so it can reconstruct clones in place.
+      m._detRow = r; m._detName = name; m._detColor = color;
+      m.on("mouseover", maybeSpiderize);
+      m.on("mouseout", scheduleSpiderClear);
       if (r.url) m.on("click", function (e) { if (e && e.originalEvent) L.DomEvent.stopPropagation(e.originalEvent); openExternal(r.url); });
       g.addLayer(m);
     });
+    g._visibleCount = visible;
     return g;
   }
   function plotDetections(key, name, rows, fit) {
@@ -1693,8 +1712,8 @@
     updateDetLegend(); saveDetections();
     if (fit) { try { map.fitBounds(e.group.getBounds().pad(0.25)); } catch (err) { /* single point / bad bounds */ } }
   }
-  function removeDetection(key) { if (detPlot[key]) { map.removeLayer(detPlot[key].group); delete detPlot[key]; updateDetLegend(); saveDetections(); } }
-  function clearDetections() { Object.keys(detPlot).forEach(function (k) { map.removeLayer(detPlot[k].group); }); detPlot = {}; updateDetLegend(); saveDetections(); }
+  function removeDetection(key) { if (detPlot[key]) { clearSpider(); map.removeLayer(detPlot[key].group); delete detPlot[key]; updateDetLegend(); saveDetections(); } }
+  function clearDetections() { clearSpider(); Object.keys(detPlot).forEach(function (k) { map.removeLayer(detPlot[k].group); }); detPlot = {}; updateDetLegend(); saveDetections(); }
   // Re-render plotted points + legend in the current language (called on lang change).
   function refreshDetections() {
     Object.keys(detPlot).forEach(function (k) {
@@ -1728,13 +1747,88 @@
       detLegend.addTo(map);
     }
     var el = document.getElementById("det-legend");
+    var rDays = detRecencyDays();
+    var recOpts = [[1, "1"], [7, "7"], [14, "14"], [30, "30"], [0, "∞"]]
+      .map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === rDays ? " selected" : "") + ">" + o[1] + (o[0] ? " " + escapeHtml(t("det.days")) : " " + escapeHtml(t("det.allTime"))) + "</option>"; })
+      .join("");
     el.innerHTML = '<div class="det-legend-head"><span>' + escapeHtml(t("det.title")) + '</span><button type="button" class="det-clear">' + escapeHtml(t("det.clearAll")) + "</button></div>" +
+      '<div class="det-recency-row"><label for="det-recency">' + escapeHtml(t("det.recency")) + '</label><select id="det-recency">' + recOpts + "</select></div>" +
       keys.map(function (k) {
         var e = detPlot[k], nm = escapeHtml(detName(e));
-        return '<div class="det-row"><span class="det-sw" style="background:' + e.color + '"></span><span class="det-nm" title="' + nm + '">' + nm + '</span><span class="det-ct">' + e.rows.length + '</span><button type="button" class="det-del" data-key="' + escapeHtml(k) + '" aria-label="remove">×</button></div>';
+        var vis = (e.group && e.group._visibleCount != null) ? e.group._visibleCount : e.rows.length;
+        var ct = (vis === e.rows.length) ? String(vis) : (vis + "/" + e.rows.length);
+        return '<div class="det-row"><span class="det-sw" style="background:' + e.color + '"></span><span class="det-nm" title="' + nm + '">' + nm + '</span><span class="det-ct">' + ct + '</span><button type="button" class="det-del" data-key="' + escapeHtml(k) + '" aria-label="remove">×</button></div>';
       }).join("");
     el.querySelector(".det-clear").addEventListener("click", clearDetections);
     el.querySelectorAll(".det-del").forEach(function (b) { b.addEventListener("click", function () { removeDetection(this.getAttribute("data-key")); }); });
+    el.querySelector("#det-recency").addEventListener("change", function () {
+      window.GeoState.save({ detRecencyDays: +this.value });
+      // Re-render every plotted group with the new recency filter (no refetch).
+      clearSpider();
+      Object.keys(detPlot).forEach(function (k) {
+        var e = detPlot[k];
+        map.removeLayer(e.group);
+        e.group = renderDetGroup(detName(e), e.rows, e.color); e.group.addTo(map);
+      });
+      updateDetLegend();
+    });
+  }
+
+  // ---- Hover spider for overlapping detection markers -----------------------
+  // When you hover a detection dot that's stacked under others (same/near
+  // coordinates), the cluster fans out around the cursor on a circle so each
+  // can be hovered and clicked. Collapses on mouseout / map pan / zoom.
+  var spiderLayer = null, spiderHidden = [], spiderClearTimer = null;
+  function cancelSpiderClear() { if (spiderClearTimer) { clearTimeout(spiderClearTimer); spiderClearTimer = null; } }
+  function scheduleSpiderClear() { cancelSpiderClear(); spiderClearTimer = setTimeout(clearSpider, 250); }
+  function clearSpider() {
+    cancelSpiderClear();
+    if (!spiderLayer) return;
+    spiderHidden.forEach(function (m) { try { m.setStyle({ opacity: 0.9, fillOpacity: 0.9 }); } catch (e) {} });
+    spiderHidden = [];
+    map.removeLayer(spiderLayer); spiderLayer = null;
+  }
+  function findOverlapsAt(latlng, pxRadius) {
+    pxRadius = pxRadius || 10;
+    var center = map.latLngToContainerPoint(latlng), out = [];
+    Object.keys(detPlot).forEach(function (k) {
+      var entry = detPlot[k];
+      if (!entry.group || !map.hasLayer(entry.group)) return;
+      entry.group.eachLayer(function (m) {
+        if (!m._detRow) return;
+        var p = map.latLngToContainerPoint(m.getLatLng());
+        if (Math.hypot(p.x - center.x, p.y - center.y) <= pxRadius) out.push(m);
+      });
+    });
+    return out;
+  }
+  function maybeSpiderize(e) {
+    cancelSpiderClear();
+    if (spiderLayer) return;   // already showing
+    var overlaps = findOverlapsAt(e.target.getLatLng(), 10);
+    if (overlaps.length < 2) return;
+    spiderOut(e.target.getLatLng(), overlaps);
+  }
+  function spiderOut(centerLatLng, overlaps) {
+    var centerPt = map.latLngToContainerPoint(centerLatLng);
+    var n = overlaps.length, radius = Math.min(60, 22 + n * 3);
+    var g = L.layerGroup();
+    overlaps.forEach(function (orig, i) {
+      var angle = -Math.PI / 2 + (i / n) * 2 * Math.PI;
+      var pt = L.point(centerPt.x + Math.cos(angle) * radius, centerPt.y + Math.sin(angle) * radius);
+      var ll = map.containerPointToLatLng(pt);
+      g.addLayer(L.polyline([centerLatLng, ll], { color: "#666", weight: 1, opacity: 0.55, interactive: false }));
+      var clone = L.circleMarker(ll, { radius: 6, color: "#1a1a1a", weight: 1, opacity: 0.95, fillColor: orig._detColor, fillOpacity: 0.95 });
+      var r = orig._detRow;
+      clone.bindTooltip(detTooltipHtml(orig._detName, r), { direction: "top", className: "area-tip" });
+      if (r.url) clone.on("click", function (ev) { if (ev && ev.originalEvent) L.DomEvent.stopPropagation(ev.originalEvent); openExternal(r.url); });
+      clone.on("mouseover", cancelSpiderClear);
+      clone.on("mouseout", scheduleSpiderClear);
+      g.addLayer(clone);
+      orig.setStyle({ opacity: 0, fillOpacity: 0 });
+      spiderHidden.push(orig);
+    });
+    g.addTo(map); spiderLayer = g;
   }
 
   var arcOverlays = [];   // active-overlay refs for hover identify: {layer, kind, defs}
