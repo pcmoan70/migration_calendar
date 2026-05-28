@@ -3971,9 +3971,17 @@
   }
   // H3 cells (at res) covering the country polygon. Try h3 polygonToCells; on
   // failure (large geometries can throw) fall back to a bbox grid filtered by
-  // point-in-polygon.
-  function cellsCoveringCountry(geom, res) {
+  // point-in-polygon. For countries with overseas territories (e.g. France
+  // returns a 91-piece MultiPolygon spanning −178°..+172°) we keep only the
+  // polygon containing the clicked point — otherwise antimeridian-spanning
+  // pieces produce huge bboxes / throw and the coverage collapses to ~nothing.
+  function cellsCoveringCountry(geom, res, clickLat, clickLon) {
     var polygons = geom.type === "Polygon" ? [geom.coordinates] : geom.coordinates;
+    if (geom.type === "MultiPolygon" && clickLat != null && clickLon != null) {
+      for (var pi = 0; pi < polygons.length; pi++) {
+        if (pointInRing(clickLon, clickLat, polygons[pi][0])) { polygons = [polygons[pi]]; break; }
+      }
+    }
     var out = Object.create(null);
     polygons.forEach(function (poly) {
       var added = false;
@@ -4047,8 +4055,10 @@
     try {
       var geom = await fetchCountryGeometry(info.cc, lat, lon);
       if (!geom) { setStatus(t("status.error", { msg: "country geometry unavailable" })); return; }
-      var cellsKey = info.cc + ":" + res;
-      var cells = countryCellsCache[cellsKey] || (countryCellsCache[cellsKey] = cellsCoveringCountry(geom, res));
+      // Cache cells by (cc, res, rounded click) — different polygons (mainland
+      // vs an overseas island) for the same country must not share a cache.
+      var cellsKey = info.cc + ":" + res + ":" + Math.round(lat * 2) / 2 + "," + Math.round(lon * 2) / 2;
+      var cells = countryCellsCache[cellsKey] || (countryCellsCache[cellsKey] = cellsCoveringCountry(geom, res, lat, lon));
       if (!cells.length) { setStatus(t("status.error", { msg: "no cells" })); return; }
       if (cells.length > SP_COUNTRY_MAX_CELLS) { setStatus(t("status.countryTooMany", { n: cells.length, max: SP_COUNTRY_MAX_CELLS })); return; }
       var aggKey = info.cc + ":" + res + ":" + week;
