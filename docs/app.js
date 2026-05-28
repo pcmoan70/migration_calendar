@@ -920,6 +920,67 @@
   }
   function setEbirdKey(v) { try { localStorage.setItem(EBIRD_KEY_LS, (v || "").trim()); } catch (e) { /* storage blocked */ } }
 
+  // ---- Cross-device share: Export / Import the user's data ------------------
+  // Settings, checklists, eBird key, interesting/hidden lists, plotted points —
+  // anything held in our two localStorage entries. The H3 range cache is left
+  // out (large, fully reconstructible). Imports MERGE checklists by id and
+  // append log entries (deduped by entry id), so observations made on either
+  // device survive a round-trip.
+  function exportAppData() {
+    var state = {};
+    try { state = JSON.parse(localStorage.getItem("geomodel-explorer-v1") || "{}"); } catch (e) {}
+    var payload = {
+      app: "migration_calendar",
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      state: state,
+      ebirdKey: localStorage.getItem(EBIRD_KEY_LS) || ""
+    };
+    downloadCsv("migration_calendar_" + new Date().toISOString().slice(0, 10) + ".json", JSON.stringify(payload, null, 2));
+  }
+  function mergeChecklists(local, incoming) {
+    var out = {}; Object.keys(local || {}).forEach(function (k) { out[k] = local[k]; });
+    Object.keys(incoming || {}).forEach(function (id) {
+      var inc = incoming[id]; if (!inc) return;
+      if (!out[id]) { out[id] = inc; return; }
+      var loc = out[id];
+      // Merge log: append entries from incoming that we don't already have (by id).
+      var ids = Object.create(null); (loc.log || []).forEach(function (e) { if (e && e.id) ids[e.id] = 1; });
+      (inc.log || []).forEach(function (e) { if (e && e.id && !ids[e.id]) { (loc.log = loc.log || []).push(e); ids[e.id] = 1; } });
+      if (loc.log) loc.log.sort(function (a, b) { return (a.ts || 0) - (b.ts || 0); });
+      // Union the seen-flags map.
+      loc.seen = loc.seen || {}; Object.keys(inc.seen || {}).forEach(function (k) { if (inc.seen[k]) loc.seen[k] = true; });
+      // Prefer the more recently accessed side's title + accessedAt.
+      if ((inc.accessedAt || 0) > (loc.accessedAt || 0)) {
+        if (inc.title) loc.title = inc.title;
+        loc.accessedAt = inc.accessedAt;
+      } else if (!loc.title && inc.title) { loc.title = inc.title; }
+      // Carry country-list rows through if local doesn't have them.
+      if (inc.rows && !loc.rows) loc.rows = inc.rows;
+      if (inc.kind === "country" && !loc.kind) loc.kind = inc.kind;
+      out[id] = loc;
+    });
+    return out;
+  }
+  function importAppData(jsonText) {
+    var data; try { data = JSON.parse(jsonText); } catch (e) { throw new Error("Invalid JSON"); }
+    if (!data || data.app !== "migration_calendar") throw new Error(t("sync.notBackup"));
+    var local = {}; try { local = JSON.parse(localStorage.getItem("geomodel-explorer-v1") || "{}"); } catch (e) {}
+    var incoming = data.state || {};
+    var mergedCl = mergeChecklists(local.fieldChecklists, incoming.fieldChecklists);
+    // Incoming overrides local for everything else; fieldChecklists is the merged map.
+    var newState = {}; Object.keys(local).forEach(function (k) { newState[k] = local[k]; });
+    Object.keys(incoming).forEach(function (k) { newState[k] = incoming[k]; });
+    newState.fieldChecklists = mergedCl;
+    try { localStorage.setItem("geomodel-explorer-v1", JSON.stringify(newState)); } catch (e) { throw new Error("storage write failed: " + e.message); }
+    if (data.ebirdKey) setEbirdKey(data.ebirdKey);
+    return {
+      checklistsIncoming: Object.keys(incoming.fieldChecklists || {}).length,
+      checklistsTotal: Object.keys(mergedCl).length,
+      hadKey: !!data.ebirdKey
+    };
+  }
+
   // Recent eBird observations of one species near a point. The app's species
   // keys ARE eBird species codes, so this is a single call. eBird caps the
   // lookback at 30 days and the radius at 50 km. Needs the user's API token.
@@ -1303,6 +1364,14 @@
                 '<div id="prob-range-vals"><span id="prob-min-val">5%</span> – <span id="prob-max-val">100%</span></div>' +
               '</div>' +
               '<div class="settings-divider"></div>' +
+              '<div class="ctrl-group" id="sync-wrap">' +
+                '<label data-i18n="ctrl.syncData">Share between devices</label>' +
+                '<div class="sync-row">' +
+                  '<button type="button" id="sync-export" class="demo-btn" data-i18n="sync.export">⬇ Export</button>' +
+                  '<button type="button" id="sync-import" class="demo-btn" data-i18n="sync.import">⬆ Import</button>' +
+                  '<input type="file" id="sync-file" accept=".json,application/json" style="display:none" />' +
+                '</div>' +
+              '</div>' +
               '<button type="button" id="about-open" class="settings-about" data-i18n="ctrl.about">About &amp; how it works</button>' +
             '</div>' +
           '</div>' +
@@ -2297,6 +2366,23 @@
     var rrEl = document.getElementById("recent-radius");
     rrEl.value = String(+window.GeoState.get("recentRadiusKm", 25) || 25);
     rrEl.addEventListener("change", function () { window.GeoState.save({ recentRadiusKm: +this.value || 25 }); });
+
+    document.getElementById("sync-export").addEventListener("click", exportAppData);
+    var syncFile = document.getElementById("sync-file");
+    document.getElementById("sync-import").addEventListener("click", function () { syncFile.click(); });
+    syncFile.addEventListener("change", function (e) {
+      var f = e.target.files && e.target.files[0]; if (!f) return;
+      var rd = new FileReader();
+      rd.onload = function () {
+        try {
+          var s = importAppData(rd.result);
+          setStatus(t("sync.imported", { n: s.checklistsIncoming, total: s.checklistsTotal }));
+          setTimeout(function () { location.reload(); }, 1000);
+        } catch (err) { setStatus(t("sync.importFailed", { msg: err.message || "" })); }
+        e.target.value = "";
+      };
+      rd.readAsText(f);
+    });
 
     document.getElementById("maptype-select").addEventListener("change", function () {
       setBasemap(this.value);

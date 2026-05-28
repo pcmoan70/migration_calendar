@@ -1465,6 +1465,10 @@ table.recent-table .rc-srccell { white-space: nowrap; }
 th.clickable-head { cursor: pointer; user-select: none; }
 th.clickable-head:hover { text-decoration: underline; }
 
+/* Settings → Share between devices (Export / Import buttons side-by-side). */
+.sync-row { display: flex; gap: 8px; }
+.sync-row button { flex: 1 1 auto; }
+
 /* Species observed at the point that the prediction model doesn't cover —
    listed above the model rows with a subtle highlight + bold name. */
 tr.sp-extra { background: #fff8e7; }
