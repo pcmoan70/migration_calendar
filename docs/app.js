@@ -3916,19 +3916,26 @@
   // predictions. BirdLife DataZone factsheets aren't fetchable from a static
   // browser (its CORS allows only its own origin), so eBird's broader list
   // (CORS *, needs the user's key) is the practical source.
+  // Reason the last ebirdCountrySpecies call returned null — used to surface a
+  // diagnostic hint in the country caption when the merge can't run, instead
+  // of silently dropping the merge view.
+  var lastSppError = null;
   async function ebirdCountrySpecies(cc) {
-    if (!cc) return null;
+    lastSppError = null;
+    if (!cc) { lastSppError = "no-country"; return null; }
     if (countryEBirdCache[cc]) return countryEBirdCache[cc];
-    var tok = ebirdKey(); if (!tok) return null;
+    var tok = ebirdKey();
+    if (!tok) { lastSppError = "no-key"; return null; }
     try {
       var r = await fetch("https://api.ebird.org/v2/product/spplist/" + encodeURIComponent(cc), { headers: { "X-eBirdApiToken": tok } });
-      if (!r.ok) return null;
+      if (!r.ok) { lastSppError = "http-" + r.status; return null; }
       var arr = await r.json();
+      if (!Array.isArray(arr)) { lastSppError = "format"; return null; }
       var set = Object.create(null);
-      (arr || []).forEach(function (c) { set[c] = 1; });
+      arr.forEach(function (c) { set[c] = 1; });
       countryEBirdCache[cc] = set;
       return set;
-    } catch (e) { return null; }
+    } catch (e) { lastSppError = "network"; return null; }
   }
   var SP_COUNTRY_MAX_CELLS = 8000;
   function pointInRing(lng, lat, ring) {
@@ -4081,9 +4088,16 @@
       var tbl = document.getElementById("species-list-table");
       tbl.classList.toggle("has-name2", !!secondLang);
       document.getElementById("sp-name2-head").textContent = secondLang ? window.GeoI18N.langByCode(secondLang).name : "";
-      document.getElementById("sp-coords").textContent = spp
+      var mergeHint = "";
+      if (!spp) {
+        if (lastSppError === "no-key") mergeHint = " · " + t("merge.noKey");
+        else if (lastSppError && lastSppError.indexOf("http-") === 0) mergeHint = " · " + t("merge.httpErr", { code: lastSppError.slice(5) });
+        else if (lastSppError) mergeHint = " · " + t("merge.netErr");
+        if (mergeHint) setStatus(mergeHint.replace(/^ \xb7 /, ""));
+      }
+      document.getElementById("sp-coords").textContent = (spp
         ? t("sp.countrySummaryMerged", { country: info.name || info.cc, n: cells.length, week: week, ns: results.length - nList, nl: nList, p: (pmin * 100).toFixed(0) })
-        : t("sp.countrySummary", { country: info.name || info.cc, n: cells.length, week: week, ns: results.length, p: (pmin * 100).toFixed(0) });
+        : t("sp.countrySummary", { country: info.name || info.cc, n: cells.length, week: week, ns: results.length, p: (pmin * 100).toFixed(0) })) + mergeHint;
       document.getElementById("sp-tbody").innerHTML = results.map(function (r) {
         var name2Cell = '<td class="name2">' + (secondLang ? escapeHtml(secondName(r.label)) : "") + "</td>";
         var probCell = r.inModel
