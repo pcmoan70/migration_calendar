@@ -4816,14 +4816,17 @@
     var fcs = getFieldChecklists();
     var items = buildChecklistItems(fcs);
 
-    // Sort by last-access time (most recent first); distance to the current
-    // map centre breaks ties.
+    // Sort by distance to the current map centre (nearest first — so the green
+    // proximity dots cluster at the top, then orange, then red). Last-access
+    // time breaks ties between lists at the same distance. Country-wide lists
+    // (no point anchor) have Infinity distance and fall to the bottom, sorted
+    // among themselves by recency.
     var c0 = map ? map.getCenter() : null;
     items.forEach(function (it) {
       it.acc = accessTime(getFieldRecord(it.pkey));
       it.dist = (c0 && it.lat != null && it.lon != null) ? haversineKm(c0.lat, c0.lng, it.lat, it.lon) : Infinity;
     });
-    items.sort(function (a, b) { return (b.acc - a.acc) || (a.dist - b.dist); });
+    items.sort(function (a, b) { return (a.dist - b.dist) || (b.acc - a.acc); });
 
     wrap.style.display = items.length ? "" : "none";
     if (!items.length) panel.style.display = "none";
