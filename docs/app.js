@@ -365,7 +365,10 @@
   // Species the user has chosen to hide ("Do not show"). species_code -> true.
   var hiddenSpecies = {};
   var interestingSpecies = {};
-  var filterInterestingOnly = false;   // when on, lists show only interesting species
+  // Species-list filter mode, cycled by clicking the "Species" column header:
+  // "" (default — exclude hidden) → "interesting" (only ★ tagged) → "hidden"
+  // (only species the user has hidden — lets the list show them for review).
+  var speciesListFilter = "";
   var menuKey = null, menuName = "", menuSci = "";  // species the menu targets
 
   function isHidden(key) { return !!hiddenSpecies[key]; }
@@ -399,7 +402,21 @@
   }
 
   // "★ " prefix for species the user has tagged as interesting (lists/cards).
-  function interestingStar(key) { return isInteresting(key) ? "★ " : ""; }
+  // Wrapped in a styled span so the star is visually distinct from the name.
+  function interestingStar(key) { return isInteresting(key) ? '<span class="int-star" aria-label="interesting">★</span> ' : ""; }
+  // Header label for the "Species" column reflecting the active filter mode.
+  function speciesHeadLabel() {
+    if (speciesListFilter === "interesting") return "★ " + t("th.species");
+    if (speciesListFilter === "hidden") return "🚫 " + t("th.species");
+    return t("th.species");
+  }
+  // Should a row be kept under the current filter mode? Encapsulates the rule
+  // so renderSpeciesList and renderSpeciesInCountry stay consistent.
+  function passSpeciesFilter(key) {
+    if (speciesListFilter === "interesting") return isInteresting(key);
+    if (speciesListFilter === "hidden") return isHidden(key);
+    return !isHidden(key);
+  }
   // Clickable species-name span (opens the species menu). Prepends ★ when the
   // species is tagged interesting; data-name keeps the bare name (no star).
   function nameLinkHtml(label) {
@@ -2381,11 +2398,14 @@
     });
     document.getElementById("sp-pdf-btn").addEventListener("click", exportSpeciesPdf);
 
-    // Click the "Species" column header to toggle the "show only interesting"
-    // filter on the current list. The header label gets a ★ when active.
+    // Click the "Species" column header to cycle the list filter through three
+    // states: default → only ★ interesting → only 🚫 hidden → default. Lets
+    // the user surface hidden species (normally excluded everywhere) for
+    // review without having to open the Hidden dropdown.
     document.getElementById("sp-species-head").addEventListener("click", function () {
-      filterInterestingOnly = !filterInterestingOnly;
-      this.textContent = (filterInterestingOnly ? "★ " : "") + t("th.species");
+      var seq = ["", "interesting", "hidden"];
+      speciesListFilter = seq[(seq.indexOf(speciesListFilter) + 1) % seq.length];
+      this.textContent = speciesHeadLabel();
       refreshCurrentView();
     });
 
@@ -4230,7 +4250,7 @@
       var spp = await ebirdCountrySpecies(info.cc);   // null when no key / fetch fails
       var results = [];
       for (var i = 0; i < labels.length; i++) {
-        var lbl = labels[i]; if (!inGroup(i) || isHidden(lbl.key)) continue;
+        var lbl = labels[i]; if (!inGroup(i) || !passSpeciesFilter(lbl.key)) continue;
         var prob = maxArr[i];
         var inModel = prob >= pmin && prob <= pmax;
         var inList = !!(spp && spp[lbl.key]);
@@ -4246,9 +4266,8 @@
         if (ka === 2) return speciesName(a.label).localeCompare(speciesName(b.label));
         return b.prob - a.prob;
       });
-      if (filterInterestingOnly) results = results.filter(function (r) { return isInteresting(r.label.key); });
       var sh1 = document.getElementById("sp-species-head");
-      if (sh1) sh1.textContent = (filterInterestingOnly ? "★ " : "") + t("th.species");
+      if (sh1) sh1.textContent = speciesHeadLabel();
       var nList = spp ? results.filter(function (r) { return !r.inModel && r.inList; }).length : 0;
       currentSpView = { mode: "country", cc: info.cc, name: info.name, lat: lat, lon: lon, results: results };
       var ph = document.getElementById("sp-prob-head");
@@ -4327,7 +4346,7 @@
     var ph0 = document.getElementById("sp-prob-head");
     if (ph0) { ph0.textContent = t("th.prob"); ph0.title = ""; ph0.classList.remove("clickable-head"); }
     var sh0 = document.getElementById("sp-species-head");
-    if (sh0) sh0.textContent = (filterInterestingOnly ? "★ " : "") + t("th.species");
+    if (sh0) sh0.textContent = speciesHeadLabel();
     var week = +document.getElementById("week-select").value;
     var pmin = +document.getElementById("prob-min").value / 100;
     var pmax = +document.getElementById("prob-max").value / 100;
@@ -4339,7 +4358,7 @@
       var kind = cmp.kind;   // "delta" | "ratio" | "focus"
       var results = [];
       for (var i = 0; i < labels.length; i++) {
-        if (out[i] >= pmin && out[i] <= pmax && inGroup(i) && !isHidden(labels[i].key)) {
+        if (out[i] >= pmin && out[i] <= pmax && inGroup(i) && passSpeciesFilter(labels[i].key)) {
           var cval = 0;
           if (hasCompare) {
             cval = kind === "ratio" ? (cmp.probs[i] > 0 ? out[i] / cmp.probs[i] : 0)
@@ -4350,7 +4369,6 @@
         }
       }
       results.sort(function (a, b) { return b.prob - a.prob; });
-      if (filterInterestingOnly) results = results.filter(function (r) { return isInteresting(r.label.key); });
       // When every comparison value is positive, show it as a probability-style
       // bar; otherwise (e.g. week-over-week change) show the value with
       // negatives in red.

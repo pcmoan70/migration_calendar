@@ -1465,6 +1465,9 @@ table.recent-table .rc-srccell { white-space: nowrap; }
 th.clickable-head { cursor: pointer; user-select: none; }
 th.clickable-head:hover { text-decoration: underline; }
 
+/* ★ next to interesting species in lists/cards/legends. */
+.int-star { color: #f0a020; font-weight: 700; }
+
 /* "Species in country" merged-list source chips + de-emphasised list-only rows. */
 .src-chip { display: inline-block; width: 18px; height: 18px; line-height: 16px; text-align: center; border-radius: 50%;
   font-size: 0.78rem; font-weight: 700; border: 1px solid currentColor; }
