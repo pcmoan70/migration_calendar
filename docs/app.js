@@ -1283,6 +1283,29 @@
   // ---- Bootstrap -----------------------------------------------------------
   document.addEventListener("DOMContentLoaded", init);
 
+  // Shortcut URL: ?here=1 opens the per-point species list at the device's
+  // current GPS position on load. Skips the point-chooser popup that a normal
+  // map click would show — the user explicitly asked for the species list.
+  function maybeUrlAutoLocate() {
+    var qs;
+    try { qs = new URLSearchParams(window.location.search); } catch (e) { return; }
+    if (qs.get("here") !== "1") return;
+    if (!navigator.geolocation || !map) { setStatus(t("status.locateError")); return; }
+    var modeSel = document.getElementById("mode-select");
+    if (modeSel && modeSel.value !== "list") {
+      modeSel.value = "list";
+      modeSel.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+    navigator.geolocation.getCurrentPosition(function (pos) {
+      var lat = pos.coords.latitude, lon = pos.coords.longitude;
+      if (marker) map.removeLayer(marker);
+      marker = L.marker([lat, lon]).addTo(map);
+      map.setView([lat, lon], Math.max(map.getZoom() || 0, 11));
+      renderSpeciesList(lat, lon);
+    }, function () { setStatus(t("status.locateError")); },
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 });
+  }
+
   async function init() {
     var root = document.getElementById("demo-root");
     if (!root) return;
@@ -1622,6 +1645,7 @@
       showLastChange();
       showPerfModal();
       initOfflineIndicator();
+      maybeUrlAutoLocate();   // ?here=1 → geolocate + open species list
     } catch (e) {
       document.getElementById("demo-loading").innerHTML =
         '<span style="color:red">' + t("app.failed", { msg: e.message }) + '</span>';
