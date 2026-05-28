@@ -912,6 +912,20 @@
     Array.prototype.slice.call(tbody.querySelectorAll("tr.sp-extra")).forEach(function (tr) { tr.remove(); });
     var keys = Object.keys(extras || {});
     if (!keys.length) return;
+    // Respect the active species-group filter: when the user is in "Birds"
+    // (or any specific class) mode, hide extras from other classes — those
+    // are what produced the "plants and trees in the bird list" surprise.
+    // normClass returns capitalised class names ("Aves"), speciesGroup is
+    // lowercase ("aves"); compare case-insensitively. Drop unknown-class
+    // extras too, so a junk row without provenance can't slip through.
+    if (speciesGroup !== "all") {
+      var want = String(speciesGroup).toLowerCase();
+      keys = keys.filter(function (k) {
+        var c = extras[k] && extras[k].cls;
+        return c && String(c).toLowerCase() === want;
+      });
+      if (!keys.length) return;
+    }
     keys.sort(function (a, b) { return (extras[b].count - extras[a].count) || (extras[b].latestTs - extras[a].latestTs); });
     keys = keys.slice(0, 30);
     var frag = document.createDocumentFragment();
