@@ -1434,21 +1434,13 @@
           '<div id="fc-picker" style="display:none">' +
             '<div class="fcp-head"><span id="fcp-name"></span><button type="button" id="fcp-close" aria-label="Close">×</button></div>' +
             '<div class="fcp-step-row">' +
-              '<button type="button" class="fcp-step" data-fcp="dec" aria-label="−1">−</button>' +
+              '<button type="button" class="fcp-step" data-step="-25">−25</button>' +
+              '<button type="button" class="fcp-step" data-step="-10">−10</button>' +
+              '<button type="button" class="fcp-step" data-step="-1">−</button>' +
               '<span class="fcp-val" id="fcp-val">0</span>' +
-              '<button type="button" class="fcp-step" data-fcp="inc" aria-label="+1">+</button>' +
-            '</div>' +
-            '<div class="fcp-nums">' +
-              '<button type="button" class="fcp-num" data-n="1">1</button>' +
-              '<button type="button" class="fcp-num" data-n="2">2</button>' +
-              '<button type="button" class="fcp-num" data-n="3">3</button>' +
-              '<button type="button" class="fcp-num" data-n="4">4</button>' +
-              '<button type="button" class="fcp-num" data-n="5">5</button>' +
-              '<button type="button" class="fcp-num" data-n="6">6</button>' +
-              '<button type="button" class="fcp-num" data-n="7">7</button>' +
-              '<button type="button" class="fcp-num" data-n="8">8</button>' +
-              '<button type="button" class="fcp-num" data-n="9">9</button>' +
-              '<button type="button" class="fcp-num" data-n="10">10</button>' +
+              '<button type="button" class="fcp-step" data-step="1">+</button>' +
+              '<button type="button" class="fcp-step" data-step="10">+10</button>' +
+              '<button type="button" class="fcp-step" data-step="25">+25</button>' +
             '</div>' +
           '</div>' +
           '<div id="fc-act-picker" style="display:none">' +
@@ -2524,16 +2516,14 @@
     });
     var fcp = document.getElementById("fc-picker");
     fcp.addEventListener("click", function (e) {
-      var num = e.target.closest && e.target.closest(".fcp-num");
-      if (num) { setFcCount(fcPickerKey, +num.getAttribute("data-n")); hideFcPicker(); return; }
+      var st = e.target.closest && e.target.closest(".fcp-step");
+      if (st) {
+        var delta = +st.getAttribute("data-step") || 0;
+        if (delta && fcPickerKey) setFcCount(fcPickerKey, countNum(cd(fcPickerKey).count) + delta);
+        return;
+      }
       if (e.target.id === "fcp-close") hideFcPicker();
     });
-    fcp.addEventListener("pointerdown", function (e) {
-      var st = e.target.closest && e.target.closest(".fcp-step");
-      if (st) { e.preventDefault(); fcStartHold(st.getAttribute("data-fcp") === "inc" ? 1 : -1); }
-    });
-    document.addEventListener("pointerup", fcStopHold);
-    document.addEventListener("pointercancel", fcStopHold);
     document.addEventListener("click", function (e) {
       var p = document.getElementById("fc-picker");
       if (!p || p.style.display === "none") return;
@@ -4236,7 +4226,7 @@
   }
 
   // ---- Count quick-select (field checklist) --------------------------------
-  var fcPickerKey = null, fcHoldTimer = null, fcHoldInt = null;
+  var fcPickerKey = null;
   // The # picker now edits the species' compose-draft count (committed only by
   // ＋ or the checkbox), not the log.
   function openFcPicker(key, name) {
@@ -4252,15 +4242,6 @@
     var btn = document.querySelector('#field-list .fc-card[data-key="' + key + '"] .fc-count');
     if (btn) { btn.textContent = val > 0 ? val : "#"; btn.classList.toggle("has-n", val > 0); }
     var v = document.getElementById("fcp-val"); if (v) v.textContent = val;
-  }
-  function fcStep(delta) {
-    if (!fcPickerKey) return;
-    setFcCount(fcPickerKey, countNum(cd(fcPickerKey).count) + delta);
-  }
-  function fcStopHold() { clearTimeout(fcHoldTimer); clearInterval(fcHoldInt); fcHoldTimer = fcHoldInt = null; }
-  function fcStartHold(delta) {
-    fcStep(delta);   // immediate step
-    fcHoldTimer = setTimeout(function () { fcHoldInt = setInterval(function () { fcStep(delta); }, 110); }, 400);
   }
 
   // ---- Activity picker (field checklist) -----------------------------------
@@ -4305,7 +4286,13 @@
   }
   function hideFcActPicker() { fcActKey = null; var p = document.getElementById("fc-act-picker"); if (p) p.style.display = "none"; }
   function setFcAct(key, a) {
-    cd(key).act = a || "";
+    var draft = cd(key);
+    draft.act = a || "";
+    // Picking an activity implies "I saw at least one" — default the count to 1
+    // when the user hasn't entered one yet, so they don't have to tap twice.
+    if (a && (draft.count == null || draft.count === "" || +draft.count === 0)) {
+      setFcCount(key, 1);
+    }
     var btn = document.querySelector('#field-list .fc-card[data-key="' + key + '"] .fc-act-btn');
     if (btn) { btn.textContent = a ? actName(a) : "🏷"; btn.classList.toggle("has-act", !!a); }
   }
