@@ -357,25 +357,73 @@ window.GeoI18N = (function () {
       "about.title": "ℹ︎ About the model & how values are computed",
       "about.html":
         "<h4>The habitat model</h4>" +
-        "<p>This tool runs the <a href=\"https://github.com/birdnet-team/geomodel\" target=\"_blank\" rel=\"noopener\">BirdNET Geomodel</a> — a spatiotemporal neural network — entirely in your browser via ONNX Runtime Web. From a <b>latitude</b>, <b>longitude</b> and <b>week of year</b> (1–48; the model splits the year into 48 weeks of about 7.6 days), it predicts an <b>occurrence probability</b> (0–100%) for each of 12,012 species across birds, mammals, amphibians and insects. The probability reflects how likely a species is to be present there at that time of year, learned from global occurrence records and environmental variables. It is a modelled estimate — not an observation count or a guarantee.</p>" +
-        "<h4>Map views</h4>" +
+        "<p>This tool runs the <a href=\"https://github.com/birdnet-team/geomodel\" target=\"_blank\" rel=\"noopener\">BirdNET Geomodel</a> — a spatiotemporal neural network — entirely in your browser via ONNX Runtime Web. From a <b>latitude</b>, <b>longitude</b> and <b>week of year</b> (1–48; the year is split into 48 weeks of about 7.6 days), it predicts an <b>occurrence probability</b> (0–100%) for each of 12,012 species across birds, mammals, amphibians and insects. The probability reflects how likely a species is to be present there at that time of year, learned from global occurrence records and environmental variables. It is a modelled estimate — not an observation count or a guarantee.</p>" +
+        "<h4>Map views (the “Mode” dropdown)</h4>" +
         "<ul>" +
-        "<li><b>Species Range</b> — the probability of one chosen species across the map for the selected week.</li>" +
-        "<li><b>Species Richness</b> — the number of species whose probability is at least 5% in each grid cell, limited to the selected species group. ▶ Play migration animates the map week by week.</li>" +
+        "<li><b>📍 Species List</b> — click anywhere on the map to get a ranked list of species expected at that point in the selected week, with predicted probability, optional second-language name, and a comparison column (see below). When the eBird API key is set, recent counts from GBIF + iNaturalist + eBird are merged in and clickable.</li>" +
+        "<li><b>Species Range</b> — pick a species in the search box and the map paints its probability for the chosen week. Use ▶ Play migration to animate weeks 1 → 48.</li>" +
+        "<li><b>Species Richness</b> — colours each map cell by the number of species above the probability threshold (limited to the active species group). ▶ Play migration animates richness across the year.</li>" +
+        "<li><b>📍 Migration (location analysis)</b> — click a map point to open the Location-analysis panel with five tabs:" +
+          "<ul>" +
+          "<li><b>Timeline</b> — each species' probability across all 48 weeks; the current week is highlighted.</li>" +
+          "<li><b>Probability</b> — a species × week heatmap (red = low, green = high), stretched across the values on screen.</li>" +
+          "<li><b>Arrivals</b> — weekly arrival score <code>(P<sub>next</sub> − P<sub>prev</sub>) ÷ max</code>. Green = rising (arriving), red = falling (departing); weeks wrap at 1 ↔ 48.</li>" +
+          "<li><b>Annual Top</b> — running total of arrival scores, rescaled 0–100; the part of the year when the species is most present.</li>" +
+          "<li><b>Scatter</b> — current week's arrival score (x) vs probability (y) for the top species, with a sortable table.</li>" +
+          "</ul>" +
+        "</li>" +
         "</ul>" +
-        "<p>The map is evaluated on a grid of cells (3° wide when zoomed out, down to 0.25° when zoomed in) and drawn with bilinear smoothing, so colours blend between cell centres instead of forming hard blocks. <b>Note:</b> Species Range, Species Richness and ▶ Play migration evaluate the model across many map cells, so a modern computer with a fast CPU is recommended for smooth performance.</p>" +
-        "<h4>Location analysis (click the map)</h4>" +
+        "<p>Range/Richness/Migration evaluate the model on a grid of cells (3° wide when zoomed out, down to 0.25° when zoomed in) and draw with bilinear smoothing. A modern CPU is recommended for smooth performance, especially with ▶ Play migration.</p>" +
+        "<h4>Map interactions</h4>" +
         "<ul>" +
-        "<li><b>Timeline</b> — each species' probability across all 48 weeks.</li>" +
-        "<li><b>Probability</b> — a species × week heatmap (red = low, green = high), stretched across the values currently on screen.</li>" +
-        "<li><b>Arrivals</b> — for each species and week, an arrival score <code>(P[next week] − P[previous week]) ÷ max</code>, where <code>max</code> is that species' highest weekly probability over the year. Green = probability rising (arriving), red = falling (departing); weeks wrap around the year boundary (1 ↔ 48).</li>" +
-        "<li><b>Annual Top</b> — the running (cumulative) total of the weekly arrival scores, rescaled to 0–100 (the year's low = 0, its peak = 100). It highlights the part of the year when the species is most present.</li>" +
-        "<li><b>Scatter</b> — the current week's arrival score (x-axis) versus probability (y-axis) for the top species, with a sortable table below.</li>" +
+        "<li><b>Click</b> — depending on the active mode, opens the per-point Species List, runs Migration analysis, or recentres the Range overlay.</li>" +
+        "<li><b>Search box</b> — type a species name (any language) or scientific name. Hits are re-ranked by likelihood at the map centre.</li>" +
+        "<li><b>Locate me</b> (✛ icon, top-left of the map) — zooms to your device's current GPS position and opens the active mode there.</li>" +
+        "<li><b>URL shortcut</b> — opening <code>?here=1</code> on the site URL geolocates and goes straight to the Species List there. Handy as a phone home-screen shortcut.</li>" +
+        "<li><b>Pan &amp; zoom</b> — saved automatically; you return to the same view next time.</li>" +
         "</ul>" +
-        "<h4>Species List — “Compare to” column</h4>" +
+        "<h4>Overlay layers (layer control, top-right)</h4>" +
+        "<p>All overlays render as the providers' own tiles or markers — no geometry is downloaded or stored. Attributions appear in the bottom-right when a layer is on.</p>" +
+        "<ul>" +
+        "<li><b>WDPA (Protected Planet)</b> — global protected-area polygons + points from UNEP-WCMC &amp; IUCN. Non-commercial use; attribution required.</li>" +
+        "<li><b>Ramsar Wetlands</b> — Wetlands of International Importance, filtered out of the WDPA service.</li>" +
+        "<li><b>Natura 2000</b> — EU Habitats Directive (SCI/SAC) and Birds Directive (SPA) sites from the EEA.</li>" +
+        "<li><b>OSM nature reserves &amp; protected areas</b> — open-data reserves and boundaries via Overpass; refreshed on pan at zoom ≥ 9. ODbL.</li>" +
+        "<li><b>eBird hotspots</b> — birding sites near the view as clickable markers (hover for name + all-time species count + last-seen date; click to open on ebird.org). Requires the eBird API key; filtered by the <i>Hotspot min. species</i> setting; refreshed on pan at zoom ≥ 8.</li>" +
+        "</ul>" +
+        "<h4>Per-point species list</h4>" +
+        "<p>The Species List ranks predictions by probability. With the eBird key set, a single fetch of GBIF + iNaturalist + eBird is shared across rows: each species gets a recent-detection count and a “days since most recent” age. Click a count to open the merged <b>Recent detections</b> modal (downloadable as CSV, plottable on the map). Species the model doesn't cover but that GBIF/iNat reported are prepended with a class glyph (🐦 / 🦊 / 🦋 / 🦎 / 🐸 / 🐟 / 🕷 / 🐚 / 🌿 / 🍄) and respect the active species-group filter, so a Birds-only list stays bird-only.</p>" +
+        "<h4>“Compare to” column</h4>" +
         "<ul>" +
         "<li><b>Previous / Next week</b> and <b>Annual mean</b> show the change Δ = current probability − the comparison value.</li>" +
         "<li><b>Annual max</b> shows the current week as a fraction of the species' yearly peak: <code>current ÷ max over the year</code>. 100% means the selected week is that species' best week.</li>" +
+        "<li><b>Annual Top</b> — the running total of weekly arrival scores; useful for telling apart short-stay migrants from year-round residents.</li>" +
+        "</ul>" +
+        "<h4>Species detail card</h4>" +
+        "<p>Right-click (or long-press) a species name anywhere it appears for quick links: <b>Wikipedia</b>, <b>BirdLife DataZone</b> (birds only), <b>Macaulay Library</b> (photos &amp; sounds), <b>Xeno-canto</b> (audio recordings), <b>Distribution map</b> (Wikipedia range image popup), and the action <b>★ Mark interesting</b> (adds a star next to the name everywhere) or <b>Do not show</b> (hides the species from the lists; manageable from the Hidden-species dropdown in the header).</p>" +
+        "<h4>Field checklist (mobile-friendly bird logging)</h4>" +
+        "<p>The Checklist button in the header opens a per-location list seeded from the Species List or a country. Each card has a tick (seen), a count picker (−25/−10/−/+/+10/+25), an activity picker (54 codes including breeding codes and traces), a sex toggle (◦ → ♂ → ♀ → ⚥ → ♀? → ◦), a note field and a ＋ to commit. Per-entry GPS positions are captured automatically. The ⋮ menu offers PDF / CSV / Log downloads, <b>📍 Map</b> (plot each entry on the main map, coloured by species), <b>⬆ Upload</b> (review &amp; download eBird Record-Format CSV ready for ebird.org/import/upload), and <b>Clear</b>.</p>" +
+        "<h4>Saved &amp; country checklists</h4>" +
+        "<p>The Checklists dropdown lists everything you've recorded: point checklists with a proximity dot (green &lt; 0.5 km, orange ≤ 2 km, red beyond), country-wide checklists for inference + eBird merge, sorted by distance to the current map centre. Each row has a quick CSV download and a delete ×.</p>" +
+        "<h4>Plotted detections on the map</h4>" +
+        "<p>“Show in map” on a Recent-detections modal or 📍 Map from a field checklist plots each observation as a coloured circle. A legend in the bottom-left lists the plotted species with counts, a recency filter (1 / 7 / 14 / 30 / ∞ days), a minimise icon to shrink to a chip, and Clear. Hovering a stacked dot spreads the overlap (spider). Clicks near a dot are absorbed so the chooser popup doesn't cover what you tapped.</p>" +
+        "<h4>Reports</h4>" +
+        "<ul>" +
+        "<li><b>PDF</b> — print-friendly report of the seen species with a per-observation list (time, lat/lon, ×count, sex glyph, activity, note) under each name.</li>" +
+        "<li><b>CSV</b> — per-species summary with an <i>observations</i> column carrying all that species' entries pipe-separated.</li>" +
+        "<li><b>Log</b> — raw one-row-per-entry CSV with ISO timestamp, lat, lon, count, sex, activity, notes.</li>" +
+        "<li><b>⬆ Upload → eBird CSV</b> — Record Format ready for ebird.org/import/upload, filtered to bird species only; a status reports any non-bird rows excluded.</li>" +
+        "</ul>" +
+        "<h4>Key settings (Settings ⚙)</h4>" +
+        "<ul>" +
+        "<li><b>Map type</b> — Light, Dark, Streets, Topographic, Satellite.</li>" +
+        "<li><b>High resolution</b> — points per axis for Range/Richness (1 = fastest, 11 = smoothest).</li>" +
+        "<li><b>Map data cache</b> — localStorage budget for the range cache (0 / 1 / 2 / 5 MB).</li>" +
+        "<li><b>eBird API key</b> — required for eBird hotspots, eBird recent detections and the merged Species List counts. <a href=\"https://ebird.org/api/keygen\" target=\"_blank\" rel=\"noopener\">Get a free key</a>.</li>" +
+        "<li><b>Hotspot min. species</b> — only show hotspots with at least N all-time species (Off / 25+ / 50+ / 100+ / 200+).</li>" +
+        "<li><b>Country sampling resolution</b> — H3 cell size used when summing inference across a country (3 ≈ 60 km, 4 ≈ 22 km, 5 ≈ 8 km, 6 ≈ 3 km).</li>" +
+        "<li><b>Sightings radius</b> — radius for GBIF / iNaturalist / eBird recent-detection fetches (5 / 10 / 25 / 50 / 100 km).</li>" +
+        "<li><b>Probability range</b> — lower &amp; upper bounds (defaults 5–100 %) that filter the Species List and Richness counts.</li>" +
         "</ul>" +
         "<h4>Technology</h4>" +
         "<p>The AI model runs <b>entirely in your web browser</b> — there is no server and your location is never sent anywhere. The neural network is downloaded once (~7 MB) and all predictions are computed on your own device. Built with:</p>" +

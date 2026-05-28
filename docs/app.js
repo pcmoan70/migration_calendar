@@ -1373,11 +1373,11 @@
                 '<label for="compare-select" data-i18n="ctrl.compare">Compare to</label>' +
                 '<select id="compare-select">' +
                   '<option value="" data-i18n="compare.none">\u2014 none \u2014</option>' +
-                  '<option value="prev" selected data-i18n="compare.prev">Previous week</option>' +
+                  '<option value="prev" data-i18n="compare.prev">Previous week</option>' +
                   '<option value="next" data-i18n="compare.next">Next week</option>' +
                   '<option value="mean" data-i18n="compare.mean">Annual mean</option>' +
                   '<option value="annualmax" data-i18n="compare.max">Annual max</option>' +
-                  '<option value="annualtop" data-i18n="compare.annualtop">Annual Top</option>' +
+                  '<option value="annualtop" selected data-i18n="compare.annualtop">Annual Top</option>' +
                 '</select>' +
               '</div>' +
               '<div class="ctrl-group" id="maptype-wrap">' +
@@ -1393,7 +1393,7 @@
               '<div class="ctrl-group" id="hires-wrap" style="display:none">' +
                 '<label for="hires-factor" data-i18n="ctrl.hires">High resolution</label>' +
                 '<select id="hires-factor" title="Resolution factor (points per axis)">' +
-                  '<option value="1" selected>1</option><option value="2">2</option><option value="3">3</option><option value="5">5</option><option value="7">7</option><option value="9">9</option><option value="11">11</option>' +
+                  '<option value="1">1</option><option value="2">2</option><option value="3" selected>3</option><option value="5">5</option><option value="7">7</option><option value="9">9</option><option value="11">11</option>' +
                 '</select>' +
               '</div>' +
               '<div class="ctrl-group">' +
@@ -1764,11 +1764,10 @@
 
   // ---- Language & i18n -----------------------------------------------------
   function defaultLang() {
-    var nav = (navigator.language || "en");
-    var codes = window.GeoI18N.LANGS.map(function (L) { return L.code; });
-    if (codes.indexOf(nav) >= 0) return nav;
-    var base = nav.split("-")[0];
-    return codes.indexOf(base) >= 0 ? base : "en";
+    // English by default — most users start here; auto-detect only complicates
+    // first-impression QA. The language picker still saves their choice for
+    // next visit.
+    return "en";
   }
 
   function setLang(code, skipRefresh) {
@@ -1882,7 +1881,7 @@
       zoomDelta: window.h3 ? H3_ZOOM_STEP : 1,
     });
 
-    setBasemap(window.GeoState.get("basemap", "dark"));
+    setBasemap(window.GeoState.get("basemap", "light"));
 
     map.on("click", onMapClick);
 
@@ -2029,7 +2028,7 @@
   }
 
   // Minimum all-time species for a hotspot to be shown ("real hotspots" filter).
-  function hotspotMin() { return +window.GeoState.get("hotspotMin", 50) || 0; }
+  function hotspotMin() { return +window.GeoState.get("hotspotMin", 200) || 0; }
   // eBird birding hotspots near the view, as clickable markers (name + all-time
   // species count + last-seen). Uses the user's eBird key; refreshes on pan.
   // Filtered by all-time species count; richer hotspots get larger markers.
@@ -2499,14 +2498,14 @@
     ebKeyEl.addEventListener("change", saveEbKey);
 
     var hsMinEl = document.getElementById("hotspot-min");
-    hsMinEl.value = String(+window.GeoState.get("hotspotMin", 50) || 0);
+    hsMinEl.value = String(+window.GeoState.get("hotspotMin", 200) || 0);
     hsMinEl.addEventListener("change", function () {
       window.GeoState.save({ hotspotMin: +this.value || 0 });
       if (hotspotsLayer && hotspotsLayer._reload) hotspotsLayer._reload();   // re-filter if shown
     });
 
     var crEl = document.getElementById("country-res");
-    crEl.value = String(+window.GeoState.get("countryRes", 4) || 4);
+    crEl.value = String(+window.GeoState.get("countryRes", 3) || 3);
     crEl.addEventListener("change", function () { window.GeoState.save({ countryRes: +this.value || 4 }); });
 
     var rrEl = document.getElementById("recent-radius");
@@ -5232,7 +5231,7 @@
   async function renderSpeciesInCountry(lat, lon) {
     var info = await countryInfo(lat, lon);
     if (!info.cc) { setStatus(t("status.error", { msg: "country lookup failed" })); return; }
-    var res = +window.GeoState.get("countryRes", 4) || 4;
+    var res = +window.GeoState.get("countryRes", 3) || 3;
     var week = +document.getElementById("week-select").value;
     var pmin = +document.getElementById("prob-min").value / 100;
     var pmax = +document.getElementById("prob-max").value / 100;
@@ -5972,9 +5971,10 @@
     document.getElementById("group-select").value = speciesGroup;
     updateSettingsIcon();
 
-    // Always start at normal resolution (factor 1) on load.
-    hiResFactor = 1;
-    document.getElementById("hires-factor").value = "1";
+    // Default resolution is factor 3 — gives noticeably smoother range/richness
+    // overlays out of the box without overwhelming low-end devices.
+    hiResFactor = 3;
+    document.getElementById("hires-factor").value = "3";
 
     // Always start with the full probability range 5%–100% on load.
     document.getElementById("prob-min").value = 5;
