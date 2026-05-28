@@ -369,6 +369,9 @@
   // "" (default — exclude hidden) → "interesting" (only ★ tagged) → "hidden"
   // (only species the user has hidden — lets the list show them for review).
   var speciesListFilter = "";
+  // Age threshold (days since most recent detection) for the species list, cycled
+  // by clicking the "Age" column header: 0 (off) → 1 → 3 → 7 → 14 → 21 → 28 → 0.
+  var speciesAgeFilterDays = 0;
   var menuKey = null, menuName = "", menuSci = "";  // species the menu targets
 
   function isHidden(key) { return !!hiddenSpecies[key]; }
@@ -416,6 +419,24 @@
     if (speciesListFilter === "interesting") return isInteresting(key);
     if (speciesListFilter === "hidden") return isHidden(key);
     return !isHidden(key);
+  }
+  // Header label for the "Age" column reflecting the current threshold.
+  function ageHeadLabel() { return speciesAgeFilterDays ? "≤" + speciesAgeFilterDays + "d ▾" : t("th.age"); }
+  // Apply the age filter to the per-point species list. Operates on the cached
+  // sightings aggregation stored on the tbody so toggling the filter is instant
+  // (no re-fetch). Rows with no detection or older than the threshold get
+  // display:none; everything else is shown.
+  function applyAgeFilter() {
+    var tbody = document.getElementById("sp-tbody");
+    if (!tbody) return;
+    var agg = tbody._sightingsAgg, days = speciesAgeFilterDays;
+    Array.prototype.forEach.call(tbody.querySelectorAll("tr"), function (tr) {
+      if (!days || !agg) { tr.style.display = ""; return; }
+      var sl = tr.querySelector(".sp-link"), key = sl && sl.getAttribute("data-key");
+      var entry = key && agg[key];
+      if (!entry || !entry.latestTs) { tr.style.display = "none"; return; }
+      tr.style.display = (Math.round((Date.now() - entry.latestTs) / 86400000) <= days) ? "" : "none";
+    });
   }
   // Clickable species-name span (opens the species menu). Prepends ★ when the
   // species is tagged interesting; data-name keeps the bare name (no star).
@@ -752,6 +773,7 @@
     if (tbody) tbody.dataset.sightingsToken = token;   // supersede if another click arrives
     fetchAllSightingsAt(lat, lon).then(function (agg) {
       if (!tbody || tbody.dataset.sightingsToken !== token) return;
+      tbody._sightingsAgg = agg;
       tbody.querySelectorAll(".det-count").forEach(function (td) {
         var key = td.getAttribute("data-key");
         var entry = agg[key];
@@ -766,6 +788,8 @@
           ageTd.textContent = days + "d";
         }
       });
+      // Re-apply the active age filter once data has arrived.
+      applyAgeFilter();
     }).catch(function () { /* keep "…" placeholders silently */ });
   }
 
@@ -1200,7 +1224,7 @@
             '<button id="sp-pdf-btn" class="demo-btn demo-btn-light" title="Download PDF">⬇ PDF</button>' +
           '</div>' +
           '<table id="species-list-table">' +
-            '<thead><tr><th id="sp-species-head" data-i18n="th.species">Species</th><th class="name2" id="sp-name2-head"></th><th data-i18n="th.sci">Scientific name</th><th id="sp-prob-head" data-i18n="th.prob">Probability</th><th></th><th class="num" data-i18n="th.count">#</th><th class="num" data-i18n="th.age">Age</th><th id="sp-delta-head"></th></tr></thead>' +
+            '<thead><tr><th id="sp-species-head" data-i18n="th.species">Species</th><th class="name2" id="sp-name2-head"></th><th data-i18n="th.sci">Scientific name</th><th id="sp-prob-head" data-i18n="th.prob">Probability</th><th></th><th class="num" data-i18n="th.count">#</th><th id="sp-age-head" class="num clickable-head" data-i18n="th.age">Age</th><th id="sp-delta-head"></th></tr></thead>' +
             '<tbody id="sp-tbody"></tbody>' +
           '</table>' +
         '</div>' +
@@ -2513,6 +2537,17 @@
       var key = btn.getAttribute("data-key"), lbl = labelsByKey[key];
       if (!lbl || !currentSpView || currentSpView.mode !== "point") return;
       showRecent(speciesName(lbl), lbl.sci, currentSpView.lat, currentSpView.lon, key);
+    });
+
+    // Click the "Age" column header to cycle a recency filter on the per-point
+    // species list: off → 1d → 3d → 1w → 2w → 3w → 4w → off. Applies live
+    // against the cached sightings aggregation (no re-fetch).
+    document.getElementById("sp-age-head").addEventListener("click", function () {
+      if (!currentSpView || currentSpView.mode !== "point") return;
+      var seq = [0, 1, 3, 7, 14, 21, 28];
+      speciesAgeFilterDays = seq[(seq.indexOf(speciesAgeFilterDays) + 1) % seq.length];
+      this.textContent = ageHeadLabel();
+      applyAgeFilter();
     });
 
     // Click the "Species" column header to cycle the list filter through three
@@ -4464,6 +4499,8 @@
     if (ph0) { ph0.textContent = t("th.prob"); ph0.title = ""; ph0.classList.remove("clickable-head"); }
     var sh0 = document.getElementById("sp-species-head");
     if (sh0) sh0.textContent = speciesHeadLabel();
+    var ah0 = document.getElementById("sp-age-head");
+    if (ah0) ah0.textContent = ageHeadLabel();
     var week = +document.getElementById("week-select").value;
     var pmin = +document.getElementById("prob-min").value / 100;
     var pmax = +document.getElementById("prob-max").value / 100;
