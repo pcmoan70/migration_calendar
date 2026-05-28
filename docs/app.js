@@ -990,6 +990,12 @@
                   '<option value="0" data-i18n="opt.off">Off</option><option value="25">25+</option><option value="50">50+</option><option value="100">100+</option><option value="200">200+</option>' +
                 '</select>' +
               '</div>' +
+              '<div class="ctrl-group">' +
+                '<label for="country-res" data-i18n="ctrl.countryres">Country sampling resolution</label>' +
+                '<select id="country-res">' +
+                  '<option value="3">3 · ~60 km</option><option value="4">4 · ~22 km</option><option value="5">5 · ~8 km</option><option value="6">6 · ~3 km</option>' +
+                '</select>' +
+              '</div>' +
               '<div class="ctrl-group" id="barchart-threshold-wrap" style="display:none">' +
                 '<label data-i18n="ctrl.bcthreshold">Probability range</label>' +
                 '<div id="prob-range">' +
@@ -1885,6 +1891,10 @@
       window.GeoState.save({ hotspotMin: +this.value || 0 });
       if (hotspotsLayer && hotspotsLayer._reload) hotspotsLayer._reload();   // re-filter if shown
     });
+
+    var crEl = document.getElementById("country-res");
+    crEl.value = String(+window.GeoState.get("countryRes", 4) || 4);
+    crEl.addEventListener("change", function () { window.GeoState.save({ countryRes: +this.value || 4 }); });
 
     document.getElementById("maptype-select").addEventListener("change", function () {
       setBasemap(this.value);
@@ -2979,6 +2989,7 @@
     var wrap = document.createElement("div");
     wrap.className = "map-choose";
     wrap.appendChild(makePopupBtn(t("mode.list"), "", function () { mk.closePopup(); renderSpeciesList(lat, lon); }));
+    wrap.appendChild(makePopupBtn(t("link.spInCountry"), "", function () { mk.closePopup(); renderSpeciesInCountry(lat, lon); }));
     wrap.appendChild(makePopupBtn(t("link.fatbirder"), "demo-btn-light", function () {
       mk.closePopup();
       countryInfo(lat, lon).then(function (info) { openExternal(fatbirderUrl(info.cc, info.name)); });
@@ -3837,6 +3848,145 @@
       "<table><thead>" + thead + "</thead><tbody>" + body + "</tbody></table>" +
       "</body></html>";
     openPrintWindow(html);
+  }
+
+  // ---- "Species in country": sample many cells covering the country ---------
+  // Single-point Species List inverts to: for each H3 cell tiling the country
+  // (at a configurable resolution) infer probabilities, then aggregate the
+  // peak probability per species across all cells. Cached by (cc, res) for
+  // cells and (cc, res, week) for the species-max vector.
+  var countryGeomCache = {}, countryCellsCache = {}, countryMaxCache = {};
+  var SP_COUNTRY_MAX_CELLS = 8000;
+  function pointInRing(lng, lat, ring) {
+    var inside = false;
+    for (var i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      var xi = ring[i][0], yi = ring[i][1], xj = ring[j][0], yj = ring[j][1];
+      if (((yi > lat) !== (yj > lat)) && (lng < (xj - xi) * (lat - yi) / ((yj - yi) || 1e-12) + xi)) inside = !inside;
+    }
+    return inside;
+  }
+  function bboxOfRing(ring) {
+    var b = { minLat: 90, maxLat: -90, minLng: 180, maxLng: -180 };
+    for (var i = 0; i < ring.length; i++) {
+      var p = ring[i]; if (p[1] < b.minLat) b.minLat = p[1]; if (p[1] > b.maxLat) b.maxLat = p[1];
+      if (p[0] < b.minLng) b.minLng = p[0]; if (p[0] > b.maxLng) b.maxLng = p[0];
+    }
+    return b;
+  }
+  // Nominatim returns the country polygon (GeoJSON) when polygon_geojson=1.
+  function fetchCountryGeometry(cc, lat, lon) {
+    if (countryGeomCache[cc]) return Promise.resolve(countryGeomCache[cc]);
+    var url = "https://nominatim.openstreetmap.org/reverse?format=json&zoom=3&addressdetails=0&polygon_geojson=1&lat=" + lat + "&lon=" + lon;
+    return fetch(url, { headers: { Accept: "application/json" } }).then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) { var g = j && j.geojson; if (g && (g.type === "Polygon" || g.type === "MultiPolygon")) { countryGeomCache[cc] = g; return g; } return null; })
+      .catch(function () { return null; });
+  }
+  // H3 cells (at res) covering the country polygon. Try h3 polygonToCells; on
+  // failure (large geometries can throw) fall back to a bbox grid filtered by
+  // point-in-polygon.
+  function cellsCoveringCountry(geom, res) {
+    var polygons = geom.type === "Polygon" ? [geom.coordinates] : geom.coordinates;
+    var out = Object.create(null);
+    polygons.forEach(function (poly) {
+      var added = false;
+      try {
+        var cells = window.h3.polygonToCells(poly, res, true);   // isGeoJson = true ([lng,lat])
+        if (cells && cells.length) { for (var i = 0; i < cells.length; i++) out[cells[i]] = 1; added = true; }
+      } catch (e) { /* fall through */ }
+      if (!added) {
+        var outer = poly[0], b = bboxOfRing(outer);
+        var edgeKm = window.h3.getHexagonEdgeLengthAvg(res, "km");
+        var stepLat = Math.max(0.005, edgeKm / 111 * 0.7);
+        var stepLng = stepLat / Math.max(0.1, Math.cos(((b.minLat + b.maxLat) / 2) * Math.PI / 180));
+        for (var la = b.minLat; la <= b.maxLat + 1e-9; la += stepLat) {
+          for (var ln = b.minLng; ln <= b.maxLng + 1e-9; ln += stepLng) {
+            if (pointInRing(ln, la, outer)) out[window.h3.latLngToCell(la, ln, res)] = 1;
+          }
+        }
+      }
+    });
+    return Object.keys(out);
+  }
+  // For each H3 cell in `cells`, infer (lat, lon, week); keep the per-species
+  // max across all cells. One worker call per CHUNK; the raw output is
+  // reduced batch-by-batch so memory stays bounded.
+  async function speciesMaxAcrossCells(cells, week, progress) {
+    var nSpecies = labels.length, CHUNK = inferChunk();
+    var maxArr = new Float32Array(nSpecies);
+    for (var s = 0; s < cells.length; s += CHUNK) {
+      var batch = cells.slice(s, s + CHUNK);
+      var inputs = new Float32Array(batch.length * 3);
+      for (var j = 0; j < batch.length; j++) {
+        var ll = window.h3.cellToLatLng(batch[j]);
+        inputs[j * 3] = ll[0]; inputs[j * 3 + 1] = ll[1]; inputs[j * 3 + 2] = week;
+      }
+      var out = await runInference(inputs, batch.length);
+      for (var k = 0; k < batch.length; k++) {
+        var base = k * nSpecies;
+        for (var i = 0; i < nSpecies; i++) { var v = out[base + i]; if (v > maxArr[i]) maxArr[i] = v; }
+      }
+      if (progress) progress(Math.min(s + batch.length, cells.length), cells.length);
+    }
+    return maxArr;
+  }
+  async function renderSpeciesInCountry(lat, lon) {
+    var info = await countryInfo(lat, lon);
+    if (!info.cc) { setStatus(t("status.error", { msg: "country lookup failed" })); return; }
+    var res = +window.GeoState.get("countryRes", 4) || 4;
+    var week = +document.getElementById("week-select").value;
+    var pmin = +document.getElementById("prob-min").value / 100;
+    var pmax = +document.getElementById("prob-max").value / 100;
+    setStatus(t("status.countryGeo", { country: info.name || info.cc }));
+    showComputingOverlay(true, info.name || info.cc);
+    try {
+      var geom = await fetchCountryGeometry(info.cc, lat, lon);
+      if (!geom) { setStatus(t("status.error", { msg: "country geometry unavailable" })); return; }
+      var cellsKey = info.cc + ":" + res;
+      var cells = countryCellsCache[cellsKey] || (countryCellsCache[cellsKey] = cellsCoveringCountry(geom, res));
+      if (!cells.length) { setStatus(t("status.error", { msg: "no cells" })); return; }
+      if (cells.length > SP_COUNTRY_MAX_CELLS) { setStatus(t("status.countryTooMany", { n: cells.length, max: SP_COUNTRY_MAX_CELLS })); return; }
+      var maxKey = info.cc + ":" + res + ":" + week;
+      var maxArr = countryMaxCache[maxKey];
+      if (!maxArr) {
+        setStatus(t("status.countrySampling", { country: info.name || info.cc, n: cells.length, week: week, res: res }));
+        maxArr = await speciesMaxAcrossCells(cells, week, function (done, total) {
+          setComputeProgress(done / total);
+        });
+        countryMaxCache[maxKey] = maxArr;
+      }
+      var results = [];
+      for (var i = 0; i < labels.length; i++) {
+        if (maxArr[i] >= pmin && maxArr[i] <= pmax && inGroup(i) && !isHidden(labels[i].key)) results.push({ label: labels[i], prob: maxArr[i] });
+      }
+      results.sort(function (a, b) { return b.prob - a.prob; });
+      document.getElementById("sp-delta-head").textContent = "";
+      var tbl = document.getElementById("species-list-table");
+      tbl.classList.toggle("has-name2", !!secondLang);
+      document.getElementById("sp-name2-head").textContent = secondLang ? window.GeoI18N.langByCode(secondLang).name : "";
+      document.getElementById("sp-coords").textContent = t("sp.countrySummary", { country: info.name || info.cc, n: cells.length, week: week, ns: results.length, p: (pmin * 100).toFixed(0) });
+      document.getElementById("sp-tbody").innerHTML = results.map(function (r) {
+        var name2Cell = '<td class="name2">' + (secondLang ? escapeHtml(secondName(r.label)) : "") + "</td>";
+        return "<tr><td>" + nameLinkHtml(r.label) + "</td>" + name2Cell + '<td style="font-style:italic">' + escapeHtml(r.label.sci) + "</td><td>" +
+          (r.prob * 100).toFixed(1) + '%</td><td class="prob-bar-cell"><div class="prob-bar" style="width:' + Math.round(r.prob * 100) + '%"></div></td><td></td></tr>';
+      }).join("");
+      var sp = document.getElementById("species-panel");
+      sp.classList.toggle("as-page", currentMode === "list");
+      sp.style.display = "block";
+      if (currentMode === "list") sp.scrollTop = 0;
+      document.getElementById("barchart-panel").style.display = "none";
+      setStatus(t("status.countryDone", { country: info.name || info.cc, ns: results.length, n: cells.length }));
+      // CSV download.
+      var lines = ["rank,species_code,common_name" + (secondLang ? ",common_name_" + secondLang : "") + ",scientific_name,max_probability"];
+      results.forEach(function (r, idx) {
+        var line = (idx + 1) + ',"' + r.label.key + '","' + speciesName(r.label).replace(/"/g, '""') + '"';
+        if (secondLang) line += ',"' + secondName(r.label).replace(/"/g, '""') + '"';
+        line += ',"' + r.label.sci.replace(/"/g, '""') + '",' + r.prob.toFixed(6);
+        lines.push(line);
+      });
+      lastCsvData = { filename: "Geomodel_country_" + info.cc + "_week" + week + "_res" + res + ".csv", content: lines.join("\n") };
+      showCsvBtn();
+    } catch (e) { setStatus(t("status.error", { msg: e.message })); console.error(e); }
+    finally { showComputingOverlay(false); }
   }
 
   async function renderSpeciesList(lat, lon) {
