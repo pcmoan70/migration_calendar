@@ -566,9 +566,9 @@
   // GBIF occurrences in a 25 km box over a date range. GBIF has no server-side
   // date sort, so we page the date-filtered results (up to ~900) and sort
   // client-side, returning the 100 most recent.
-  async function gbifRecent(sci, lat, lon, range) {
+  async function gbifRecent(sci, lat, lon, range, radiusKm) {
     var base = "https://api.gbif.org/v1/occurrence/search?hasCoordinate=true&limit=300&scientificName=" +
-      encodeURIComponent(sci) + "&geometry=" + encodeURIComponent(gbifGeometry(lat, lon, 12.5)) +
+      encodeURIComponent(sci) + "&geometry=" + encodeURIComponent(gbifGeometry(lat, lon, radiusKm || 25)) +
       "&eventDate=" + encodeURIComponent(range);
     var all = [], offset = 0, total = Infinity, pages = 0;
     while (offset < total && pages < 3) {
@@ -597,10 +597,10 @@
   }
 
   // iNaturalist observations (live everywhere) for the same window, newest first.
-  async function inatRecent(sci, lat, lon, d1, d2) {
+  async function inatRecent(sci, lat, lon, d1, d2, radiusKm) {
     var url = "https://api.inaturalist.org/v1/observations?verifiable=true&order_by=observed_on&order=desc&per_page=100" +
       "&d1=" + d1 + "&d2=" + d2 + "&taxon_name=" + encodeURIComponent(sci) +
-      "&lat=" + lat.toFixed(4) + "&lng=" + lon.toFixed(4) + "&radius=25";
+      "&lat=" + lat.toFixed(4) + "&lng=" + lon.toFixed(4) + "&radius=" + (radiusKm || 25);
     var j = await (await fetch(url)).json();
     return ((j && j.results) || []).map(function (o) {
       // Coordinates: geojson is [lon, lat]; fall back to the "lat,lon" string.
@@ -620,6 +620,11 @@
       };
     });
   }
+
+  // Configured search radius (km) for the merged recent-sightings list across
+  // GBIF / eBird / iNaturalist. eBird's API caps dist at 50 km, so values
+  // above that affect GBIF/iNat only.
+  function recentRadiusKm() { return +window.GeoState.get("recentRadiusKm", 25) || 25; }
 
   // User's personal eBird API token (kept in localStorage; never shared).
   // The eBird token lives in its own localStorage entry (not the shared app
@@ -642,11 +647,12 @@
   // Recent eBird observations of one species near a point. The app's species
   // keys ARE eBird species codes, so this is a single call. eBird caps the
   // lookback at 30 days and the radius at 50 km. Needs the user's API token.
-  async function ebirdRecent(key, lat, lon) {
+  async function ebirdRecent(key, lat, lon, radiusKm) {
     var tok = ebirdKey();
     if (!tok || !key) return [];
+    var dist = Math.max(1, Math.min(50, radiusKm || 25));   // eBird caps dist at 50 km
     var url = "https://api.ebird.org/v2/data/obs/geo/recent/" + encodeURIComponent(key) +
-      "?lat=" + lat.toFixed(4) + "&lng=" + lon.toFixed(4) + "&dist=25&back=30&maxResults=100&includeProvisional=true";
+      "?lat=" + lat.toFixed(4) + "&lng=" + lon.toFixed(4) + "&dist=" + dist + "&back=30&maxResults=100&includeProvisional=true";
     var r = await fetch(url, { headers: { "X-eBirdApiToken": tok } });
     if (!r.ok) return [];
     var j = await r.json();
@@ -733,18 +739,19 @@
         var badge = '<span class="rc-src rc-src-' + srcSlug(r.src) + '" title="' + escapeHtml(r.origin || r.src) + '">' + escapeHtml(label || "") + "</span>";
         return '<tr><td class="rc-date">' + escapeHtml(r.date) + '</td><td class="rc-srccell">' + badge + '</td><td class="rc-place">' + cell + '</td><td class="rc-who">' + escapeHtml(r.who) + "</td></tr>";
       }).join("");
-      body.innerHTML = '<div class="recent-head"><span class="recent-src">' + escapeHtml(cap + " · " + d1 + " – " + d2) + "</span>" +
+      body.innerHTML = '<div class="recent-head"><span class="recent-src">' + escapeHtml(cap + " · " + d1 + " – " + d2 + " · " + recentRadiusKm() + " km") + "</span>" +
         '<span class="recent-head-btns"><button type="button" id="recent-map">' + escapeHtml(t("recent.showInMap")) + "</button>" +
         '<button type="button" id="recent-dl">' + escapeHtml(t("recent.download")) + "</button></span></div>" +
         '<table class="recent-table"><tbody>' + html + "</tbody></table>" + links();
     }
 
     try {
+      var rkm = recentRadiusKm();
       var wantEbird = key && isBirdKey(key) && ebirdKey();
       var results = await Promise.all([
-        gbifRecent(sci, lat, lon, range).catch(function () { return []; }),
-        inatRecent(sci, lat, lon, d1, d2).catch(function () { return []; }),
-        wantEbird ? ebirdRecent(key, lat, lon).catch(function () { return []; }) : Promise.resolve([])
+        gbifRecent(sci, lat, lon, range, rkm).catch(function () { return []; }),
+        inatRecent(sci, lat, lon, d1, d2, rkm).catch(function () { return []; }),
+        wantEbird ? ebirdRecent(key, lat, lon, rkm).catch(function () { return []; }) : Promise.resolve([])
       ]);
       if (token !== recentToken) return;
       var rows = results[0].concat(results[1], results[2]);
@@ -1002,6 +1009,12 @@
                 '<label for="country-res" data-i18n="ctrl.countryres">Country sampling resolution</label>' +
                 '<select id="country-res">' +
                   '<option value="3">3 · ~60 km</option><option value="4">4 · ~22 km</option><option value="5">5 · ~8 km</option><option value="6">6 · ~3 km</option>' +
+                '</select>' +
+              '</div>' +
+              '<div class="ctrl-group">' +
+                '<label for="recent-radius" data-i18n="ctrl.recentradius">Sightings radius</label>' +
+                '<select id="recent-radius">' +
+                  '<option value="5">5 km</option><option value="10">10 km</option><option value="25">25 km</option><option value="50">50 km</option><option value="100">100 km</option>' +
                 '</select>' +
               '</div>' +
               '<div class="ctrl-group" id="barchart-threshold-wrap" style="display:none">' +
@@ -1904,6 +1917,10 @@
     var crEl = document.getElementById("country-res");
     crEl.value = String(+window.GeoState.get("countryRes", 4) || 4);
     crEl.addEventListener("change", function () { window.GeoState.save({ countryRes: +this.value || 4 }); });
+
+    var rrEl = document.getElementById("recent-radius");
+    rrEl.value = String(+window.GeoState.get("recentRadiusKm", 25) || 25);
+    rrEl.addEventListener("change", function () { window.GeoState.save({ recentRadiusKm: +this.value || 25 }); });
 
     document.getElementById("maptype-select").addEventListener("change", function () {
       setBasemap(this.value);
