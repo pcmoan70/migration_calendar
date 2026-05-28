@@ -2155,8 +2155,15 @@
       window.GeoState.save({ probMin: lo, probMax: hi });
       if (currentMode === "barchart" && analysisData) { renderActiveTab(); return; }
       // Range: re-filter the cached overlay (no re-inference — the filter is
-      // applied at draw time). List/Range: also refresh the per-point list.
+      // applied at draw time).
       if (currentMode === "range" && cachedRender) paintOverlay();
+      // Country list: re-evaluate the merge vs the eBird country list at the
+      // new threshold (cached aggs/cells/spp — instant, no inference). Must
+      // come before rerenderPointList so the per-point path doesn't clobber it.
+      if (currentSpView && currentSpView.mode === "country" && document.getElementById("species-panel").style.display !== "none") {
+        renderSpeciesInCountry(currentSpView.lat, currentSpView.lon);
+        return;
+      }
       rerenderPointList();
     }
     document.getElementById("prob-min").addEventListener("input", onProbRange);
