@@ -662,6 +662,113 @@
   // above that affect GBIF/iNat only.
   function recentRadiusKm() { return +window.GeoState.get("recentRadiusKm", 25) || 25; }
 
+  // ---- All-species sightings (for per-point species-list augmentation) ------
+  // Fetch GBIF + iNaturalist + (with key) eBird detections at the clicked
+  // point WITHOUT a species filter, then aggregate by the model's species key
+  // so each row in the Species List can show count + days-since-most-recent.
+  var sciByLower = null;
+  function ensureSciIndex() {
+    if (sciByLower) return sciByLower;
+    sciByLower = Object.create(null);
+    labels.forEach(function (l) { if (l.sci) sciByLower[l.sci.toLowerCase()] = l; });
+    return sciByLower;
+  }
+  var allSightingsCache = {};   // "lat,lon" rounded -> Promise<aggregated map>
+  async function fetchGbifAll(lat, lon, range, rkm) {
+    var base = "https://api.gbif.org/v1/occurrence/search?hasCoordinate=true&limit=300&geometry=" +
+      encodeURIComponent(gbifGeometry(lat, lon, rkm)) + "&eventDate=" + encodeURIComponent(range);
+    var all = [], offset = 0;
+    for (var pages = 0; pages < 4; pages++) {
+      var j = await (await fetch(base + "&offset=" + offset)).json();
+      var res = j.results || []; all = all.concat(res);
+      if (res.length < 300) break;
+      offset += 300;
+    }
+    return all;
+  }
+  async function fetchInatAll(lat, lon, d1, d2, rkm) {
+    var base = "https://api.inaturalist.org/v1/observations?verifiable=true&order_by=observed_on&order=desc&per_page=200&d1=" +
+      d1 + "&d2=" + d2 + "&lat=" + lat.toFixed(4) + "&lng=" + lon.toFixed(4) + "&radius=" + rkm;
+    var all = [];
+    for (var page = 1; page <= 4; page++) {
+      var j = await (await fetch(base + "&page=" + page)).json();
+      var res = (j && j.results) || []; all = all.concat(res);
+      if (res.length < 200) break;
+    }
+    return all;
+  }
+  async function fetchEbirdAll(lat, lon, tok, rkm) {
+    var dist = Math.max(1, Math.min(50, rkm));
+    var url = "https://api.ebird.org/v2/data/obs/geo/recent?lat=" + lat.toFixed(4) + "&lng=" + lon.toFixed(4) +
+      "&dist=" + dist + "&back=30&maxResults=10000&includeProvisional=true";
+    var r = await fetch(url, { headers: { "X-eBirdApiToken": tok } });
+    return r.ok ? await r.json() : [];
+  }
+  function aggregateSightings(gbif, inat, ebird) {
+    var sci = ensureSciIndex();
+    var agg = Object.create(null);   // key -> { count, latestTs }
+    function bump(key, dt) {
+      if (!key) return;
+      if (!agg[key]) agg[key] = { count: 0, latestTs: 0 };
+      agg[key].count++;
+      var t = Date.parse(dt); if (!isNaN(t) && t > agg[key].latestTs) agg[key].latestTs = t;
+    }
+    (gbif || []).forEach(function (o) {
+      var name = (o.species || o.scientificName || "").toLowerCase();
+      var lbl = sci[name]; if (lbl) bump(lbl.key, o.eventDate);
+    });
+    (inat || []).forEach(function (o) {
+      var name = (o.taxon && o.taxon.name || "").toLowerCase();
+      var lbl = sci[name]; if (lbl) bump(lbl.key, o.observed_on || o.time_observed_at);
+    });
+    (ebird || []).forEach(function (o) {
+      if (labelsByKey[o.speciesCode]) bump(o.speciesCode, o.obsDt);
+    });
+    return agg;
+  }
+  // Cached fetch of every species' recent detections at a point (last 30 days).
+  function fetchAllSightingsAt(lat, lon) {
+    var rkm = recentRadiusKm();
+    var ck = lat.toFixed(2) + "," + lon.toFixed(2) + ":" + rkm;
+    if (allSightingsCache[ck]) return allSightingsCache[ck];
+    var to = new Date(), from = new Date(); from.setDate(from.getDate() - 30);
+    var fmtD = function (d) { return d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2); };
+    var d1 = fmtD(from), d2 = fmtD(to), range = d1 + "," + d2;
+    var tok = ebirdKey();
+    var pr = Promise.all([
+      fetchGbifAll(lat, lon, range, rkm).catch(function () { return []; }),
+      fetchInatAll(lat, lon, d1, d2, rkm).catch(function () { return []; }),
+      tok ? fetchEbirdAll(lat, lon, tok, rkm).catch(function () { return []; }) : Promise.resolve([])
+    ]).then(function (r) { return aggregateSightings(r[0], r[1], r[2]); });
+    allSightingsCache[ck] = pr;
+    return pr;
+  }
+  // Populate the per-point species-list rows with count + days-since-most-recent
+  // from the cached all-species fetch. Cells stay blank for species without any
+  // detection in the last 30 days; counts >0 become clickable.
+  function augmentRowsWithSightings(lat, lon) {
+    var token = lat.toFixed(4) + "," + lon.toFixed(4);
+    var tbody = document.getElementById("sp-tbody");
+    if (tbody) tbody.dataset.sightingsToken = token;   // supersede if another click arrives
+    fetchAllSightingsAt(lat, lon).then(function (agg) {
+      if (!tbody || tbody.dataset.sightingsToken !== token) return;
+      tbody.querySelectorAll(".det-count").forEach(function (td) {
+        var key = td.getAttribute("data-key");
+        var entry = agg[key];
+        var ageTd = td.nextElementSibling;
+        if (!entry || !entry.count) {
+          td.textContent = ""; if (ageTd) ageTd.textContent = "";
+          return;
+        }
+        td.innerHTML = '<button type="button" class="det-count-btn" data-key="' + escapeHtml(key) + '">' + entry.count + "</button>";
+        if (ageTd && entry.latestTs) {
+          var days = Math.max(0, Math.round((Date.now() - entry.latestTs) / 86400000));
+          ageTd.textContent = days + "d";
+        }
+      });
+    }).catch(function () { /* keep "…" placeholders silently */ });
+  }
+
   // User's personal eBird API token (kept in localStorage; never shared).
   // The eBird token lives in its own localStorage entry (not the shared app
   // state) so it always persists across reloads. Older builds stored it inside
@@ -1093,7 +1200,7 @@
             '<button id="sp-pdf-btn" class="demo-btn demo-btn-light" title="Download PDF">⬇ PDF</button>' +
           '</div>' +
           '<table id="species-list-table">' +
-            '<thead><tr><th id="sp-species-head" data-i18n="th.species">Species</th><th class="name2" id="sp-name2-head"></th><th data-i18n="th.sci">Scientific name</th><th id="sp-prob-head" data-i18n="th.prob">Probability</th><th></th><th id="sp-delta-head"></th></tr></thead>' +
+            '<thead><tr><th id="sp-species-head" data-i18n="th.species">Species</th><th class="name2" id="sp-name2-head"></th><th data-i18n="th.sci">Scientific name</th><th id="sp-prob-head" data-i18n="th.prob">Probability</th><th></th><th class="num" data-i18n="th.count">#</th><th class="num" data-i18n="th.age">Age</th><th id="sp-delta-head"></th></tr></thead>' +
             '<tbody id="sp-tbody"></tbody>' +
           '</table>' +
         '</div>' +
@@ -2397,6 +2504,16 @@
       renderFieldChecklist(ll.lat, ll.lng);
     });
     document.getElementById("sp-pdf-btn").addEventListener("click", exportSpeciesPdf);
+
+    // Click a count cell in the per-point species list to open the recent-
+    // sightings panel for that species (multi-source merge with Show in map).
+    document.getElementById("sp-tbody").addEventListener("click", function (e) {
+      var btn = e.target.closest && e.target.closest(".det-count-btn");
+      if (!btn) return;
+      var key = btn.getAttribute("data-key"), lbl = labelsByKey[key];
+      if (!lbl || !currentSpView || currentSpView.mode !== "point") return;
+      showRecent(speciesName(lbl), lbl.sci, currentSpView.lat, currentSpView.lon, key);
+    });
 
     // Click the "Species" column header to cycle the list filter through three
     // states: default → only ★ interesting → only 🚫 hidden → default. Lets
@@ -4305,7 +4422,7 @@
         else if (r.inModel && r.inList) chip = '<span class="src-chip src-both" title="' + escapeHtml(t("src.both")) + '">✓</span>';
         else if (r.inModel) chip = '<span class="src-chip src-model" title="' + escapeHtml(t("src.modelOnly")) + '">?</span>';
         else chip = '<span class="src-chip src-list" title="' + escapeHtml(t("src.listOnly")) + '">●</span>';
-        return "<tr" + (!r.inModel ? ' class="row-list-only"' : "") + "><td>" + nameLinkHtml(r.label) + "</td>" + name2Cell + '<td style="font-style:italic">' + escapeHtml(r.label.sci) + "</td>" + probCell + "<td>" + chip + "</td></tr>";
+        return "<tr" + (!r.inModel ? ' class="row-list-only"' : "") + "><td>" + nameLinkHtml(r.label) + "</td>" + name2Cell + '<td style="font-style:italic">' + escapeHtml(r.label.sci) + "</td>" + probCell + '<td class="num"></td><td class="num"></td><td>' + chip + "</td></tr>";
       }).join("");
       var sp = document.getElementById("species-panel");
       sp.classList.toggle("as-page", currentMode === "list");
@@ -4385,9 +4502,10 @@
       document.getElementById("sp-tbody").innerHTML = results.map(function (r) {
         var cmpCell = !hasCompare ? "<td></td>" : cmpAllPositive ? cmpBarCell(kind, r.cmpVal) : deltaCell(r.cmpVal);
         var name2Cell = '<td class="name2">' + (secondLang ? escapeHtml(secondName(r.label)) : "") + '</td>';
+        var dKey = escapeHtml(r.label.key);
         return '<tr><td>' + nameLinkHtml(r.label) + '</td>' + name2Cell + '<td style="font-style:italic">' +
                escapeHtml(r.label.sci) + '</td><td>' + (r.prob * 100).toFixed(1) + '%</td><td class="prob-bar-cell"><div class="prob-bar" style="width:' +
-               Math.round(r.prob * 100) + '%"></div></td>' + cmpCell + '</tr>';
+               Math.round(r.prob * 100) + '%"></div></td><td class="num det-count" data-key="' + dKey + '">…</td><td class="num det-age">…</td>' + cmpCell + '</tr>';
       }).join("");
       var sp = document.getElementById("species-panel");
       // In Species-List mode show the list as a full-screen page; in Range mode
@@ -4416,6 +4534,8 @@
         content: csvLines.join("\n")
       };
       // Snapshot the displayed rows/columns for the printable PDF export.
+      // Augment rows with all-species recent-detection counts + age (last 30 d).
+      augmentRowsWithSightings(lat, lon);
       lastSpeciesPdf = {
         name2Head: secondLang ? window.GeoI18N.langByCode(secondLang).name : "",
         cmpHead: document.getElementById("sp-delta-head").textContent || "",

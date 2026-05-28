@@ -1465,6 +1465,11 @@ table.recent-table .rc-srccell { white-space: nowrap; }
 th.clickable-head { cursor: pointer; user-select: none; }
 th.clickable-head:hover { text-decoration: underline; }
 
+/* Per-point species list: clickable "# Recent" button → opens recent panel. */
+.det-count-btn { cursor: pointer; border: none; background: transparent; padding: 0 2px;
+  color: var(--brand-strong, var(--brand)); font: inherit; font-weight: 600; }
+.det-count-btn:hover { text-decoration: underline; }
+
 /* ★ next to interesting species in lists/cards/legends. */
 .int-star { color: #f0a020; font-weight: 700; }
 
