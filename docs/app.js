@@ -483,19 +483,77 @@
     var s = Math.max(-90, lat - dLat), n = Math.min(90, lat + dLat), w = lon - dLon, e = lon + dLon;
     return "POLYGON((" + w + " " + s + "," + e + " " + s + "," + e + " " + n + "," + w + " " + n + "," + w + " " + s + "))";
   }
+  // ISO-3166 alpha-2 → Fatbirder country page (continent/slug). Fatbirder uses
+  // each country's full official name (Kingdom of …, Republic of …, …), so we
+  // bundle a map rather than try to derive it. Countries not in the map fall
+  // back to a Fatbirder site search.
+  var FB_COUNTRY = {
+    AD:"europe/principality-of-andorra",AL:"europe/albanian-republic",AM:"europe/republic-of-armenia",
+    AR:"south-america/argentine-republic",AT:"europe/republic-of-austria",AU:"oceania/commonwealth-of-australia",
+    AZ:"europe/republic-of-azerbaijan",BA:"europe/bosnia-and-herzegovina",BE:"europe/kingdom-of-belgium",
+    BG:"europe/republic-of-bulgaria",BO:"south-america/plurinational-state-of-bolivia",
+    BR:"south-america/federative-republic-of-brazil",BW:"africa/republic-of-botswana",
+    BY:"europe/republic-of-belarus",CA:"north-america/canada",CL:"south-america/republic-of-chile",
+    CN:"asia/peoples-republic-of-china",CO:"south-america/republic-of-colombia",
+    CY:"europe/republic-of-cyprus",CZ:"europe/czech-republic",DE:"europe/federal-republic-of-germany",
+    DK:"europe/kingdom-of-denmark",EC:"south-america/republic-of-ecuador",EE:"europe/republic-of-estonia",
+    EG:"africa/arab-republic-of-egypt",ES:"europe/kingdom-of-spain",
+    ET:"africa/federal-democratic-republic-of-ethiopia",FI:"europe/republic-of-finland",
+    FR:"europe/french-republic",GB:"europe/united-kingdom",GE:"europe/georgia",
+    GI:"europe/gibraltar",GR:"europe/hellenic-republic",HR:"europe/republic-of-croatia",
+    HU:"europe/hungary",ID:"asia/republic-of-indonesia",IE:"europe/irish-republic",
+    IL:"asia/state-of-israel",IN:"asia/republic-of-india",IR:"asia/islamic-republic-of-iran",
+    IS:"europe/iceland",IT:"europe/italian-republic",JP:"asia/japan",
+    KE:"africa/republic-of-kenya",KR:"asia/republic-of-korea",
+    LI:"europe/principality-of-liechtenstein",LT:"europe/lithuania",
+    LU:"europe/grand-duchy-of-luxembourg",LV:"europe/republic-of-latvia",
+    MA:"africa/kingdom-of-morocco",MC:"europe/principality-of-monaco",
+    MD:"europe/republic-of-moldova",ME:"europe/montenegro",
+    MK:"europe/republic-of-north-macedonia",MT:"europe/republic-of-malta",
+    MX:"north-america/united-mexican-states",MY:"asia/malaysia",
+    NA:"africa/republic-of-namibia",NL:"europe/netherlands",
+    NO:"europe/kingdom-of-norway",NZ:"oceania/new-zealand",
+    PE:"south-america/republic-of-peru",PH:"asia/republic-of-the-philippines",
+    PL:"europe/republic-of-poland",PT:"europe/portuguese-republic",
+    RO:"europe/romania",RS:"europe/republic-of-serbia",
+    RU:"europe/russian-federation",SA:"asia/kingdom-of-saudi-arabia",
+    SE:"europe/kingdom-of-sweden",SG:"asia/republic-of-singapore",
+    SI:"europe/republic-of-slovenia",SK:"europe/slovak-republic",
+    SM:"europe/republic-of-san-marino",TH:"asia/kingdom-of-thailand",
+    TR:"europe/republic-of-turkey",TZ:"africa/united-republic-of-tanzania",
+    UA:"europe/ukraine",UG:"africa/republic-of-uganda",
+    AE:"asia/united-arab-emirates",US:"north-america/united-states-of-america",
+    VE:"south-america/bolivarian-republic-of-venezuela",
+    VN:"asia/socialist-republic-of-vietnam",ZA:"africa/republic-of-south-africa"
+  };
+  function fatbirderUrl(cc, name) {
+    if (cc && FB_COUNTRY[cc]) return "https://fatbirder.com/world-birding/" + FB_COUNTRY[cc] + "/";
+    return "https://fatbirder.com/?s=" + encodeURIComponent(name || cc || "");
+  }
+  // BirdLife DataZone factsheet for a country. Their canonical URL uses the
+  // English country name lowercased and hyphen-separated (verified: monaco,
+  // norway, united-kingdom, united-states-of-america all resolve).
+  function birdLifeCountryUrl(cc, name) {
+    if (!name) return "https://datazone.birdlife.org/";
+    var slug = String(name).toLowerCase().replace(/[^a-z]+/g, "-").replace(/^-|-$/g, "");
+    return "https://datazone.birdlife.org/country/factsheet/" + slug + "/";
+  }
+
   // Reverse-geocode the ISO-3166 alpha-2 country code for a point (cached).
-  var countryCache = {};
-  function countryCode(lat, lon) {
+  var countryCache = {};   // key -> { cc, name }
+  function countryInfo(lat, lon) {
     var k = lat.toFixed(2) + "," + lon.toFixed(2);
     if (countryCache[k] !== undefined) return Promise.resolve(countryCache[k]);
-    return fetch("https://nominatim.openstreetmap.org/reverse?format=json&zoom=3&addressdetails=1&lat=" + lat + "&lon=" + lon, { headers: { Accept: "application/json" } })
+    return fetch("https://nominatim.openstreetmap.org/reverse?format=json&zoom=3&addressdetails=1&accept-language=en&lat=" + lat + "&lon=" + lon, { headers: { Accept: "application/json" } })
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (j) {
-        var cc = j && j.address && j.address.country_code ? j.address.country_code.toUpperCase() : "";
-        countryCache[k] = cc; return cc;
+        var addr = (j && j.address) || {};
+        var info = { cc: (addr.country_code || "").toUpperCase(), name: addr.country || "" };
+        countryCache[k] = info; return info;
       })
-      .catch(function () { countryCache[k] = ""; return ""; });
+      .catch(function () { var info = { cc: "", name: "" }; countryCache[k] = info; return info; });
   }
+  function countryCode(lat, lon) { return countryInfo(lat, lon).then(function (i) { return i.cc; }); }
 
   // GBIF occurrences in a 25 km box over a date range. GBIF has no server-side
   // date sort, so we page the date-filtered results (up to ~900) and sort
@@ -2914,12 +2972,21 @@
     return b;
   }
 
-  // Species-List click: choose the Species list or the (tickable) Checklist.
+  // Map-click popup: choose the Species list, or open the country's Fatbirder /
+  // BirdLife page (resolved by reverse-geocoding the point). Checklists are
+  // started from within the Species list itself.
   function bindPointPopup(mk, lat, lon) {
     var wrap = document.createElement("div");
     wrap.className = "map-choose";
     wrap.appendChild(makePopupBtn(t("mode.list"), "", function () { mk.closePopup(); renderSpeciesList(lat, lon); }));
-    wrap.appendChild(makePopupBtn(t("btn.checklist"), "", function () { mk.closePopup(); renderFieldChecklist(lat, lon); }));
+    wrap.appendChild(makePopupBtn(t("link.fatbirder"), "demo-btn-light", function () {
+      mk.closePopup();
+      countryInfo(lat, lon).then(function (info) { openExternal(fatbirderUrl(info.cc, info.name)); });
+    }));
+    wrap.appendChild(makePopupBtn(t("link.birdlife"), "demo-btn-light", function () {
+      mk.closePopup();
+      countryInfo(lat, lon).then(function (info) { openExternal(birdLifeCountryUrl(info.cc, info.name)); });
+    }));
     mk.bindPopup(wrap, { closeButton: true, autoClose: false, autoPan: true, className: "choose-popup", offset: [0, -8] });
     mk.openPopup();
   }
