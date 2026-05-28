@@ -1700,6 +1700,15 @@ tr.row-list-only .prob-na { color: var(--ink-muted, #999); }
 .fcp-step[data-step="-1"], .fcp-step[data-step="1"] { font-size: 1.6rem; }
 .fcp-step:active { background: var(--md-code-bg-color, #eee); }
 .fcp-val { flex: 0 0 auto; min-width: 56px; padding: 0 4px; text-align: center; font-size: 1.5rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+/* Sex cycle button on each card: none → ♂ → ♀ → ⚥ → ♀? → none */
+.fc-sex-btn {
+  flex: 0 0 auto; width: 36px; height: 36px; box-sizing: border-box; cursor: pointer;
+  padding: 0; font-size: 1rem; line-height: 34px; text-align: center;
+  border: 1px solid var(--border, #d8e1dd); border-radius: 8px;
+  background: var(--surface, #fff); color: var(--ink-muted, #5b6f69);
+  font-variant-numeric: tabular-nums;
+}
+.fc-sex-btn.has-sex { color: var(--ink, inherit); background: var(--md-code-bg-color, #f6f8f7); border-color: var(--md-default-fg-color--light, #99a8a3); }
 /* Activity button: opens the scrollable activity picker (was a <select>). */
 .fc-act-btn { flex: 0 1 auto; max-width: 130px; height: 36px; box-sizing: border-box; cursor: pointer;
   padding: 0 10px; font-size: 0.9rem; line-height: 34px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;

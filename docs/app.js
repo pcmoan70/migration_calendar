@@ -2502,7 +2502,14 @@
         openFcActPicker(actBtn.getAttribute("data-key"), nmA ? nmA.textContent : "");
         return;
       }
-      if (e.target.closest(".fc-act-btn") || e.target.closest(".fc-tick") || e.target.closest(".fc-note") || e.target.closest(".fc-add")) return;
+      // Sex toggle: tap cycles none → ♂ → ♀ → ⚥ → ♀? → none.
+      var sexBtn = e.target.closest(".fc-sex-btn");
+      if (sexBtn) {
+        var sKey = sexBtn.getAttribute("data-key");
+        setFcSex(sKey, nextSex(cd(sKey).sex));
+        return;
+      }
+      if (e.target.closest(".fc-act-btn") || e.target.closest(".fc-sex-btn") || e.target.closest(".fc-tick") || e.target.closest(".fc-note") || e.target.closest(".fc-add")) return;
       var card = e.target.closest(".fc-card");
       if (card) { card.classList.add("fc-note-on"); var note = card.querySelector(".fc-note"); if (note) note.focus(); }
     });
@@ -2668,6 +2675,7 @@
       var el = e.target, id = el.getAttribute && el.getAttribute("data-id"); if (!id) return;
       if (el.classList.contains("ent-count")) { var v = el.value.trim(); fcUpdateEntry(id, { count: v === "" ? null : (/^[0-9]+$/.test(v) ? +v : v) }); }
       else if (el.classList.contains("ent-act")) fcUpdateEntry(id, { act: el.value || "" });
+      else if (el.classList.contains("ent-sex")) fcUpdateEntry(id, { sex: el.value || "" });
       else if (el.classList.contains("ent-note")) fcUpdateEntry(id, { note: el.value });
     });
     entryList.addEventListener("click", function (e) {
@@ -3921,14 +3929,29 @@
   // Transient per-species compose draft backing the top-line inputs (count,
   // activity, note); not persisted until committed via ＋ or a first tick.
   var composeDraft = {};
-  function cd(key) { return composeDraft[key] || (composeDraft[key] = { count: null, act: "", note: "" }); }
+  function cd(key) { return composeDraft[key] || (composeDraft[key] = { count: null, act: "", note: "", sex: "" }); }
   function eid() { return "e" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
 
+  // Sex/age toggle on each log entry. Cycle order: none → male → female →
+  // couple → looks-female (female-type) → back to none. Default is none.
+  var SEX_CYCLE = ["", "m", "f", "p", "fl"];
+  function sexGlyph(s) {
+    return s === "m" ? "♂" : s === "f" ? "♀" : s === "p" ? "⚥" : s === "fl" ? "♀?" : "·";
+  }
+  function nextSex(cur) {
+    var i = SEX_CYCLE.indexOf(cur || ""); return SEX_CYCLE[(i + 1) % SEX_CYCLE.length];
+  }
+  function setFcSex(key, sex) {
+    cd(key).sex = sex || "";
+    var btn = document.querySelector('#field-list .fc-card[data-key="' + key + '"] .fc-sex-btn');
+    if (btn) { btn.textContent = sexGlyph(sex); btn.classList.toggle("has-sex", !!sex); }
+  }
+
   // Append an observation entry to the open list (with id, time, location).
-  function fcAppend(key, count, note, act) {
+  function fcAppend(key, count, note, act, sex) {
     var rec = curFieldRecord(true); if (!rec) return;
     var loc = regLocation(), eId = eid();
-    rec.log.push({ id: eId, ts: Date.now(), lat: loc.lat, lon: loc.lon, key: key, count: (count != null && count !== "" ? count : null), act: act || "", note: (note || "").trim() });
+    rec.log.push({ id: eId, ts: Date.now(), lat: loc.lat, lon: loc.lon, key: key, count: (count != null && count !== "" ? count : null), act: act || "", note: (note || "").trim(), sex: sex || "" });
     rec.seen = rec.seen || {}; rec.seen[key] = true;
     rec.lat = fieldLat; rec.lon = fieldLon;
     putFieldRecord(rec);
@@ -3937,8 +3960,8 @@
   // ＋ : commit the species' compose draft as a new entry, then clear it.
   function fcCommitCompose(key) {
     var d = composeDraft[key] || {};
-    fcAppend(key, d.count, d.note, d.act);
-    composeDraft[key] = { count: null, act: "", note: "" };
+    fcAppend(key, d.count, d.note, d.act, d.sex);
+    composeDraft[key] = { count: null, act: "", note: "", sex: "" };
   }
   // Checkbox: mark/unmark seen. Ticking a species with no entries writes a
   // first (possibly "present"/uncounted) entry from the compose draft;
@@ -3951,8 +3974,8 @@
       rec.seen[key] = true;
       if (!fcEntriesFor(rec, key).length) {
         var d = composeDraft[key] || {}, loc = regLocation(); newId = eid();
-        rec.log.push({ id: newId, ts: Date.now(), lat: loc.lat, lon: loc.lon, key: key, count: (d.count != null && d.count !== "" ? d.count : null), act: d.act || "", note: (d.note || "").trim() });
-        composeDraft[key] = { count: null, act: "", note: "" };
+        rec.log.push({ id: newId, ts: Date.now(), lat: loc.lat, lon: loc.lon, key: key, count: (d.count != null && d.count !== "" ? d.count : null), act: d.act || "", note: (d.note || "").trim(), sex: d.sex || "" });
+        composeDraft[key] = { count: null, act: "", note: "", sex: "" };
       }
     } else { delete rec.seen[key]; }
     rec.lat = fieldLat; rec.lon = fieldLon;
@@ -4256,6 +4279,7 @@
   function fcEntryStr(e) {
     var parts = [];
     if (e.count != null && e.count !== "") parts.push("×" + e.count);
+    if (e.sex) parts.push(sexGlyph(e.sex));
     var al = actLabel(e.act); if (al) parts.push(al);
     parts.push(fmtClock(e.ts));
     if (e.note) parts.push("“" + e.note + "”");
@@ -4299,6 +4323,7 @@
           '<span class="fc-name sp-link" data-key="' + escapeHtml(r.key) + '" data-name="' + escapeHtml(r.name) + '" data-sci="' + escapeHtml(lbl ? (lbl.sci || "") : "") + '">' + interestingStar(r.key) + escapeHtml(r.name) + badge + "</span>" +
           '<button type="button" class="fc-count' + (hasN ? " has-n" : "") + '" data-key="' + escapeHtml(r.key) + '">' + (hasN ? d.count : "#") + "</button>" +
           '<button type="button" class="fc-act-btn' + (d.act ? " has-act" : "") + '" data-key="' + escapeHtml(r.key) + '" title="' + escapeHtml(t("chk.activity")) + '">' + (d.act ? escapeHtml(actName(d.act)) : "🏷") + "</button>" +
+          '<button type="button" class="fc-sex-btn' + (d.sex ? " has-sex" : "") + '" data-key="' + escapeHtml(r.key) + '" title="' + escapeHtml(t("chk.sex")) + '">' + sexGlyph(d.sex || "") + "</button>" +
           '<button type="button" class="fc-add" data-key="' + escapeHtml(r.key) + '" title="' + escapeHtml(t("fc.add")) + '" aria-label="' + escapeHtml(t("fc.add")) + '">＋</button>' +
           '<input type="text" class="fc-note" data-key="' + escapeHtml(r.key) + '" placeholder="' + escapeHtml(t("th.notes")) + '" value="' + escapeHtml(d.note || "") + '" />' +
         "</div>" + entriesBlock +
@@ -4404,12 +4429,18 @@
       FIELD_ACTS.forEach(function (a) { h += '<option value="' + a + '"' + (sel === a ? " selected" : "") + ">" + escapeHtml(actName(a)) + "</option>"; });
       return h;
     };
+    var sexOpts = function (sel) {
+      return SEX_CYCLE.map(function (s) {
+        return '<option value="' + s + '"' + (sel === s ? " selected" : "") + ">" + sexGlyph(s) + "</option>";
+      }).join("");
+    };
     list.innerHTML = ents.map(function (e) {
       var meta = fmtClock(e.ts) + (e.lat != null ? " · " + e.lat.toFixed(3) + "," + e.lon.toFixed(3) : "");
       var singleAct = e.act && e.act.indexOf(" / ") < 0 ? e.act : "";   // merged activities aren't editable in the dropdown
       return '<div class="ent-row" data-id="' + escapeHtml(e.id) + '">' +
         '<label class="ent-sel-wrap"><input type="checkbox" class="ent-sel" data-id="' + escapeHtml(e.id) + '"></label>' +
         '<input type="text" class="ent-count" data-id="' + escapeHtml(e.id) + '" inputmode="numeric" value="' + escapeHtml(e.count != null ? String(e.count) : "") + '" placeholder="#" />' +
+        '<select class="ent-sex" data-id="' + escapeHtml(e.id) + '" title="' + escapeHtml(t("chk.sex")) + '">' + sexOpts(e.sex || "") + "</select>" +
         '<select class="ent-act" data-id="' + escapeHtml(e.id) + '">' + actOpts(singleAct) + "</select>" +
         '<input type="text" class="ent-note" data-id="' + escapeHtml(e.id) + '" value="' + escapeHtml(e.note || "") + '" placeholder="' + escapeHtml(t("th.notes")) + '" />' +
         '<span class="ent-meta">' + escapeHtml(meta) + "</span>" +
@@ -4462,14 +4493,26 @@
     var by = {}, order = [];
     entries.forEach(function (e) {
       var a = by[e.key];
-      if (!a) { a = by[e.key] = { key: e.key, count: 0, hadCount: false, notes: [], acts: [], firstTs: e.ts || 0, lastTs: e.ts || 0 }; order.push(e.key); }
-      if (e.count != null && e.count !== "") { a.count += countNum(e.count); a.hadCount = true; }
-      if (e.note) { var n = String(e.note).trim(); if (n && a.notes.indexOf(n) < 0) a.notes.push(n); }
+      if (!a) { a = by[e.key] = { key: e.key, count: 0, hadCount: false, notes: [], acts: [], sexCounts: {}, firstTs: e.ts || 0, lastTs: e.ts || 0 }; order.push(e.key); }
+      var n = (e.count != null && e.count !== "") ? countNum(e.count) : 0;
+      if (n > 0) { a.count += n; a.hadCount = true; }
+      if (e.sex) a.sexCounts[e.sex] = (a.sexCounts[e.sex] || 0) + (n > 0 ? n : 1);
+      if (e.note) { var nt = String(e.note).trim(); if (nt && a.notes.indexOf(nt) < 0) a.notes.push(nt); }
       String(e.act || "").split(" / ").forEach(function (x) { x = x.trim(); if (x && a.acts.indexOf(x) < 0) a.acts.push(x); });
       a.firstTs = Math.min(a.firstTs, e.ts || a.firstTs);
       a.lastTs = Math.max(a.lastTs, e.ts || a.lastTs);
     });
     return order.map(function (k) { return by[k]; });
+  }
+  // Render a species' sex-count breakdown as e.g. "3 ♂, 2 ♀" for the CSV
+  // Identification-details column. Empty when no sex info was recorded.
+  function sexBreakdown(sexCounts) {
+    var parts = [];
+    SEX_CYCLE.forEach(function (s) {
+      if (!s) return;
+      var n = sexCounts[s]; if (n) parts.push(n + " " + sexGlyph(s));
+    });
+    return parts.join(", ");
   }
   // Translate the species' joined activity codes into (breedingCode, residualText).
   // Breeding code is the first matching mapped activity; residual is plain
@@ -4556,6 +4599,8 @@
       var split = ebirdActSplit(a.acts);
       var detailBits = [];
       if (split.code) detailBits.push(split.code);
+      var sx = sexBreakdown(a.sexCounts || {});
+      if (sx) detailBits.push(sx);
       if (split.residual) detailBits.push(split.residual);
       if (a.notes.length) detailBits.push(a.notes.join(" | "));
       var num = a.hadCount && a.count > 0 ? String(a.count) : "X";
