@@ -2219,6 +2219,10 @@
     // Checklist actions
     // Open the tickable Checklist for the current point (from the Species list).
     document.getElementById("sp-checklist-btn").addEventListener("click", function () {
+      if (currentSpView && currentSpView.mode === "country") {
+        renderCountryChecklist(currentSpView.cc, currentSpView.name, currentSpView.lat, currentSpView.lon, currentSpView.results);
+        return;
+      }
       if (!marker) return;
       var ll = marker.getLatLng();
       renderFieldChecklist(ll.lat, ll.lng);
@@ -3481,6 +3485,40 @@
     } catch (e) { setStatus(t("status.error", { msg: e.message })); console.error(e); }
   }
 
+  // Country-wide checklist: same UI as the point-anchored checklist but its
+  // species rows are the country-wide merged list (model + eBird country list),
+  // its id is country:CC@day, the location warning is off (you can be
+  // anywhere in the country), and the row snapshot is persisted on the record
+  // so reopening from the list shows the species instantly without re-sampling.
+  function renderCountryChecklist(cc, name, lat, lon, results, rowsSnapshot) {
+    fieldQuery = ""; fieldFilter = "all"; composeDraft = {};
+    var fs = document.getElementById("field-search"); if (fs) fs.value = "";
+    var ff = document.getElementById("field-filter");
+    if (ff) ff.querySelectorAll(".chk-filter-btn").forEach(function (x) { x.classList.toggle("is-active", x.getAttribute("data-ffilter") === "all"); });
+    var rows = rowsSnapshot || (results || []).map(function (r) { return { key: r.label.key, name: speciesName(r.label), prob: r.prob || 0 }; });
+    fieldData = rows;
+    fieldLat = lat; fieldLon = lon;
+    var day = todayStr();
+    var id = "country:" + cc + "@" + day;
+    var fcEl = document.getElementById("field-coords");
+    fcEl.dataset.pkey = id;
+    fieldKey = id;
+    fcEl.value = name || cc;
+    // Persist the record (so it shows in the checklist list, survives reload,
+    // and reopens instantly with the same species rows snapshot).
+    var allFcs = getFieldChecklists();
+    var rec = allFcs[id];
+    if (!rec) rec = { id: id, title: name || cc, lat: lat, lon: lon, day: day, createdAt: new Date().toISOString(), log: [], seen: {}, kind: "country", cc: cc, rows: rows };
+    else { rec.title = name || cc; rec.kind = "country"; rec.cc = cc; rec.rows = rows; rec.accessedAt = Date.now(); }
+    allFcs[id] = rec; saveFieldChecklists(allFcs);
+    document.getElementById("field-page").style.display = "flex";
+    hideFcPicker(); hidePlacePicker();
+    showFieldFar(false); stopFieldGeoWatch();   // country-wide → no point anchor, no "far" warning
+    renderFieldList();
+    setStatus(t("status.countryChk", { country: name || cc, n: rows.length }));
+    refreshChecklists();
+  }
+
   // Checklist activity options. Each value is a stable key; ACT holds the label
   // per language [en, sv, de, es, fr, nl, no, it]. FIELD_ACTS is the dropdown
   // order — sorted from most to least commonly recorded.
@@ -3856,6 +3894,9 @@
   // peak probability per species across all cells. Cached by (cc, res) for
   // cells and (cc, res, week) for the species-max vector.
   var countryGeomCache = {}, countryCellsCache = {}, countryMaxCache = {}, countryEBirdCache = {};
+  // Which species-panel context is showing — drives whether the Checklist
+  // button creates a point-anchored checklist or a country-wide one.
+  var currentSpView = null;
   // eBird country species list (all species ever recorded in the region) —
   // used as the "official" national bird list to merge against the model's
   // predictions. BirdLife DataZone factsheets aren't fetchable from a static
@@ -3993,6 +4034,7 @@
         return b.prob - a.prob;
       });
       var nList = spp ? results.filter(function (r) { return !r.inModel && r.inList; }).length : 0;
+      currentSpView = { mode: "country", cc: info.cc, name: info.name, lat: lat, lon: lon, results: results };
       document.getElementById("sp-delta-head").textContent = spp ? t("th.source") : "";
       var tbl = document.getElementById("species-list-table");
       tbl.classList.toggle("has-name2", !!secondLang);
@@ -4031,11 +4073,22 @@
       });
       lastCsvData = { filename: "Geomodel_country_" + info.cc + "_week" + week + "_res" + res + ".csv", content: lines.join("\n") };
       showCsvBtn();
+      // Snapshot for the PDF export button (was broken in country view because
+      // only renderSpeciesList populated lastSpeciesPdf).
+      lastSpeciesPdf = {
+        name2Head: secondLang ? window.GeoI18N.langByCode(secondLang).name : "",
+        cmpHead: spp ? t("th.source") : "",
+        rows: results.map(function (r) {
+          var src = spp ? (r.inModel && r.inList ? "✓" : r.inModel ? "?" : "●") : "";
+          return { name: speciesName(r.label), name2: secondLang ? secondName(r.label) : "", sci: r.label.sci, prob: r.inModel ? ((r.prob * 100).toFixed(1) + "%") : "—", cmp: src };
+        }),
+      };
     } catch (e) { setStatus(t("status.error", { msg: e.message })); console.error(e); }
     finally { showComputingOverlay(false); }
   }
 
   async function renderSpeciesList(lat, lon) {
+    currentSpView = { mode: "point", lat: lat, lon: lon };
     var week = +document.getElementById("week-select").value;
     var pmin = +document.getElementById("prob-min").value / 100;
     var pmax = +document.getElementById("prob-max").value / 100;
@@ -4521,9 +4574,11 @@
 
     panel.innerHTML = items.map(function (it) {
       var n = escapeHtml(it.name);
-      // Proximity dot: green < 500 m, orange ≤ 2 km, red beyond.
+      // Proximity dot: green < 500 m, orange ≤ 2 km, red beyond. Country-wide
+      // checklists have no point anchor — no proximity dot.
       var dot = "";
-      if (isFinite(it.dist)) {
+      var isCountry = String(it.pkey).indexOf("country:") === 0;
+      if (!isCountry && isFinite(it.dist)) {
         var cls = it.dist < 0.5 ? "dd-dot-near" : (it.dist <= 2 ? "dd-dot-mid" : "dd-dot-far");
         var dtxt = it.dist < 1 ? Math.round(it.dist * 1000) + " m" : it.dist.toFixed(1) + " km";
         dot = '<span class="dd-dot ' + cls + '" title="' + dtxt + '"></span>';
@@ -4559,6 +4614,13 @@
   function openFieldFromList(id) {
     var r = getFieldRecord(id);
     if (!r) return;
+    // Country-wide checklists carry their snapshot of species rows; reopen
+    // with the snapshot (no re-sampling). Re-running country sampling on every
+    // open would be slow and could shift the list if the week/threshold changed.
+    if (String(id).indexOf("country:") === 0 || r.kind === "country") {
+      renderCountryChecklist(r.cc || id.split("@")[0].replace(/^country:/, ""), r.title || r.cc || id, r.lat, r.lon, null, r.rows || []);
+      return;
+    }
     renderFieldChecklist(r.lat, r.lon, id);   // full-screen overlay; no mode switch
   }
 
