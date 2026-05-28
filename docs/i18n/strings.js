@@ -387,7 +387,7 @@ window.GeoI18N = (function () {
         "<li><b>Plain HTML, CSS and JavaScript</b> — no framework and no build step; served as a static site (GitHub Pages).</li>" +
         "</ul>" +
         "<h4>Project &amp; feedback</h4>" +
-        "<p>This tool is free to use, and feedback is welcome at <a href=\"mailto:vesmir09@gmail.com\">vesmir09@gmail.com</a>. A Norway-specific habitat model is under development, aiming to use richer Norwegian data than the Google Earth Engine data used in the current model. The goal of the habitat model is an improved birdsong detection app (A!Birder) (under development). This page is made for easy quality control of that model.</p>" +
+        "<p>This tool is free to use, and feedback is welcome at <a href=\"mailto:vesmir09@gmail.com\">vesmir09@gmail.com</a>.</p>" +
         "<p class=\"about-note\">Predictions are model estimates, not ground truth. Model weights © the BirdNET team, licensed CC BY-SA 4.0; map tiles © OpenStreetMap contributors, © CARTO.</p>",
     },
     sv: {
@@ -671,7 +671,7 @@ window.GeoI18N = (function () {
         "<li><b>Ren HTML, CSS och JavaScript</b> — inget ramverk och inget byggsteg; serveras som en statisk sida (GitHub Pages).</li>" +
         "</ul>" +
         "<h4>Projekt &amp; återkoppling</h4>" +
-        "<p>Det här verktyget är gratis att använda, och återkoppling välkomnas till <a href=\"mailto:vesmir09@gmail.com\">vesmir09@gmail.com</a>. En Norge-specifik habitatmodell är under utveckling och syftar till att använda rikare norska data än de Google Earth Engine-data som används i den nuvarande modellen. Målet med habitatmodellen är en förbättrad app för fågelsångsigenkänning (A!Birder) (under utveckling). Den här sidan är gjord för enkel kvalitetskontroll av den modellen.</p>" +
+        "<p>Det här verktyget är gratis att använda, och återkoppling välkomnas till <a href=\"mailto:vesmir09@gmail.com\">vesmir09@gmail.com</a>.</p>" +
         "<p class=\"about-note\">Förutsägelser är modelluppskattningar, inte sanning. Modellvikter © BirdNET-teamet, licens CC BY-SA 4.0; kartrutor © OpenStreetMap-bidragsgivare, © CARTO.</p>",
     },
     de: {
@@ -955,7 +955,7 @@ window.GeoI18N = (function () {
         "<li><b>Reines HTML, CSS und JavaScript</b> — kein Framework und kein Build-Schritt; als statische Seite bereitgestellt (GitHub Pages).</li>" +
         "</ul>" +
         "<h4>Projekt &amp; Feedback</h4>" +
-        "<p>Dieses Werkzeug ist kostenlos nutzbar, und Feedback ist willkommen unter <a href=\"mailto:vesmir09@gmail.com\">vesmir09@gmail.com</a>. Ein Norwegen-spezifisches Habitatmodell befindet sich in Entwicklung und soll reichhaltigere norwegische Daten nutzen als die Google-Earth-Engine-Daten des aktuellen Modells. Ziel des Habitatmodells ist eine verbesserte App zur Vogelstimmenerkennung (A!Birder) (in Entwicklung). Diese Seite dient der einfachen Qualitätskontrolle dieses Modells.</p>" +
+        "<p>Dieses Werkzeug ist kostenlos nutzbar, und Feedback ist willkommen unter <a href=\"mailto:vesmir09@gmail.com\">vesmir09@gmail.com</a>.</p>" +
         "<p class=\"about-note\">Vorhersagen sind Modellschätzungen, nicht die Wahrheit. Modellgewichte © das BirdNET-Team, lizenziert unter CC BY-SA 4.0; Kartenkacheln © OpenStreetMap-Mitwirkende, © CARTO.</p>",
     },
     es: {
@@ -1239,7 +1239,7 @@ window.GeoI18N = (function () {
         "<li><b>HTML, CSS y JavaScript puros</b> — sin framework ni paso de compilación; servido como sitio estático (GitHub Pages).</li>" +
         "</ul>" +
         "<h4>Proyecto y comentarios</h4>" +
-        "<p>Esta herramienta es de uso gratuito, y los comentarios son bienvenidos en <a href=\"mailto:vesmir09@gmail.com\">vesmir09@gmail.com</a>. Se está desarrollando un modelo de hábitat específico para Noruega, con el objetivo de usar datos noruegos más ricos que los datos de Google Earth Engine empleados en el modelo actual. La meta del modelo de hábitat es una app mejorada de detección del canto de las aves (A!Birder) (en desarrollo). Esta página se ha creado para facilitar el control de calidad de ese modelo.</p>" +
+        "<p>Esta herramienta es de uso gratuito, y los comentarios son bienvenidos en <a href=\"mailto:vesmir09@gmail.com\">vesmir09@gmail.com</a>.</p>" +
         "<p class=\"about-note\">Las predicciones son estimaciones del modelo, no la verdad absoluta. Pesos del modelo © el equipo de BirdNET, con licencia CC BY-SA 4.0; teselas del mapa © colaboradores de OpenStreetMap, © CARTO.</p>",
     },
     fr: {
@@ -1522,7 +1522,7 @@ window.GeoI18N = (function () {
         "<li><b>HTML, CSS et JavaScript purs</b> — aucun framework ni étape de compilation ; servi comme site statique (GitHub Pages).</li>" +
         "</ul>" +
         "<h4>Projet et retours</h4>" +
-        "<p>Cet outil est gratuit, et vos retours sont les bienvenus à <a href=\"mailto:vesmir09@gmail.com\">vesmir09@gmail.com</a>. Un modèle d'habitat spécifique à la Norvège est en cours de développement, visant à utiliser des données norvégiennes plus riches que les données Google Earth Engine du modèle actuel. L'objectif du modèle d'habitat est une meilleure application de détection du chant des oiseaux (A!Birder) (en cours de développement). Cette page est conçue pour faciliter le contrôle qualité de ce modèle.</p>" +
+        "<p>Cet outil est gratuit, et vos retours sont les bienvenus à <a href=\"mailto:vesmir09@gmail.com\">vesmir09@gmail.com</a>.</p>" +
         "<p class=\"about-note\">Les prédictions sont des estimations du modèle, pas la réalité. Poids du modèle © l'équipe BirdNET, sous licence CC BY-SA 4.0 ; tuiles cartographiques © contributeurs OpenStreetMap, © CARTO.</p>",
     },
     nl: {
@@ -1807,7 +1807,7 @@ window.GeoI18N = (function () {
         "<li><b>Pure HTML, CSS en JavaScript</b> — geen framework en geen bouwstap; geserveerd als statische site (GitHub Pages).</li>" +
         "</ul>" +
         "<h4>Project &amp; feedback</h4>" +
-        "<p>Deze tool is gratis te gebruiken en feedback is welkom op <a href=\"mailto:vesmir09@gmail.com\">vesmir09@gmail.com</a>. Een Noorwegen-specifiek habitatmodel is in ontwikkeling, met als doel rijkere Noorse data te gebruiken dan de Google Earth Engine-data van het huidige model. Het doel van het habitatmodel is een verbeterde app voor vogelzangherkenning (A!Birder) (in ontwikkeling). Deze pagina is gemaakt voor eenvoudige kwaliteitscontrole van dat model.</p>" +
+        "<p>Deze tool is gratis te gebruiken en feedback is welkom op <a href=\"mailto:vesmir09@gmail.com\">vesmir09@gmail.com</a>.</p>" +
         "<p class=\"about-note\">Voorspellingen zijn modelschattingen, geen grondwaarheid. Modelgewichten © het BirdNET-team, gelicentieerd onder CC BY-SA 4.0; kaarttegels © OpenStreetMap-bijdragers, © CARTO.</p>",
     },
     no: {
@@ -2091,7 +2091,7 @@ window.GeoI18N = (function () {
         "<li><b>Ren HTML, CSS og JavaScript</b> — ingen rammeverk og ingen byggesteg; servert som en statisk side (GitHub Pages).</li>" +
         "</ul>" +
         "<h4>Prosjekt &amp; tilbakemelding</h4>" +
-        "<p>Dette verktøyet er gratis å bruke, og tilbakemeldinger er velkomne til <a href=\"mailto:vesmir09@gmail.com\">vesmir09@gmail.com</a>. En Norge-spesifikk habitatmodell er under utvikling, med mål om å bruke rikere norske data enn Google Earth Engine-dataene som brukes i den nåværende modellen. Målet med habitatmodellen er en forbedret app for fuglesanggjenkjenning (A!Birder) (under utvikling). Denne siden er laget for enkel kvalitetskontroll av den modellen.</p>" +
+        "<p>Dette verktøyet er gratis å bruke, og tilbakemeldinger er velkomne til <a href=\"mailto:vesmir09@gmail.com\">vesmir09@gmail.com</a>.</p>" +
         "<p class=\"about-note\">Forutsigelser er modellestimater, ikke fasit. Modellvekter © BirdNET-teamet, lisensiert CC BY-SA 4.0; kartfliser © OpenStreetMap-bidragsytere, © CARTO.</p>",
     },
     it: {
@@ -2375,7 +2375,7 @@ window.GeoI18N = (function () {
         "<li><b>HTML, CSS e JavaScript puri</b> — nessun framework e nessun passaggio di build; servito come sito statico (GitHub Pages).</li>" +
         "</ul>" +
         "<h4>Progetto e feedback</h4>" +
-        "<p>Questo strumento è gratuito e i feedback sono benvenuti all'indirizzo <a href=\"mailto:vesmir09@gmail.com\">vesmir09@gmail.com</a>. È in fase di sviluppo un modello di habitat specifico per la Norvegia, che mira a usare dati norvegesi più ricchi rispetto ai dati di Google Earth Engine usati nel modello attuale. L'obiettivo del modello di habitat è un'app migliorata per il riconoscimento del canto degli uccelli (A!Birder) (in sviluppo). Questa pagina è pensata per un facile controllo qualità di quel modello.</p>" +
+        "<p>Questo strumento è gratuito e i feedback sono benvenuti all'indirizzo <a href=\"mailto:vesmir09@gmail.com\">vesmir09@gmail.com</a>.</p>" +
         "<p class=\"about-note\">Le previsioni sono stime del modello, non verità assoluta. Pesi del modello © il team BirdNET, con licenza CC BY-SA 4.0; tessere della mappa © contributori OpenStreetMap, © CARTO.</p>",
     },
     pl: {
@@ -2659,7 +2659,7 @@ window.GeoI18N = (function () {
         "<li><b>Czysty HTML, CSS i JavaScript</b> — bez frameworka i bez etapu budowania; serwowane jako strona statyczna (GitHub Pages).</li>" +
         "</ul>" +
         "<h4>Projekt &amp; opinie</h4>" +
-        "<p>To narzędzie jest darmowe, a opinie są mile widziane pod adresem <a href=\"mailto:vesmir09@gmail.com\">vesmir09@gmail.com</a>. Trwają prace nad modelem siedliskowym dedykowanym Norwegii, którego celem jest wykorzystanie bogatszych norweskich danych niż dane z Google Earth Engine używane w obecnym modelu. Celem modelu siedliskowego jest ulepszona aplikacja do rozpoznawania śpiewu ptaków (A!Birder) (w trakcie tworzenia). Ta strona powstała w celu łatwej kontroli jakości tego modelu.</p>" +
+        "<p>To narzędzie jest darmowe, a opinie są mile widziane pod adresem <a href=\"mailto:vesmir09@gmail.com\">vesmir09@gmail.com</a>.</p>" +
         "<p class=\"about-note\">Przewidywania są szacunkami modelu, nie stanem faktycznym. Wagi modelu © zespół BirdNET, na licencji CC BY-SA 4.0; kafelki mapy © współtwórcy OpenStreetMap, © CARTO.</p>",
     },
     cs: {
@@ -2943,7 +2943,7 @@ window.GeoI18N = (function () {
         "<li><b>Čisté HTML, CSS a JavaScript</b> — bez frameworku a bez build kroku; servírováno jako statický web (GitHub Pages).</li>" +
         "</ul>" +
         "<h4>Projekt &amp; zpětná vazba</h4>" +
-        "<p>Tento nástroj je zdarma k použití a zpětnou vazbu uvítáme na <a href=\"mailto:vesmir09@gmail.com\">vesmir09@gmail.com</a>. Vyvíjí se model prostředí specifický pro Norsko, jehož cílem je využít bohatší norská data než data z Google Earth Engine použitá v současném modelu. Cílem modelu prostředí je vylepšená aplikace pro detekci ptačího zpěvu (A!Birder) (ve vývoji). Tato stránka je vytvořena pro snadnou kontrolu kvality tohoto modelu.</p>" +
+        "<p>Tento nástroj je zdarma k použití a zpětnou vazbu uvítáme na <a href=\"mailto:vesmir09@gmail.com\">vesmir09@gmail.com</a>.</p>" +
         "<p class=\"about-note\">Předpovědi jsou odhady modelu, nikoli skutečnost. Váhy modelu © tým BirdNET, licencováno CC BY-SA 4.0; mapové dlaždice © přispěvatelé OpenStreetMap, © CARTO.</p>",
     },
     et: {
@@ -3227,7 +3227,7 @@ window.GeoI18N = (function () {
         "<li><b>Lihtne HTML, CSS ja JavaScript</b> — raamistikku ega ehitussammu pole; serveeritakse staatilise saidina (GitHub Pages).</li>" +
         "</ul>" +
         "<h4>Projekt &amp; tagasiside</h4>" +
-        "<p>See tööriist on tasuta kasutatav ja tagasiside on teretulnud aadressil <a href=\"mailto:vesmir09@gmail.com\">vesmir09@gmail.com</a>. Arendamisel on Norra-spetsiifiline elupaigamudel, mille eesmärk on kasutada rikkalikumaid Norra andmeid kui praeguses mudelis kasutatud Google Earth Engine'i andmed. Elupaigamudeli eesmärk on täiustatud linnulaulu tuvastamise rakendus (A!Birder) (arendamisel). See leht on loodud selle mudeli lihtsaks kvaliteedikontrolliks.</p>" +
+        "<p>See tööriist on tasuta kasutatav ja tagasiside on teretulnud aadressil <a href=\"mailto:vesmir09@gmail.com\">vesmir09@gmail.com</a>.</p>" +
         "<p class=\"about-note\">Prognoosid on mudeli hinnangud, mitte tegelik tõde. Mudeli kaalud © BirdNET-i meeskond, litsentsitud CC BY-SA 4.0; kaardipaanid © OpenStreetMap kaastöölised, © CARTO.</p>",
     },
     lt: {
@@ -3511,7 +3511,7 @@ window.GeoI18N = (function () {
         "<li><b>Grynas HTML, CSS ir JavaScript</b> — be karkaso ir be kūrimo žingsnio; pateikiama kaip statinė svetainė (GitHub Pages).</li>" +
         "</ul>" +
         "<h4>Projektas &amp; atsiliepimai</h4>" +
-        "<p>Šis įrankis yra nemokamas, o atsiliepimų laukiame adresu <a href=\"mailto:vesmir09@gmail.com\">vesmir09@gmail.com</a>. Norvegijai pritaikytas buveinių modelis kuriamas, siekiant naudoti turtingesnius Norvegijos duomenis nei dabartiniame modelyje naudojami Google Earth Engine duomenys. Buveinių modelio tikslas yra patobulinta paukščių dainų aptikimo programa (A!Birder) (kuriama). Šis puslapis sukurtas patogiai to modelio kokybės kontrolei.</p>" +
+        "<p>Šis įrankis yra nemokamas, o atsiliepimų laukiame adresu <a href=\"mailto:vesmir09@gmail.com\">vesmir09@gmail.com</a>.</p>" +
         "<p class=\"about-note\">Prognozės yra modelio įverčiai, o ne galutinė tiesa. Modelio svoriai © BirdNET komanda, licencijuota CC BY-SA 4.0; žemėlapio plytelės © OpenStreetMap bendraautoriai, © CARTO.</p>",
     },
     fi: {
@@ -3795,7 +3795,7 @@ window.GeoI18N = (function () {
         "<li><b>Pelkkä HTML, CSS ja JavaScript</b> — ei sovelluskehystä eikä käännösvaihetta; tarjotaan staattisena sivustona (GitHub Pages).</li>" +
         "</ul>" +
         "<h4>Projekti &amp; palaute</h4>" +
-        "<p>Tämä työkalu on ilmainen käyttää, ja palautetta otetaan mielellään vastaan osoitteessa <a href=\"mailto:vesmir09@gmail.com\">vesmir09@gmail.com</a>. Norjaan kohdistettua habitaattimallia kehitetään parhaillaan, ja sen tavoitteena on hyödyntää rikkaampaa norjalaista dataa kuin nykyisessä mallissa käytettyä Google Earth Engine -dataa. Habitaattimallin tavoitteena on parannettu linnunlaulun tunnistussovellus (A!Birder) (kehitteillä). Tämä sivu on tehty kyseisen mallin helppoa laadunvalvontaa varten.</p>" +
+        "<p>Tämä työkalu on ilmainen käyttää, ja palautetta otetaan mielellään vastaan osoitteessa <a href=\"mailto:vesmir09@gmail.com\">vesmir09@gmail.com</a>.</p>" +
         "<p class=\"about-note\">Ennusteet ovat mallin arvioita, eivät absoluuttista totuutta. Mallin painot © BirdNET-tiimi, lisensoitu CC BY-SA 4.0; karttaruudut © OpenStreetMap-tekijät, © CARTO.</p>",
     },
     da: {
@@ -4079,7 +4079,7 @@ window.GeoI18N = (function () {
         "<li><b>Ren HTML, CSS og JavaScript</b> — ingen framework og intet byggetrin; serveret som et statisk websted (GitHub Pages).</li>" +
         "</ul>" +
         "<h4>Projekt &amp; feedback</h4>" +
-        "<p>Dette værktøj er gratis at bruge, og feedback er velkommen på <a href=\"mailto:vesmir09@gmail.com\">vesmir09@gmail.com</a>. En Norge-specifik habitatmodel er under udvikling med det formål at bruge rigere norske data end de Google Earth Engine-data, der bruges i den nuværende model. Målet med habitatmodellen er en forbedret fuglesangsgenkendelsesapp (A!Birder) (under udvikling). Denne side er lavet til nem kvalitetskontrol af den model.</p>" +
+        "<p>Dette værktøj er gratis at bruge, og feedback er velkommen på <a href=\"mailto:vesmir09@gmail.com\">vesmir09@gmail.com</a>.</p>" +
         "<p class=\"about-note\">Forudsigelser er modelskøn, ikke faktiske data. Modelvægte © BirdNET-teamet, licenseret CC BY-SA 4.0; kortfliser © OpenStreetMap-bidragydere, © CARTO.</p>",
     },
     pt: {
@@ -4363,7 +4363,7 @@ window.GeoI18N = (function () {
         "<li><b>HTML, CSS e JavaScript simples</b> — sem framework e sem etapa de compilação; servido como um site estático (GitHub Pages).</li>" +
         "</ul>" +
         "<h4>Projeto &amp; sugestões</h4>" +
-        "<p>Esta ferramenta é de utilização gratuita e as sugestões são bem-vindas em <a href=\"mailto:vesmir09@gmail.com\">vesmir09@gmail.com</a>. Está em desenvolvimento um modelo de habitat específico para a Noruega, com o objetivo de utilizar dados noruegueses mais ricos do que os dados do Google Earth Engine usados no modelo atual. O objetivo do modelo de habitat é uma aplicação melhorada de deteção de cantos de aves (A!Birder) (em desenvolvimento). Esta página foi feita para facilitar o controlo de qualidade desse modelo.</p>" +
+        "<p>Esta ferramenta é de utilização gratuita e as sugestões são bem-vindas em <a href=\"mailto:vesmir09@gmail.com\">vesmir09@gmail.com</a>.</p>" +
         "<p class=\"about-note\">As previsões são estimativas do modelo, não a verdade absoluta. Pesos do modelo © a equipa BirdNET, licenciados sob CC BY-SA 4.0; mosaicos do mapa © contribuidores do OpenStreetMap, © CARTO.</p>",
     },
   };
