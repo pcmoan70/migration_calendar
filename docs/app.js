@@ -2154,6 +2154,10 @@
     });
     updateDetLegend();
   }
+  // Collapsed/expanded state for the detection legend. Session-only — the
+  // legend is re-created each time detections come back, so there's nothing
+  // worth persisting.
+  var detLegendMini = false;
   function updateDetLegend() {
     var keys = Object.keys(detPlot);
     if (!keys.length) { if (detLegend) { map.removeControl(detLegend); detLegend = null; } return; }
@@ -2163,11 +2167,21 @@
       detLegend.addTo(map);
     }
     var el = document.getElementById("det-legend");
+    el.classList.toggle("det-legend-mini", detLegendMini);
+    // Collapsed: a single pill in the corner showing the species count.
+    if (detLegendMini) {
+      el.innerHTML = '<button type="button" class="det-restore" title="' + escapeHtml(t("det.expand")) + '">📍 ' + keys.length + "</button>";
+      el.querySelector(".det-restore").addEventListener("click", function () { detLegendMini = false; updateDetLegend(); });
+      return;
+    }
     var rDays = detRecencyDays();
     var recOpts = [[1, "1"], [7, "7"], [14, "14"], [30, "30"], [0, "∞"]]
       .map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === rDays ? " selected" : "") + ">" + o[1] + (o[0] ? " " + escapeHtml(t("det.days")) : " " + escapeHtml(t("det.allTime"))) + "</option>"; })
       .join("");
-    el.innerHTML = '<div class="det-legend-head"><span>' + escapeHtml(t("det.title")) + '</span><button type="button" class="det-clear">' + escapeHtml(t("det.clearAll")) + "</button></div>" +
+    el.innerHTML = '<div class="det-legend-head">' +
+        '<button type="button" class="det-min" title="' + escapeHtml(t("det.minimise")) + '" aria-label="' + escapeHtml(t("det.minimise")) + '">−</button>' +
+        '<button type="button" class="det-clear">' + escapeHtml(t("det.clearAll")) + "</button>" +
+      "</div>" +
       '<div class="det-recency-row"><label for="det-recency">' + escapeHtml(t("det.recency")) + '</label><select id="det-recency">' + recOpts + "</select></div>" +
       keys.map(function (k) {
         var e = detPlot[k], nm = escapeHtml(detName(e));
@@ -2176,6 +2190,7 @@
         return '<div class="det-row"><span class="det-sw" style="background:' + e.color + '"></span><span class="det-nm" title="' + nm + '">' + interestingStar(e.key) + nm + '</span><span class="det-ct">' + ct + '</span><button type="button" class="det-del" data-key="' + escapeHtml(k) + '" aria-label="remove">×</button></div>';
       }).join("");
     el.querySelector(".det-clear").addEventListener("click", clearDetections);
+    el.querySelector(".det-min").addEventListener("click", function () { detLegendMini = true; updateDetLegend(); });
     el.querySelectorAll(".det-del").forEach(function (b) { b.addEventListener("click", function () { removeDetection(this.getAttribute("data-key")); }); });
     el.querySelector("#det-recency").addEventListener("change", function () {
       window.GeoState.save({ detRecencyDays: +this.value });

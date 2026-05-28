@@ -1509,6 +1509,21 @@ tr.row-list-only .prob-na { color: var(--ink-muted, #999); }
 .det-ct { color: var(--ink-muted, #777); font-variant-numeric: tabular-nums; }
 .det-del { border: none; background: transparent; cursor: pointer; color: var(--ink-muted, #777); font-size: 1rem; line-height: 1; padding: 0 2px; }
 .det-del:hover { color: var(--danger, #c0392b); }
+.det-min {
+  border: none; background: transparent; cursor: pointer; color: var(--ink-muted, #666);
+  font-size: 1rem; line-height: 1; padding: 0 4px; min-width: 18px;
+}
+.det-min:hover { color: var(--ink, inherit); }
+/* Collapsed legend: a chip in the corner showing the species count. */
+.det-legend.det-legend-mini { padding: 0; max-width: none; max-height: none; overflow: visible; border: none; background: transparent; box-shadow: none; }
+.det-restore {
+  display: inline-flex; align-items: center; gap: 4px; padding: 5px 9px; cursor: pointer;
+  font: inherit; font-size: 0.78rem; font-weight: 600; line-height: 1;
+  background: var(--surface, #fff); color: var(--ink, #222);
+  border: 1px solid var(--border, #ccc); border-radius: 999px;
+  box-shadow: var(--shadow-sm, 0 1px 5px rgba(0,0,0,.25));
+}
+.det-restore:hover { background: var(--md-code-bg-color, #f0f4f3); }
 
 /* "Locate me" crosshair control on the map */
 /* Center the crosshair SVG in the Leaflet bar button (higher specificity than
