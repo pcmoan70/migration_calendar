@@ -239,6 +239,14 @@
     });
   }
 
+  // Mode-appropriate guidance shown in the status line when there's no active
+  // selection — so the text below the controls always matches the current mode.
+  function modeHint() {
+    if (currentMode === "list") return t("status.hintList");
+    if (currentMode === "richness") return t("status.hintRichness");
+    if (currentMode === "barchart") return t("status.hintBarchart");
+    return t("status.selectSpecies");   // range default
+  }
   function setStatus(msg) {
     var el = document.getElementById("demo-status");
     if (el) el.textContent = msg;
@@ -1195,7 +1203,7 @@
       bindControls();
       refreshHiddenUI();
       refreshChecklists();
-      setStatus(t("status.selectSpecies"));
+      setStatus(modeHint());
       showLastChange();
       showPerfModal();
       initOfflineIndicator();
@@ -1848,6 +1856,7 @@
       if (cachedRender) clearOverlay();
       if (marker) { map.removeLayer(marker); marker = null; }
       updateLegend();
+      setStatus(modeHint());   // show mode-appropriate guidance until an action overrides it
       if (currentMode === "range" || currentMode === "richness") triggerRender();
     });
 
