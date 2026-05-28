@@ -1414,9 +1414,14 @@
             '<button type="button" id="field-far" class="fp-far" style="display:none" aria-label="!">!</button>' +
             '<span class="field-seen" id="field-seen"></span>' +
             '<span class="field-actions">' +
-              '<button id="field-pdf" class="demo-btn" title="Download PDF">⬇ PDF</button>' +
-              '<button id="field-csv" class="demo-btn" data-i18n="btn.csv" title="Download CSV">⬇ CSV</button>' +
-              '<button id="field-log" class="demo-btn" data-i18n="btn.logcsv" title="Download observation log">⬇ Log</button>' +
+              '<span class="fp-dl-wrap">' +
+                '<button id="field-dl-btn" class="demo-btn" data-i18n-title="btn.download" title="Download">⬇</button>' +
+                '<div id="field-dl-menu" class="fp-dl-menu" style="display:none">' +
+                  '<button id="field-pdf" class="fp-dl-item">⬇ PDF</button>' +
+                  '<button id="field-csv" class="fp-dl-item" data-i18n="btn.csv">⬇ CSV</button>' +
+                  '<button id="field-log" class="fp-dl-item" data-i18n="btn.logcsv">⬇ Log</button>' +
+                '</div>' +
+              '</span>' +
               '<button id="field-review" class="demo-btn" data-i18n="btn.review" title="Review & upload">⬆ Upload</button>' +
               '<button id="field-clear" class="demo-btn demo-btn-light" data-i18n="btn.clear">Clear</button>' +
             '</span>' +
@@ -1424,12 +1429,7 @@
           '<div id="field-far-msg" class="fp-far-msg" data-i18n="chk.farWarn" style="display:none"></div>' +
           '<div class="fc-filterbar">' +
             '<input id="field-search" type="text" autocomplete="off" data-i18n-ph="ph.filter" placeholder="Filter species…" />' +
-            '<div id="field-filter" class="chk-filter">' +
-              '<button type="button" class="chk-filter-btn is-active" data-ffilter="all" data-i18n="chk.all">All</button>' +
-              '<button type="button" class="chk-filter-btn" data-ffilter="seen" data-i18n="chk.seen">Seen</button>' +
-              '<button type="button" class="chk-filter-btn" data-ffilter="missing" data-i18n="chk.missing">Missing</button>' +
-              '<button type="button" class="chk-filter-btn" data-ffilter="interesting" data-i18n="chk.interesting">★ Interesting</button>' +
-            '</div>' +
+            '<button type="button" id="field-filter-cycle" class="chk-filter-cycle" data-ff="all" title="Filter species">All</button>' +
           '</div>' +
           '<div id="field-list"></div>' +
           '<div id="fc-picker" style="display:none">' +
@@ -1707,6 +1707,7 @@
     refreshHiddenUI();      // re-localize hidden-species chip names
     refreshChecklists();    // re-localize the "Checklist (N)" button text
     if (document.getElementById("field-page").style.display === "flex") renderFieldList();  // re-localize activity labels if open
+    if (window.__refreshFilterCycle) window.__refreshFilterCycle();   // cycle-button text isn't covered by data-i18n
     if (typeof refreshDetections === "function") refreshDetections();   // re-localize plotted "Show in map" species names + legend
     refreshCurrentView();   // re-render species names in the active panel
   }
@@ -1743,6 +1744,8 @@
     for (var i = 0; i < els.length; i++) els[i].textContent = t(els[i].getAttribute("data-i18n"));
     var phs = document.querySelectorAll("[data-i18n-ph]");
     for (var j = 0; j < phs.length; j++) phs[j].setAttribute("placeholder", t(phs[j].getAttribute("data-i18n-ph")));
+    var tts = document.querySelectorAll("[data-i18n-title]");
+    for (var k = 0; k < tts.length; k++) tts[k].setAttribute("title", t(tts[k].getAttribute("data-i18n-title")));
     var selSp = document.getElementById("species-search");
     if (selSp && selSp.dataset.selectedKey && labelsByKey[selSp.dataset.selectedKey]) {
       var lbl = labelsByKey[selSp.dataset.selectedKey];
@@ -2455,12 +2458,21 @@
     document.getElementById("field-search").addEventListener("input", function () {
       fieldQuery = this.value; renderFieldList();
     });
-    // All / Seen / Missing toggle.
-    document.getElementById("field-filter").addEventListener("click", function (e) {
-      var b = e.target.closest && e.target.closest(".chk-filter-btn");
-      if (!b) return;
-      fieldFilter = b.getAttribute("data-ffilter");
-      this.querySelectorAll(".chk-filter-btn").forEach(function (x) { x.classList.toggle("is-active", x === b); });
+    // Single cycle button: All → Seen → Missing → Interesting → All.
+    var FILTER_CYCLE = ["all", "seen", "missing", "interesting"];
+    function filterCycleLabel(f) {
+      return f === "interesting" ? t("chk.interesting") : t("chk." + f);
+    }
+    window.__refreshFilterCycle = function () {
+      var b = document.getElementById("field-filter-cycle"); if (!b) return;
+      b.setAttribute("data-ff", fieldFilter);
+      b.textContent = filterCycleLabel(fieldFilter);
+      b.classList.toggle("is-active", fieldFilter !== "all");
+    };
+    document.getElementById("field-filter-cycle").addEventListener("click", function () {
+      var i = FILTER_CYCLE.indexOf(fieldFilter); if (i < 0) i = 0;
+      fieldFilter = FILTER_CYCLE[(i + 1) % FILTER_CYCLE.length];
+      window.__refreshFilterCycle();
       renderFieldList();
     });
     // Compose-line edits: the checkbox commits/clears the "seen" flag; the
@@ -2548,13 +2560,28 @@
       if (e.target.closest("#fc-picker") || e.target.closest(".fc-count")) return;
       hideFcPicker();
     });
+    // Download menu: PDF / CSV / Log hidden behind a single ⬇ button.
+    function hideDlMenu() { var m = document.getElementById("field-dl-menu"); if (m) m.style.display = "none"; }
+    document.getElementById("field-dl-btn").addEventListener("click", function (e) {
+      e.stopPropagation();
+      var m = document.getElementById("field-dl-menu");
+      m.style.display = m.style.display === "none" ? "" : "none";
+    });
     document.getElementById("field-csv").addEventListener("click", function () {
-      downloadCsv("field_checklist.csv", fieldChecklistCsv());
+      hideDlMenu(); downloadCsv("field_checklist.csv", fieldChecklistCsv());
     });
     document.getElementById("field-log").addEventListener("click", function () {
-      downloadCsv("field_checklist_log.csv", fieldLogCsv());
+      hideDlMenu(); downloadCsv("field_checklist_log.csv", fieldLogCsv());
     });
-    document.getElementById("field-pdf").addEventListener("click", exportFieldPdf);
+    document.getElementById("field-pdf").addEventListener("click", function () {
+      hideDlMenu(); exportFieldPdf();
+    });
+    document.addEventListener("click", function (e) {
+      var m = document.getElementById("field-dl-menu");
+      if (!m || m.style.display === "none") return;
+      if (e.target.closest("#field-dl-menu") || e.target.closest("#field-dl-btn")) return;
+      hideDlMenu();
+    });
     document.getElementById("field-review").addEventListener("click", openReviewPage);
     document.getElementById("field-clear").addEventListener("click", function () {
       fcClear(); renderFieldList();
@@ -4091,8 +4118,7 @@
   async function renderFieldChecklist(lat, lon, listId) {
     fieldQuery = ""; fieldFilter = "all"; composeDraft = {};   // fresh filters + compose drafts each open
     var fs = document.getElementById("field-search"); if (fs) fs.value = "";
-    var ff = document.getElementById("field-filter");
-    if (ff) ff.querySelectorAll(".chk-filter-btn").forEach(function (x) { x.classList.toggle("is-active", x.getAttribute("data-ffilter") === "all"); });
+    if (window.__refreshFilterCycle) window.__refreshFilterCycle();
     var week = +document.getElementById("week-select").value;
     var pmin = +document.getElementById("prob-min").value / 100;
     var pmax = +document.getElementById("prob-max").value / 100;
@@ -4153,8 +4179,7 @@
   function renderCountryChecklist(cc, name, lat, lon, results, rowsSnapshot) {
     fieldQuery = ""; fieldFilter = "all"; composeDraft = {};
     var fs = document.getElementById("field-search"); if (fs) fs.value = "";
-    var ff = document.getElementById("field-filter");
-    if (ff) ff.querySelectorAll(".chk-filter-btn").forEach(function (x) { x.classList.toggle("is-active", x.getAttribute("data-ffilter") === "all"); });
+    if (window.__refreshFilterCycle) window.__refreshFilterCycle();
     var rows = rowsSnapshot || (results || []).map(function (r) { return { key: r.label.key, name: speciesName(r.label), prob: r.prob || 0 }; });
     fieldData = rows;
     fieldLat = lat; fieldLon = lon;

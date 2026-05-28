@@ -1542,7 +1542,30 @@ tr.row-list-only .prob-na { color: var(--ink-muted, #999); }
 .field-place:focus { outline: none; border-bottom-color: var(--md-accent-fg-color, var(--brand)); }
 .field-seen { flex: 0 0 auto; margin-left: auto; font-size: 0.85rem; font-weight: 600; color: var(--md-accent-fg-color, var(--brand)); }
 .field-actions { flex: 0 0 auto; display: flex; gap: 6px; }
-/* Filter row: a narrow search box beside the All/Seen/Missing toggle. */
+/* Download menu: the ⬇ button reveals a small popover with PDF/CSV/Log. */
+.fp-dl-wrap { position: relative; display: inline-flex; }
+.fp-dl-menu {
+  position: absolute; right: 0; top: calc(100% + 4px); z-index: 1700;
+  min-width: 120px; padding: 4px;
+  background: var(--md-default-bg-color, #fff); color: var(--md-default-fg-color, var(--ink));
+  border: 1px solid var(--md-default-fg-color--lightest, #ccc); border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.18);
+  display: flex; flex-direction: column; gap: 2px;
+}
+.fp-dl-item {
+  text-align: left; padding: 6px 12px; font-size: 0.9rem; cursor: pointer;
+  border: none; background: transparent; color: inherit; border-radius: 4px;
+}
+.fp-dl-item:hover { background: var(--md-code-bg-color, #f0f4f3); }
+/* Cycle-button filter: All → Seen → Missing → Interesting → All */
+.chk-filter-cycle {
+  flex: 0 0 auto; padding: 6px 12px; font-size: 0.88rem; cursor: pointer;
+  border: 1px solid var(--border, #d8e1dd); border-radius: 999px;
+  background: var(--surface, #fff); color: var(--ink, inherit);
+  white-space: nowrap;
+}
+.chk-filter-cycle.is-active { background: var(--brand, #0b3a3a); color: #fff; border-color: var(--brand, #0b3a3a); }
+/* Filter row: a narrow search box beside the cycle filter button. */
 .fc-filterbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 8px 12px 6px; }
 #field-page #field-search {
   flex: 1 1 120px; min-width: 0; max-width: 220px; box-sizing: border-box; margin: 0; padding: 8px 12px; font-size: 0.95rem;
