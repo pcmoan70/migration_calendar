@@ -4919,18 +4919,35 @@
     putFieldRecord(rec);
   }
 
+  // Pipe-separated per-entry detail string for one species, embedded in the
+  // species-summary CSV exports so each report carries the individual time
+  // + location of every observation. Power users can split on " | " to expand.
+  function observationsSummary(ents) {
+    return (ents || []).map(function (e) {
+      var bits = [];
+      if (e.ts) bits.push(new Date(e.ts).toISOString());
+      if (e.lat != null && e.lon != null) bits.push(e.lat.toFixed(5) + "," + e.lon.toFixed(5));
+      if (e.count != null && e.count !== "") bits.push("×" + e.count);
+      if (e.sex) bits.push(e.sex);
+      if (e.act) bits.push(actLabel(e.act));
+      if (e.note) bits.push('"' + String(e.note).replace(/"/g, "'") + '"');
+      return bits.join(" ");
+    }).join(" | ");
+  }
   function fieldChecklistCsv() {
     var entries = getFieldEntries(), esc = function (v) { var s = String(v == null ? "" : v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
     var byKey = {}; (fieldData || []).forEach(function (r) { byKey[r.key] = r; });
     var titleEl = document.getElementById("field-coords");
     var title = (titleEl && titleEl.value || "").trim() || (fieldLat.toFixed(4) + "°, " + fieldLon.toFixed(4) + "°");
     var lid = fieldKey || "";
+    var rec = curFieldRecord(false);
     var lines = ["# " + title + " | " + new Date().toISOString().slice(0, 10)];
-    lines.push("checklist,list_id,species,common_name,count,activity,notes");
+    lines.push("checklist,list_id,species,common_name,count,activity,notes,observations");
     Object.keys(entries).forEach(function (key) {
       var e = entries[key]; if (!e.seen && (e.count == null || e.count === "") && !e.act && !e.note) return;
       var name = (byKey[key] && byKey[key].name) || (labelsByKey[key] && speciesName(labelsByKey[key])) || key;
-      lines.push([esc(title), esc(lid), key, esc(name), e.count != null ? e.count : "", e.act ? actName(e.act) : "", esc(e.note || "")].join(","));
+      var ents = rec ? fcEntriesFor(rec, key) : [];
+      lines.push([esc(title), esc(lid), key, esc(name), e.count != null ? e.count : "", e.act ? actName(e.act) : "", esc(e.note || ""), esc(observationsSummary(ents))].join(","));
     });
     return lines.join("\n");
   }
@@ -4940,11 +4957,13 @@
   function fieldSeenRows() {
     var entries = getFieldEntries();
     var byKey = {}; (fieldData || []).forEach(function (r) { byKey[r.key] = r; });
+    var rec = curFieldRecord(false);
     var rows = [];
     Object.keys(entries).forEach(function (key) {
       var e = entries[key]; if (!e.seen && (e.count == null || e.count === "") && !e.act && !e.note) return;
       var name = (byKey[key] && byKey[key].name) || (labelsByKey[key] && speciesName(labelsByKey[key])) || key;
-      rows.push({ name: name, count: e.count != null ? e.count : "", act: e.act ? actName(e.act) : "", note: e.note || "" });
+      var ents = rec ? fcEntriesFor(rec, key) : [];
+      rows.push({ name: name, count: e.count != null ? e.count : "", act: e.act ? actName(e.act) : "", note: e.note || "", entries: ents });
     });
     rows.sort(function (a, b) { return a.name.localeCompare(b.name); });
     return rows;
@@ -4958,19 +4977,31 @@
     var date = new Date().toISOString().slice(0, 10);
     var rows = fieldSeenRows();
     var esc = escapeHtml;
+    function obsLineHtml(e) {
+      var parts = [];
+      if (e.ts) parts.push(fmtClock(e.ts));
+      if (e.lat != null && e.lon != null) parts.push(e.lat.toFixed(5) + ", " + e.lon.toFixed(5));
+      if (e.count != null && e.count !== "") parts.push("×" + e.count);
+      if (e.sex) parts.push(sexGlyph(e.sex));
+      if (e.act) parts.push(actLabel(e.act));
+      if (e.note) parts.push("“" + e.note + "”");
+      return parts.map(esc).join(" · ");
+    }
     var body = rows.map(function (r, i) {
-      return "<tr><td>" + (i + 1) + "</td><td>" + esc(r.name) + "</td><td>" + esc(String(r.count)) + "</td><td>" + esc(r.act) + "</td><td>" + esc(r.note) + "</td></tr>";
+      var obs = (r.entries || []).map(function (e) { return '<div class="obs">' + obsLineHtml(e) + "</div>"; }).join("");
+      return "<tr><td>" + (i + 1) + "</td><td>" + esc(r.name) + obs + "</td><td>" + esc(String(r.count)) + "</td><td>" + esc(r.act) + "</td><td>" + esc(r.note) + "</td></tr>";
     }).join("") || '<tr><td></td><td colspan="4">' + esc(t("analysis.empty")) + "</td></tr>";
     var html = '<!doctype html><html><head><meta charset="utf-8"><title>' + esc(title) + "</title><style>" +
       "body{font-family:system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:#16302b;margin:32px;}" +
       "h1{font-size:19px;color:#0b3a3a;margin:0 0 2px;}" +
       ".meta{color:#5b6f69;font-size:12px;margin-bottom:18px;}" +
       "table{border-collapse:collapse;width:100%;font-size:13px;}" +
-      "th,td{text-align:left;padding:6px 9px;border-bottom:1px solid #d8e1dd;}" +
+      "th,td{text-align:left;padding:6px 9px;border-bottom:1px solid #d8e1dd;vertical-align:top;}" +
       "th{font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:#5b6f69;}" +
       "thead th{border-bottom:2px solid #bcccc6;}" +
       "td:first-child,th:first-child{width:30px;color:#93a39d;}" +
       "td:nth-child(3),th:nth-child(3){text-align:right;width:64px;}" +
+      ".obs{font-size:10.5px;color:#5b6f69;margin-top:2px;font-variant-numeric:tabular-nums;}" +
       "</style></head><body>" +
       "<h1>" + esc(title) + "</h1>" +
       '<div class="meta">' + esc(date) + " &middot; " + rows.length + " " + esc(t("chk.seen").toLowerCase()) + "</div>" +
@@ -5837,10 +5868,11 @@
     var title = (r.title || "").trim() || (r.lat.toFixed(4) + "°, " + r.lon.toFixed(4) + "°");
     var lid = r.id || id || "";
     var agg = fcAggregate(r), lines = ["# " + title + " | " + dayOf(r)];
-    lines.push("checklist,list_id,species,common_name,count,activity,notes");
+    lines.push("checklist,list_id,species,common_name,count,activity,notes,observations");
     Object.keys(agg).forEach(function (key) {
       var a = agg[key], name = (labelsByKey[key] && speciesName(labelsByKey[key])) || key;
-      lines.push([csvEsc(title), csvEsc(lid), key, csvEsc(name), a.count > 0 ? a.count : "", a.act ? actName(a.act) : "", csvEsc(a.note || "")].join(","));
+      var ents = fcEntriesFor(r, key);
+      lines.push([csvEsc(title), csvEsc(lid), key, csvEsc(name), a.count > 0 ? a.count : "", a.act ? actName(a.act) : "", csvEsc(a.note || ""), csvEsc(observationsSummary(ents))].join(","));
     });
     return lines.join("\n");
   }
@@ -5850,11 +5882,11 @@
     var title = (r.title || "").trim() || (r.lat.toFixed(4) + "°, " + r.lon.toFixed(4) + "°");
     var lid = r.id || id || "";
     var lines = ["# " + title + " | " + dayOf(r) + " | observation log"];
-    lines.push("checklist,list_id,timestamp,lat,lon,species,common_name,count,activity,notes");
+    lines.push("checklist,list_id,timestamp,lat,lon,species,common_name,count,sex,activity,notes");
     (r.log || []).slice().sort(function (a, b) { return (a.ts || 0) - (b.ts || 0); }).forEach(function (e) {
       var name = (labelsByKey[e.key] && speciesName(labelsByKey[e.key])) || e.key;
       lines.push([csvEsc(title), csvEsc(lid), new Date(e.ts).toISOString(), e.lat != null ? e.lat.toFixed(5) : "", e.lon != null ? e.lon.toFixed(5) : "",
-        e.key, csvEsc(name), csvEsc(e.count != null ? e.count : ""), csvEsc(actLabel(e.act)), csvEsc(e.note || "")].join(","));
+        e.key, csvEsc(name), csvEsc(e.count != null ? e.count : ""), e.sex || "", csvEsc(actLabel(e.act)), csvEsc(e.note || "")].join(","));
     });
     return lines.join("\n");
   }
