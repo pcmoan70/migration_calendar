@@ -3855,7 +3855,26 @@
   // (at a configurable resolution) infer probabilities, then aggregate the
   // peak probability per species across all cells. Cached by (cc, res) for
   // cells and (cc, res, week) for the species-max vector.
-  var countryGeomCache = {}, countryCellsCache = {}, countryMaxCache = {};
+  var countryGeomCache = {}, countryCellsCache = {}, countryMaxCache = {}, countryEBirdCache = {};
+  // eBird country species list (all species ever recorded in the region) —
+  // used as the "official" national bird list to merge against the model's
+  // predictions. BirdLife DataZone factsheets aren't fetchable from a static
+  // browser (its CORS allows only its own origin), so eBird's broader list
+  // (CORS *, needs the user's key) is the practical source.
+  async function ebirdCountrySpecies(cc) {
+    if (!cc) return null;
+    if (countryEBirdCache[cc]) return countryEBirdCache[cc];
+    var tok = ebirdKey(); if (!tok) return null;
+    try {
+      var r = await fetch("https://api.ebird.org/v2/product/spplist/" + encodeURIComponent(cc), { headers: { "X-eBirdApiToken": tok } });
+      if (!r.ok) return null;
+      var arr = await r.json();
+      var set = Object.create(null);
+      (arr || []).forEach(function (c) { set[c] = 1; });
+      countryEBirdCache[cc] = set;
+      return set;
+    } catch (e) { return null; }
+  }
   var SP_COUNTRY_MAX_CELLS = 8000;
   function pointInRing(lng, lat, ring) {
     var inside = false;
@@ -3954,20 +3973,44 @@
         });
         countryMaxCache[maxKey] = maxArr;
       }
+      var spp = await ebirdCountrySpecies(info.cc);   // null when no key / fetch fails
       var results = [];
       for (var i = 0; i < labels.length; i++) {
-        if (maxArr[i] >= pmin && maxArr[i] <= pmax && inGroup(i) && !isHidden(labels[i].key)) results.push({ label: labels[i], prob: maxArr[i] });
+        var lbl = labels[i]; if (!inGroup(i) || isHidden(lbl.key)) continue;
+        var prob = maxArr[i];
+        var inModel = prob >= pmin && prob <= pmax;
+        var inList = !!(spp && spp[lbl.key]);
+        if (!inModel && !inList) continue;
+        results.push({ label: lbl, prob: prob, inModel: inModel, inList: inList });
       }
-      results.sort(function (a, b) { return b.prob - a.prob; });
-      document.getElementById("sp-delta-head").textContent = "";
+      // Both (predicted + recorded) on top by prob; model-only next; list-only
+      // last, sorted alphabetically — the "missing from prediction" group.
+      results.sort(function (a, b) {
+        var ka = a.inModel && a.inList ? 0 : a.inModel ? 1 : 2;
+        var kb = b.inModel && b.inList ? 0 : b.inModel ? 1 : 2;
+        if (ka !== kb) return ka - kb;
+        if (ka === 2) return speciesName(a.label).localeCompare(speciesName(b.label));
+        return b.prob - a.prob;
+      });
+      var nList = spp ? results.filter(function (r) { return !r.inModel && r.inList; }).length : 0;
+      document.getElementById("sp-delta-head").textContent = spp ? t("th.source") : "";
       var tbl = document.getElementById("species-list-table");
       tbl.classList.toggle("has-name2", !!secondLang);
       document.getElementById("sp-name2-head").textContent = secondLang ? window.GeoI18N.langByCode(secondLang).name : "";
-      document.getElementById("sp-coords").textContent = t("sp.countrySummary", { country: info.name || info.cc, n: cells.length, week: week, ns: results.length, p: (pmin * 100).toFixed(0) });
+      document.getElementById("sp-coords").textContent = spp
+        ? t("sp.countrySummaryMerged", { country: info.name || info.cc, n: cells.length, week: week, ns: results.length - nList, nl: nList, p: (pmin * 100).toFixed(0) })
+        : t("sp.countrySummary", { country: info.name || info.cc, n: cells.length, week: week, ns: results.length, p: (pmin * 100).toFixed(0) });
       document.getElementById("sp-tbody").innerHTML = results.map(function (r) {
         var name2Cell = '<td class="name2">' + (secondLang ? escapeHtml(secondName(r.label)) : "") + "</td>";
-        return "<tr><td>" + nameLinkHtml(r.label) + "</td>" + name2Cell + '<td style="font-style:italic">' + escapeHtml(r.label.sci) + "</td><td>" +
-          (r.prob * 100).toFixed(1) + '%</td><td class="prob-bar-cell"><div class="prob-bar" style="width:' + Math.round(r.prob * 100) + '%"></div></td><td></td></tr>';
+        var probCell = r.inModel
+          ? "<td>" + (r.prob * 100).toFixed(1) + '%</td><td class="prob-bar-cell"><div class="prob-bar" style="width:' + Math.round(r.prob * 100) + '%"></div></td>'
+          : '<td class="prob-na">—</td><td></td>';
+        var chip;
+        if (!spp) chip = "";
+        else if (r.inModel && r.inList) chip = '<span class="src-chip src-both" title="' + escapeHtml(t("src.both")) + '">✓</span>';
+        else if (r.inModel) chip = '<span class="src-chip src-model" title="' + escapeHtml(t("src.modelOnly")) + '">?</span>';
+        else chip = '<span class="src-chip src-list" title="' + escapeHtml(t("src.listOnly")) + '">●</span>';
+        return "<tr" + (!r.inModel ? ' class="row-list-only"' : "") + "><td>" + nameLinkHtml(r.label) + "</td>" + name2Cell + '<td style="font-style:italic">' + escapeHtml(r.label.sci) + "</td>" + probCell + "<td>" + chip + "</td></tr>";
       }).join("");
       var sp = document.getElementById("species-panel");
       sp.classList.toggle("as-page", currentMode === "list");
@@ -3976,11 +4019,14 @@
       document.getElementById("barchart-panel").style.display = "none";
       setStatus(t("status.countryDone", { country: info.name || info.cc, ns: results.length, n: cells.length }));
       // CSV download.
-      var lines = ["rank,species_code,common_name" + (secondLang ? ",common_name_" + secondLang : "") + ",scientific_name,max_probability"];
+      var hdr = "rank,species_code,common_name" + (secondLang ? ",common_name_" + secondLang : "") + ",scientific_name,max_probability";
+      if (spp) hdr += ",predicted,in_ebird_country_list";
+      var lines = [hdr];
       results.forEach(function (r, idx) {
         var line = (idx + 1) + ',"' + r.label.key + '","' + speciesName(r.label).replace(/"/g, '""') + '"';
         if (secondLang) line += ',"' + secondName(r.label).replace(/"/g, '""') + '"';
         line += ',"' + r.label.sci.replace(/"/g, '""') + '",' + r.prob.toFixed(6);
+        if (spp) line += "," + (r.inModel ? 1 : 0) + "," + (r.inList ? 1 : 0);
         lines.push(line);
       });
       lastCsvData = { filename: "Geomodel_country_" + info.cc + "_week" + week + "_res" + res + ".csv", content: lines.join("\n") };

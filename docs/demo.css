@@ -1461,6 +1461,15 @@ table.recent-table .rc-srccell { white-space: nowrap; }
 #recent-map { border-color: var(--brand); background: var(--brand-soft, #eef3ff); color: var(--brand-strong, var(--brand)); font-weight: 600; }
 #recent-map:hover { background: var(--brand); color: #fff; }
 
+/* "Species in country" merged-list source chips + de-emphasised list-only rows. */
+.src-chip { display: inline-block; width: 18px; height: 18px; line-height: 16px; text-align: center; border-radius: 50%;
+  font-size: 0.78rem; font-weight: 700; border: 1px solid currentColor; }
+.src-chip.src-both { color: #22a447; }
+.src-chip.src-model { color: #ef9420; }
+.src-chip.src-list { color: #4a6fa5; }
+tr.row-list-only { background: var(--surface-2, #f5f5f5); color: var(--ink-muted, #777); }
+tr.row-list-only .prob-na { color: var(--ink-muted, #999); }
+
 /* Plotted-detections legend (bottom-left map control). */
 .det-legend {
   background: var(--surface, #fff); color: var(--ink, #222); border: 1px solid var(--border, #ccc);
