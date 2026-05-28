@@ -1567,11 +1567,20 @@ tr.row-list-only .prob-na { color: var(--ink-muted, #999); }
 .chk-filter-cycle.is-active { background: var(--brand, #0b3a3a); color: #fff; border-color: var(--brand, #0b3a3a); }
 /* Filter row: a narrow search box beside the cycle filter button. */
 .fc-filterbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 8px 12px 6px; }
+.fc-search-wrap { position: relative; display: inline-flex; flex: 0 1 160px; min-width: 0; }
 #field-page #field-search {
-  flex: 1 1 120px; min-width: 0; max-width: 220px; box-sizing: border-box; margin: 0; padding: 8px 12px; font-size: 0.95rem;
+  flex: 1 1 auto; width: 100%; min-width: 0; box-sizing: border-box; margin: 0;
+  padding: 6px 28px 6px 10px; font-size: 0.9rem;
   border: 1px solid var(--md-default-fg-color--lightest, #ccc); border-radius: 8px;
   background: var(--md-default-bg-color, #fff); color: var(--md-default-fg-color, #333);
 }
+.fc-search-clear {
+  position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+  width: 22px; height: 22px; padding: 0; line-height: 1; font-size: 1rem; cursor: pointer;
+  border: none; background: transparent; color: var(--ink-muted, #5b6f69); border-radius: 50%;
+}
+.fc-search-clear:hover { background: var(--md-code-bg-color, #f0f4f3); color: var(--ink, inherit); }
+.fc-search-clear[hidden] { display: none; }
 #field-filter { margin: 0; flex: 0 0 auto; }
 /* "Far from this location" warning: a red ! in the bar + a tap-to-show note. */
 .fp-far {

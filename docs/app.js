@@ -1428,7 +1428,10 @@
           '</div>' +
           '<div id="field-far-msg" class="fp-far-msg" data-i18n="chk.farWarn" style="display:none"></div>' +
           '<div class="fc-filterbar">' +
-            '<input id="field-search" type="text" autocomplete="off" data-i18n-ph="ph.filter" placeholder="Filter species…" />' +
+            '<span class="fc-search-wrap">' +
+              '<input id="field-search" type="text" autocomplete="off" data-i18n-ph="ph.filter" placeholder="Filter species…" />' +
+              '<button type="button" id="field-search-clear" class="fc-search-clear" data-i18n-title="btn.clear" title="Clear" aria-label="Clear" hidden>×</button>' +
+            '</span>' +
             '<button type="button" id="field-filter-cycle" class="chk-filter-cycle" data-ff="all" title="Filter species">All</button>' +
           '</div>' +
           '<div id="field-list"></div>' +
@@ -2455,8 +2458,14 @@
       });
     }
     // Field checklist: fuzzy filter, in-row entry, export, clear.
-    document.getElementById("field-search").addEventListener("input", function () {
-      fieldQuery = this.value; renderFieldList();
+    var fSearch = document.getElementById("field-search");
+    var fSearchClear = document.getElementById("field-search-clear");
+    function syncSearchClear() { fSearchClear.hidden = !fSearch.value; }
+    fSearch.addEventListener("input", function () {
+      fieldQuery = this.value; syncSearchClear(); renderFieldList();
+    });
+    fSearchClear.addEventListener("click", function () {
+      fSearch.value = ""; fieldQuery = ""; syncSearchClear(); renderFieldList(); fSearch.focus();
     });
     // Single cycle button: All → Seen → Missing → Interesting → All.
     var FILTER_CYCLE = ["all", "seen", "missing", "interesting"];
@@ -4118,6 +4127,7 @@
   async function renderFieldChecklist(lat, lon, listId) {
     fieldQuery = ""; fieldFilter = "all"; composeDraft = {};   // fresh filters + compose drafts each open
     var fs = document.getElementById("field-search"); if (fs) fs.value = "";
+    var fsc = document.getElementById("field-search-clear"); if (fsc) fsc.hidden = true;
     if (window.__refreshFilterCycle) window.__refreshFilterCycle();
     var week = +document.getElementById("week-select").value;
     var pmin = +document.getElementById("prob-min").value / 100;
@@ -4179,6 +4189,7 @@
   function renderCountryChecklist(cc, name, lat, lon, results, rowsSnapshot) {
     fieldQuery = ""; fieldFilter = "all"; composeDraft = {};
     var fs = document.getElementById("field-search"); if (fs) fs.value = "";
+    var fsc = document.getElementById("field-search-clear"); if (fsc) fsc.hidden = true;
     if (window.__refreshFilterCycle) window.__refreshFilterCycle();
     var rows = rowsSnapshot || (results || []).map(function (r) { return { key: r.label.key, name: speciesName(r.label), prob: r.prob || 0 }; });
     fieldData = rows;
