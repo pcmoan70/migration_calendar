@@ -1455,6 +1455,7 @@
                   '<button id="field-csv" class="fp-dl-item" data-i18n="btn.csv">⬇ CSV</button>' +
                   '<button id="field-log" class="fp-dl-item" data-i18n="btn.logcsv">⬇ Log</button>' +
                   '<div class="fp-dl-sep"></div>' +
+                  '<button id="field-map" class="fp-dl-item" data-i18n="btn.showMap">📍 Map</button>' +
                   '<button id="field-review" class="fp-dl-item" data-i18n="btn.review">⬆ Upload</button>' +
                   '<div class="fp-dl-sep"></div>' +
                   '<button id="field-clear" class="fp-dl-item fp-dl-danger" data-i18n="btn.clear">Clear</button>' +
@@ -2085,6 +2086,48 @@
     updateDetLegend(); saveDetections();
     if (fit) { try { map.fitBounds(e.group.getBounds().pad(0.25)); } catch (err) { /* single point / bad bounds */ } }
   }
+  // Plot every per-entry GPS fix from the open field checklist on the map,
+  // grouped by species — reuses the detPlot legend / recency filter / spider,
+  // so it shows up exactly like an imported recent-detections layer.
+  function plotChecklistOnMap() {
+    var rec = curFieldRecord(false);
+    if (!rec || !rec.log || !rec.log.length) { setStatus(t("review.empty")); return; }
+    var bySpecies = {};
+    rec.log.forEach(function (e) {
+      if (e.lat == null || e.lon == null) return;
+      var parts = [];
+      if (e.count != null && e.count !== "") parts.push("×" + e.count);
+      if (e.sex) parts.push(sexGlyph(e.sex));
+      var al = actLabel(e.act); if (al) parts.push(al);
+      if (e.note) parts.push("“" + e.note + "”");
+      parts.push(fmtClock(e.ts));
+      (bySpecies[e.key] || (bySpecies[e.key] = [])).push({
+        lat: +e.lat, lon: +e.lon,
+        date: e.ts ? new Date(e.ts).toISOString().slice(0, 10) : "",
+        src: t("btn.checklist").replace(/^[^\wÀ-ɏ]+\s*/, ""),
+        place: parts.join(" · "),
+        url: ""
+      });
+    });
+    var keys = Object.keys(bySpecies);
+    if (!keys.length) { setStatus(t("det.none")); return; }
+    keys.forEach(function (k) {
+      var nm = (labelsByKey[k] && speciesName(labelsByKey[k])) || k;
+      plotDetections(k, nm, bySpecies[k], false);
+    });
+    // Fit to the union of all plotted points.
+    var bounds = L.latLngBounds([]);
+    keys.forEach(function (k) {
+      if (detPlot[k] && detPlot[k].group) {
+        try { bounds.extend(detPlot[k].group.getBounds()); } catch (err) { /* empty */ }
+      }
+    });
+    if (bounds.isValid()) try { map.fitBounds(bounds.pad(0.25)); } catch (e) { /* single point */ }
+    // Surface the map: close the full-screen field page so the user can see it.
+    stopFieldGeoWatch();
+    document.getElementById("field-page").style.display = "none";
+    if (map) map.invalidateSize();
+  }
   function removeDetection(key) { if (detPlot[key]) { clearSpider(); map.removeLayer(detPlot[key].group); delete detPlot[key]; updateDetLegend(); saveDetections(); } }
   function clearDetections() { clearSpider(); Object.keys(detPlot).forEach(function (k) { map.removeLayer(detPlot[k].group); }); detPlot = {}; updateDetLegend(); saveDetections(); }
   // Re-render plotted points + legend in the current language (called on lang change).
@@ -2627,6 +2670,7 @@
       hideDlMenu();
     });
     document.getElementById("field-review").addEventListener("click", function () { hideDlMenu(); openReviewPage(); });
+    document.getElementById("field-map").addEventListener("click", function () { hideDlMenu(); plotChecklistOnMap(); });
     document.getElementById("field-clear").addEventListener("click", function () {
       hideDlMenu(); fcClear(); renderFieldList();
     });
