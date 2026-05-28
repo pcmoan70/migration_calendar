@@ -2069,7 +2069,13 @@
       m._detRow = r; m._detName = name; m._detColor = color;
       m.on("mouseover", maybeSpiderize);
       m.on("mouseout", scheduleSpiderClear);
-      if (r.url) m.on("click", function (e) { if (e && e.originalEvent) L.DomEvent.stopPropagation(e.originalEvent); openExternal(r.url); });
+      // Always stop click propagation so a hit on the dot doesn't also
+      // trigger onMapClick (which would open the point-options popup behind
+      // the marker). External link still opens for rows that carry one.
+      m.on("click", function (e) {
+        if (e && e.originalEvent) L.DomEvent.stopPropagation(e.originalEvent);
+        if (r.url) openExternal(r.url);
+      });
       g.addLayer(m);
     });
     g._visibleCount = visible;
@@ -3728,9 +3734,30 @@
     if (currentMode === "list" || currentMode === "range") renderSpeciesList(ll.lat, ll.lng);
   }
 
+  // True when the click landed within ~thresholdPx of any plotted detection
+  // marker, so we can avoid covering it with the species-list popup just
+  // because the user tapped a hair beside the dot they were aiming at.
+  function clickNearDetection(latlng, thresholdPx) {
+    if (!map || !detPlot) return false;
+    var clickPt = map.latLngToContainerPoint(latlng);
+    var th = thresholdPx || 16, hit = false;
+    Object.keys(detPlot).some(function (k) {
+      var g = detPlot[k] && detPlot[k].group; if (!g) return false;
+      g.eachLayer(function (m) {
+        if (hit || !m.getLatLng) return;
+        var p = map.latLngToContainerPoint(m.getLatLng());
+        if (Math.hypot(p.x - clickPt.x, p.y - clickPt.y) <= th) hit = true;
+      });
+      return hit;
+    });
+    return hit;
+  }
   function onMapClick(e) {
     // List + Range show the per-point species list; Migration the analysis.
     if (["list", "barchart", "range"].indexOf(currentMode) < 0) return;
+    // Don't fire the point-options popup if the user was tapping a plotted
+    // detection (or just a few pixels off it).
+    if (clickNearDetection(e.latlng)) return;
     if (marker) map.removeLayer(marker);
     // Normalize: latitude clamped to [-90, 90]; longitude wrapped to [-180, 180]
     // (a click on a panned world-copy can otherwise give e.g. lon = 635).
