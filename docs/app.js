@@ -601,6 +601,34 @@
   }
   function isBirdKey(key) { return /^aves$/i.test((taxByCode[key] || {}).class_name || ""); }
 
+  // Normalize a taxonomic class/iconic-taxon string (from GBIF "class" or
+  // iNat "iconic_taxon_name") to a canonical bucket we render badges for.
+  // Returns "" when the value looks like junk we shouldn't show.
+  function normClass(s) {
+    if (!s) return "";
+    var k = String(s).toLowerCase();
+    if (/^aves\b|\bbird/.test(k)) return "Aves";
+    if (/^mammal/.test(k)) return "Mammalia";
+    if (/^insect/.test(k)) return "Insecta";
+    if (/^reptil/.test(k)) return "Reptilia";
+    if (/^amphib/.test(k)) return "Amphibia";
+    if (/^actinopt|^chondri|^pisces|^osteicht|\bfish\b/.test(k)) return "Pisces";
+    if (/^arachn/.test(k)) return "Arachnida";
+    if (/^mollusc|^gastropod|^bivalv|^cephalopod/.test(k)) return "Mollusca";
+    if (/^plantae|^magnolio|^liliop|^plant/.test(k)) return "Plantae";
+    if (/^fungi|^basidiom|^ascomy/.test(k)) return "Fungi";
+    // Unknown but non-empty — pass through so it still shows somewhere.
+    return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+  }
+  // Short glyph for a normalised class — used as a tiny inline badge so the
+  // user can tell a record's taxonomic group at a glance.
+  var CLASS_GLYPH = {
+    Aves: "🐦", Mammalia: "🦊", Insecta: "🦋", Reptilia: "🦎",
+    Amphibia: "🐸", Pisces: "🐟", Arachnida: "🕷",
+    Mollusca: "🐚", Plantae: "🌿", Fungi: "🍄"
+  };
+  function classGlyph(c) { return CLASS_GLYPH[c] || (c ? "•" : ""); }
+
   // ---- Recent detections pop-up (iNaturalist) -----------------------------
   function hideRecent() { document.getElementById("recent-modal").style.display = "none"; }
 
@@ -706,6 +734,7 @@
       return {
         src: "GBIF",
         origin: o.datasetName || "",   // the underlying dataset GBIF aggregated
+        cls: normClass(o.class),
         dt: o.eventDate || "",
         date: (o.eventDate || "").slice(0, 10) || "—",
         lat: o.decimalLatitude != null ? o.decimalLatitude : null,
@@ -731,6 +760,7 @@
       else if (o.location) { var pr = String(o.location).split(","); la = parseFloat(pr[0]); lo = parseFloat(pr[1]); }
       return {
         src: "iNaturalist",
+        cls: normClass((o.taxon && o.taxon.iconic_taxon_name) || ""),
         dt: o.time_observed_at || o.observed_on || "",
         date: o.observed_on || (o.time_observed_at || "").slice(0, 10) || "—",
         lat: isFinite(la) ? la : null,
@@ -800,11 +830,12 @@
       agg[key].count++;
       var t = Date.parse(dt); if (!isNaN(t) && t > agg[key].latestTs) agg[key].latestTs = t;
     }
-    function bumpExtra(sciName, commonName, dt) {
+    function bumpExtra(sciName, commonName, dt, cls) {
       if (!sciName) return;
       var k = sciName.toLowerCase();
-      if (!extras[k]) extras[k] = { sci: sciName, name: commonName || "", count: 0, latestTs: 0 };
+      if (!extras[k]) extras[k] = { sci: sciName, name: commonName || "", cls: cls || "", count: 0, latestTs: 0 };
       if (!extras[k].name && commonName) extras[k].name = commonName;
+      if (!extras[k].cls && cls) extras[k].cls = cls;
       extras[k].count++;
       var t = Date.parse(dt); if (!isNaN(t) && t > extras[k].latestTs) extras[k].latestTs = t;
     }
@@ -812,17 +843,17 @@
       var sciName = o.species || o.scientificName; if (!sciName) return;
       var lbl = sci[sciName.toLowerCase()];
       if (lbl) bump(lbl.key, o.eventDate);
-      else bumpExtra(sciName, "", o.eventDate);
+      else bumpExtra(sciName, "", o.eventDate, normClass(o.class));
     });
     (inat || []).forEach(function (o) {
       var sciName = o.taxon && o.taxon.name; if (!sciName) return;
       var lbl = sci[sciName.toLowerCase()];
       if (lbl) bump(lbl.key, o.observed_on || o.time_observed_at);
-      else bumpExtra(sciName, (o.taxon && o.taxon.preferred_common_name) || "", o.observed_on || o.time_observed_at);
+      else bumpExtra(sciName, (o.taxon && o.taxon.preferred_common_name) || "", o.observed_on || o.time_observed_at, normClass(o.taxon && o.taxon.iconic_taxon_name));
     });
     (ebird || []).forEach(function (o) {
       if (labelsByKey[o.speciesCode]) bump(o.speciesCode, o.obsDt);
-      else bumpExtra(o.sciName || "", o.comName || "", o.obsDt);
+      else bumpExtra(o.sciName || "", o.comName || "", o.obsDt, "Aves");
     });
     return { agg: agg, extras: extras };
   }
@@ -890,7 +921,8 @@
       var tr = document.createElement("tr");
       tr.className = "sp-extra";
       tr.setAttribute("data-age-days", days != null ? days : "");
-      tr.innerHTML = '<td><span class="sp-extra-name" title="' + escapeHtml(t("sp.extraHint")) + '">' + escapeHtml(name) + '</span></td>' +
+      var clsBadge = e.cls ? '<span class="sp-extra-cls" title="' + escapeHtml(e.cls) + '">' + classGlyph(e.cls) + "</span> " : "";
+      tr.innerHTML = '<td>' + clsBadge + '<span class="sp-extra-name" title="' + escapeHtml(t("sp.extraHint")) + '">' + escapeHtml(name) + '</span></td>' +
         '<td class="name2"></td>' +
         '<td style="font-style:italic">' + escapeHtml(e.sci) + '</td>' +
         '<td class="prob-na">—</td><td></td>' +
@@ -996,6 +1028,7 @@
     return ((j && j.length) ? j : []).map(function (o) {
       return {
         src: "eBird",
+        cls: "Aves",   // eBird's API is bird-only
         dt: o.obsDt || "",
         date: (o.obsDt || "").slice(0, 10) || "—",
         lat: o.lat != null ? o.lat : null,
@@ -1020,9 +1053,9 @@
   function recentCsv() {
     var m = lastRecentMeta || {};
     var lines = ["# " + (m.name || "") + " (" + (m.sci || "") + ") | " + (m.lat != null ? m.lat.toFixed(4) + "°, " + m.lon.toFixed(4) + "°" : "")];
-    lines.push("date,source,origin,lat,lon,place,observer_or_count,notes,url");
+    lines.push("date,source,class,origin,lat,lon,place,observer_or_count,notes,url");
     lastRecentRows.forEach(function (r) {
-      lines.push([csvEsc(r.date), r.src, csvEsc(r.origin || r.src), r.lat != null ? r.lat : "", r.lon != null ? r.lon : "",
+      lines.push([csvEsc(r.date), r.src, csvEsc(r.cls || ""), csvEsc(r.origin || r.src), r.lat != null ? r.lat : "", r.lon != null ? r.lon : "",
         csvEsc(r.place), csvEsc(r.who), csvEsc(r.note || ""), csvEsc(r.url)].join(","));
     });
     return lines.join("\n");
@@ -1074,7 +1107,8 @@
         // GBIF aggregates many datasets — badge such rows by their origin dataset.
         var label = (r.src === "GBIF" && r.origin) ? shortOrigin(r.origin) : r.src;
         var badge = '<span class="rc-src rc-src-' + srcSlug(r.src) + '" title="' + escapeHtml(r.origin || r.src) + '">' + escapeHtml(label || "") + "</span>";
-        return '<tr><td class="rc-date">' + escapeHtml(r.date) + '</td><td class="rc-srccell">' + badge + '</td><td class="rc-place">' + cell + '</td><td class="rc-who">' + escapeHtml(r.who) + "</td></tr>";
+        var clsBadge = r.cls ? '<span class="rc-cls" title="' + escapeHtml(r.cls) + '">' + classGlyph(r.cls) + "</span> " : "";
+        return '<tr><td class="rc-date">' + escapeHtml(r.date) + '</td><td class="rc-srccell">' + badge + '</td><td class="rc-place">' + clsBadge + cell + '</td><td class="rc-who">' + escapeHtml(r.who) + "</td></tr>";
       }).join("");
       body.innerHTML = '<div class="recent-head"><span class="recent-src">' + escapeHtml(cap + " · " + d1 + " – " + d2 + " · " + recentRadiusKm() + " km") + "</span>" +
         '<span class="recent-head-btns"><button type="button" id="recent-map">' + escapeHtml(t("recent.showInMap")) + "</button>" +
@@ -2665,7 +2699,9 @@
         var rec = getFieldRecord(REVIEW_RECID); if (!rec) return;
         var grp = dl.getAttribute("data-grp");
         var fname = "ebird_" + (rec.day || todayStr()) + "_" + grp + ".csv";
-        downloadCsv(fname, ebirdRecordCsv(rec, grp));
+        var out = ebirdRecordCsv(rec, grp);
+        downloadCsv(fname, out.csv);
+        if (out.skipped) setStatus(t("review.csvBirdsOnly", { n: out.skipped }));
         return;
       }
       var api = e.target.closest && e.target.closest(".rv-api");
@@ -4627,8 +4663,13 @@
       "Effort Comments", "Submission Comments"];
     var date = rec.day || todayStr();
     var lines = [headers.join(",")];
+    var skipped = 0;
     rows.forEach(function (a) {
       var lbl = labelsByKey[a.key] || {};
+      // eBird only accepts birds. Skip non-bird rows so the import doesn't
+      // 400; we report the count back so the caller can warn the user.
+      var isBird = !!labelsByKey[a.key] || isBirdKey(a.key);
+      if (!isBird) { skipped++; return; }
       var sci = (lbl.sci || "").split(/\s+/);
       var genus = sci[0] || "", species = sci.slice(1).join(" ") || "";
       var common = lbl.common || lbl.key || a.key;
@@ -4654,7 +4695,7 @@
         esc(meta.effortNotes || ""), esc(meta.submitNotes || "")
       ].join(","));
     });
-    return lines.join("\n");
+    return { csv: lines.join("\n"), skipped: skipped };
   }
 
   // Placeholder for an eventual API submit. Kept as a function so the call
