@@ -1,15 +1,53 @@
-# Plan — list bars, current-week highlight/sort, default week
+# Upload Checklist Feature — eBird (v1)
+
+## Decisions (user-confirmed)
+1. **Mechanism**: CSV download in eBird Record Format; structure the code so a future API-submit hook can plug in.
+2. **Scope**: One checklist = one upload group. User can split/merge log entries into ad-hoc groups in the review screen.
+3. **Entry point**: New "Review & upload" button on the field-checklist page → dedicated review page.
+
+## Existing model (no change needed, append-only field on entries)
+- `fieldChecklists[id]` = `{ id, title, lat, lon, day, createdAt, log[], seen{} }` (one record per place+day).
+- Each `log` entry: `{ id, ts, lat, lon, key, count, act, note }`.
+- **Add**: optional `entry.grp` (group key, string). Absent → default group `"a"`. Backward compatible.
 
 ## Tasks
-- [x] 1. Species List: render the comparison ("Compare to") column with probability-style **bars** when all its values are positive (e.g. Annual max, Annual Top); when negatives occur (changes), show values with **negatives in red**.
-- [x] 2. Location analysis **Timeline**: mark the **current-week** bar specially (red).
-- [x] 3. Sort all analysis tables except Scatter (**Timeline, Probability, Arrivals, Annual Top**) from largest→smallest by the **current-week** value.
-- [x] 4. On page load, set the **Week** selector to the **current week of the year**.
-- [x] 5. Verify in-browser (headless) and commit + push.
+
+### 1. Data
+- [ ] `entry.grp` (string) added to log entries. Default group when missing = `"a"`.
+- [ ] Add `record.upload[grpKey]` to persist per-group submission metadata (start time, duration, protocol, distance/area, observers, effort comments, submission comments, state, country, location-name override).
+- [ ] Helpers: `recordGroups(rec)` → array of group keys present in `rec.log` (+ any orphans from `rec.upload`). `entriesByGroup(rec, grp)` → log entries in that group, sorted by ts. `aggregateSpecies(entries)` → array `{ key, count, breeding, notes, firstTs, lastTs }`.
+
+### 2. eBird mapping
+- [ ] `EBIRD_BREEDING` map: subset of `FIELD_ACTS` → eBird breeding codes (NB, FL, ON, FY, NY, CF, FS, UN, DD, A, C, N, T, P, S, S7, H, F, …). Non-breeding activities pass through as plain text in "Identification details".
+- [ ] `ebirdCsv(rec, grpKey)`: produces a string in Record Format (header row + one row per species). Columns:
+  `Common Name, Genus, Species, Number, Identification details, Observation Date, Observation Time, State, Country, Location Name, Latitude, Longitude, Protocol, Duration (min), All observations reported, Distance Covered (km), Area Covered (ha), Number of Observers, Effort Comments, Submission Comments`.
+
+### 3. UI — `#review-page`
+- [ ] New full-screen page, opened by a new toolbar button on the field-checklist page.
+- [ ] Group cards: editable meta + aggregated species list (count/breeding/note editable; expand to show source entries with "Move to group ▾").
+- [ ] "+ Checklist" button creates a new group.
+- [ ] Per-group "Download eBird CSV" button.
+- [ ] Per-group "Submit to eBird API" placeholder (disabled tooltip "partner-only").
+
+### 4. i18n
+- [ ] Add ~25 keys to all 15 language blocks in `docs/i18n/strings.js` (English source; translations for sv/de/es/fr/nl/no/it/pl/cs/et/lt/fi/da/pt). Keep CRLF.
+
+### 5. Housekeeping
+- [ ] Bump SW to v73, update `last-change.txt`.
+
+### 6. Verification (headless)
+- [ ] Aggregation: two `barswa` entries with counts 3 + 2 → one row `count=5`.
+- [ ] CSV roundtrip: header row + correct column count per data row.
+- [ ] Breeding code mapping: `song` → `S`, `nestbuild` → `NB`.
+- [ ] Move entry to new group → species moves between groups.
+- [ ] Protocol Traveling shows Distance row.
+
+## Out of scope (v1)
+- Tracking which checklists were already uploaded.
+- iNaturalist (the review page leaves a `destinations[]` seam).
+- State/country auto-detection.
+- Per-entry coords in the CSV (eBird Record Format takes one location per checklist).
 
 ## Review
-All verified headless (0 console errors): default week = 19 (today), comparison column shows bars when all-positive / red negatives for changes, Timeline current-week bar is red (rgb 211,47,47), and Timeline/Probability/Arrivals sort by current-week value descending.
 
-## Notes
-- Comparison kinds: delta (prev/next/mean, can be negative), ratio (annual max, 0–1), focus (annual top, 0–100).
-- Current BirdNET week from today: floor((dayOfYear-1)/365*48)+1, clamped 1–48.
+(populated after implementation)

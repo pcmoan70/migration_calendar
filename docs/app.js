@@ -1417,6 +1417,7 @@
               '<button id="field-pdf" class="demo-btn" title="Download PDF">⬇ PDF</button>' +
               '<button id="field-csv" class="demo-btn" data-i18n="btn.csv" title="Download CSV">⬇ CSV</button>' +
               '<button id="field-log" class="demo-btn" data-i18n="btn.logcsv" title="Download observation log">⬇ Log</button>' +
+              '<button id="field-review" class="demo-btn" data-i18n="btn.review" title="Review & upload">⬆ Upload</button>' +
               '<button id="field-clear" class="demo-btn demo-btn-light" data-i18n="btn.clear">Clear</button>' +
             '</span>' +
           '</div>' +
@@ -1462,6 +1463,16 @@
             '</span>' +
           '</div>' +
           '<div id="entry-list"></div>' +
+        '</div>' +
+        '<div id="review-page" style="display:none">' +
+          '<div class="field-page-bar">' +
+            '<button id="review-back" class="fp-back" title="Back">‹</button>' +
+            '<span id="review-title" class="field-place" data-i18n="review.title">Review &amp; upload</span>' +
+            '<span class="field-actions">' +
+              '<button id="review-new" class="demo-btn" data-i18n="review.newGroup">+ Checklist</button>' +
+            '</span>' +
+          '</div>' +
+          '<div id="review-list"></div>' +
         '</div>' +
         '<div id="barchart-panel">' +
           '<h3 id="bc-title" data-i18n="panel.bcTitle">Location analysis</h3>' +
@@ -2537,8 +2548,89 @@
       downloadCsv("field_checklist_log.csv", fieldLogCsv());
     });
     document.getElementById("field-pdf").addEventListener("click", exportFieldPdf);
+    document.getElementById("field-review").addEventListener("click", openReviewPage);
     document.getElementById("field-clear").addEventListener("click", function () {
       fcClear(); renderFieldList();
+    });
+
+    // ---- Review page wiring -------------------------------------------------
+    document.getElementById("review-back").addEventListener("click", closeReviewPage);
+    document.getElementById("review-new").addEventListener("click", function () {
+      // Allocate the next free group letter and seed its upload meta so the
+      // empty group shows up. The user then moves entries into it via the
+      // species-row "Move to…" menus.
+      var rec = getFieldRecord(REVIEW_RECID); if (!rec) return;
+      var k = nextGroupKey(rec);
+      rec.upload = rec.upload || {};
+      rec.upload[k] = rec.upload[k] || {};
+      putFieldRecord(rec);
+      renderReviewPage();
+    });
+    var rlist = document.getElementById("review-list");
+    // Field changes (meta inputs, species count/note, breeding-code select,
+    // move-entry selects) all delegate to one handler.
+    rlist.addEventListener("change", function (e) {
+      var rec = getFieldRecord(REVIEW_RECID); if (!rec) return;
+      var el = e.target;
+      if (el.classList.contains("rv-m")) {
+        var grp = el.getAttribute("data-grp"), f = el.getAttribute("data-f");
+        var v = el.value;
+        if (f === "duration" || f === "observers") v = v === "" ? "" : Math.max(0, +v || 0);
+        else if (f === "distance" || f === "area") v = v === "" ? "" : Math.max(0, +v || 0);
+        var patch = {}; patch[f] = v;
+        writeGroupMeta(rec, grp, patch);
+        if (f === "protocol") renderReviewPage();   // toggles the distance row
+        return;
+      }
+      if (el.classList.contains("rv-count")) {
+        var grp1 = el.getAttribute("data-grp"), key1 = el.getAttribute("data-key");
+        var raw = el.value.trim();
+        var val = raw === "" || raw.toUpperCase() === "X" ? null : (/^[0-9]+$/.test(raw) ? +raw : raw);
+        reviewEditSpecies(rec, grp1, key1, { count: val });
+        return;
+      }
+      if (el.classList.contains("rv-code")) {
+        var grp2 = el.getAttribute("data-grp"), key2 = el.getAttribute("data-key");
+        reviewEditSpecies(rec, grp2, key2, { code: el.value });
+        return;
+      }
+      if (el.classList.contains("rv-note")) {
+        var grp3 = el.getAttribute("data-grp"), key3 = el.getAttribute("data-key");
+        reviewEditSpecies(rec, grp3, key3, { note: el.value });
+        return;
+      }
+      if (el.classList.contains("rv-move")) {
+        var eid = el.getAttribute("data-eid"), target = el.value;
+        if (target) {
+          reviewMoveEntry(rec, eid, target);
+          renderReviewPage();
+        }
+        return;
+      }
+    });
+    rlist.addEventListener("click", function (e) {
+      var x = e.target.closest && e.target.closest(".rv-expand");
+      if (x) {
+        var sp = x.closest(".rv-sp"); if (!sp) return;
+        var sl = sp.querySelector(".rv-src-list"); if (!sl) return;
+        sl.hidden = !sl.hidden;
+        x.textContent = sl.hidden ? "▾" : "▴";
+        return;
+      }
+      var dl = e.target.closest && e.target.closest(".rv-dl");
+      if (dl) {
+        var rec = getFieldRecord(REVIEW_RECID); if (!rec) return;
+        var grp = dl.getAttribute("data-grp");
+        var fname = "ebird_" + (rec.day || todayStr()) + "_" + grp + ".csv";
+        downloadCsv(fname, ebirdRecordCsv(rec, grp));
+        return;
+      }
+      var api = e.target.closest && e.target.closest(".rv-api");
+      if (api) {
+        var rec2 = getFieldRecord(REVIEW_RECID); if (!rec2) return;
+        ebirdSubmitGroup(rec2, api.getAttribute("data-grp"));
+        return;
+      }
     });
     // "Nearby places" picker for the title.
     document.getElementById("field-nearby").addEventListener("click", function (e) { e.stopPropagation(); openPlacePicker(); });
@@ -4324,6 +4416,305 @@
         '<button type="button" class="ent-del" data-id="' + escapeHtml(e.id) + '" aria-label="' + escapeHtml(t("btn.delete")) + '">×</button>' +
         "</div>";
     }).join("");
+  }
+
+  // ---- Review & upload page ------------------------------------------------
+  // Lets the user split/merge the open record's log entries into ad-hoc
+  // "checklists" (groups) and download an eBird Record-Format CSV per group
+  // for manual upload at ebird.org/import/upload. A submit-API hook exists
+  // but is gated off — eBird's submit endpoint is partner-only.
+
+  // FIELD_ACTS code → eBird breeding/behaviour code. Activities not in this
+  // table are emitted as plain text in the species "Identification details".
+  var EBIRD_BREEDING = {
+    flyover: "F", song: "S",
+    obshab: "H", songhab: "S7", pairhab: "P", permterr: "T",
+    agitated: "A", courtship: "C",
+    nestbuild: "NB", incubating: "ON", foodyoung: "FY",
+    nesteggsyoung: "NY", nestyoungheard: "NY", fledglings: "FL",
+    nestinuse: "ON", visitnest: "N", nestvisitq: "N",
+    faecalsac: "FS", usednest: "UN", eggshell: "UN",
+    distraction: "DD", broodpatch: "PE"
+  };
+  var EBIRD_PROTOCOLS = ["Stationary", "Traveling", "Casual", "Incidental", "Historical"];
+  var DEFAULT_GRP = "a";
+
+  function entryGrp(e) { return (e && e.grp) || DEFAULT_GRP; }
+  // Sorted list of group keys present in the record's log + persisted upload
+  // meta. Empty groups disappear next render — keeps the UI honest.
+  function recordGroups(rec) {
+    var seen = {};
+    ((rec && rec.log) || []).forEach(function (e) { seen[entryGrp(e)] = true; });
+    if (rec && rec.upload) Object.keys(rec.upload).forEach(function (g) { seen[g] = true; });
+    var keys = Object.keys(seen);
+    if (!keys.length) keys.push(DEFAULT_GRP);
+    keys.sort();
+    return keys;
+  }
+  function entriesInGroup(rec, grp) {
+    return ((rec && rec.log) || []).filter(function (e) { return entryGrp(e) === grp; })
+      .sort(function (a, b) { return (a.ts || 0) - (b.ts || 0); });
+  }
+  // Per-species aggregate within a group. `count` is the sum of numeric counts
+  // (countNum tolerates merged "3, 1" strings); `notes` is "|"-joined uniques;
+  // `breedingHint` is the eBird code from the highest-priority activity seen.
+  function aggregateForUpload(entries) {
+    var by = {}, order = [];
+    entries.forEach(function (e) {
+      var a = by[e.key];
+      if (!a) { a = by[e.key] = { key: e.key, count: 0, hadCount: false, notes: [], acts: [], firstTs: e.ts || 0, lastTs: e.ts || 0 }; order.push(e.key); }
+      if (e.count != null && e.count !== "") { a.count += countNum(e.count); a.hadCount = true; }
+      if (e.note) { var n = String(e.note).trim(); if (n && a.notes.indexOf(n) < 0) a.notes.push(n); }
+      String(e.act || "").split(" / ").forEach(function (x) { x = x.trim(); if (x && a.acts.indexOf(x) < 0) a.acts.push(x); });
+      a.firstTs = Math.min(a.firstTs, e.ts || a.firstTs);
+      a.lastTs = Math.max(a.lastTs, e.ts || a.lastTs);
+    });
+    return order.map(function (k) { return by[k]; });
+  }
+  // Translate the species' joined activity codes into (breedingCode, residualText).
+  // Breeding code is the first matching mapped activity; residual is plain
+  // text for unmapped activities (foraging/stationary/migrating-… etc) so the
+  // info isn't lost in the CSV.
+  function ebirdActSplit(actCodes) {
+    var code = "", residual = [];
+    actCodes.forEach(function (a) {
+      if (EBIRD_BREEDING[a] && !code) code = EBIRD_BREEDING[a];
+      else if (a) residual.push(actName(a));
+    });
+    return { code: code, residual: residual.join(", ") };
+  }
+
+  // Default time pulled from the entries; falls back to local clock.
+  function ebirdStartTime(entries) {
+    if (!entries.length) return "08:00";
+    var t0 = entries[0].ts || Date.now();
+    return fmtClock(t0);
+  }
+  function ebirdDurationMin(entries) {
+    if (entries.length < 2) return 0;
+    var span = (entries[entries.length - 1].ts || 0) - (entries[0].ts || 0);
+    return Math.max(0, Math.round(span / 60000));
+  }
+
+  var REVIEW_FIELDS = ["protocol", "start", "duration", "distance", "area", "observers", "allObs",
+                       "locName", "state", "country", "effortNotes", "submitNotes"];
+  function defaultMeta(rec, entries) {
+    return {
+      protocol: "Stationary",
+      start: ebirdStartTime(entries),
+      duration: ebirdDurationMin(entries) || (entries.length ? 1 : 0),
+      distance: "",
+      area: "",
+      observers: 1,
+      allObs: "Y",
+      locName: rec.title || "",
+      state: "",
+      country: "",
+      effortNotes: "",
+      submitNotes: ""
+    };
+  }
+  function readGroupMeta(rec, grp, entries) {
+    var dflt = defaultMeta(rec, entries);
+    var saved = (rec.upload && rec.upload[grp]) || {};
+    var out = {};
+    REVIEW_FIELDS.forEach(function (f) { out[f] = (saved[f] !== undefined && saved[f] !== null) ? saved[f] : dflt[f]; });
+    return out;
+  }
+  function writeGroupMeta(rec, grp, patch) {
+    rec.upload = rec.upload || {};
+    rec.upload[grp] = Object.assign(rec.upload[grp] || {}, patch);
+    putFieldRecord(rec);
+  }
+  function nextGroupKey(rec) {
+    // Group keys are single lowercase letters a–z; jump to the lowest unused.
+    var used = {}; recordGroups(rec).forEach(function (g) { used[g] = true; });
+    for (var i = 0; i < 26; i++) { var k = String.fromCharCode(97 + i); if (!used[k]) return k; }
+    return "z";   // unlikely
+  }
+
+  // eBird Record-Format CSV — header row + one row per species. Columns and
+  // order from eBird's documented import schema; "All observations reported"
+  // and "Number" semantics per their import help ("X" for present-no-count).
+  function ebirdRecordCsv(rec, grp) {
+    var entries = entriesInGroup(rec, grp);
+    var meta = readGroupMeta(rec, grp, entries);
+    var rows = aggregateForUpload(entries);
+    var esc = function (v) { var s = String(v == null ? "" : v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+    var headers = ["Common Name", "Genus", "Species", "Number", "Identification details",
+      "Observation Date", "Observation Time", "State", "Country", "Location Name",
+      "Latitude", "Longitude", "Protocol", "Duration (min)", "All observations reported",
+      "Distance Covered (km)", "Area Covered (ha)", "Number of Observers",
+      "Effort Comments", "Submission Comments"];
+    var date = rec.day || todayStr();
+    var lines = [headers.join(",")];
+    rows.forEach(function (a) {
+      var lbl = labelsByKey[a.key] || {};
+      var sci = (lbl.sci || "").split(/\s+/);
+      var genus = sci[0] || "", species = sci.slice(1).join(" ") || "";
+      var common = lbl.common || lbl.key || a.key;
+      var split = ebirdActSplit(a.acts);
+      var detailBits = [];
+      if (split.code) detailBits.push(split.code);
+      if (split.residual) detailBits.push(split.residual);
+      if (a.notes.length) detailBits.push(a.notes.join(" | "));
+      var num = a.hadCount && a.count > 0 ? String(a.count) : "X";
+      lines.push([
+        esc(common), esc(genus), esc(species), num, esc(detailBits.join(" — ")),
+        date, meta.start || "",
+        esc(meta.state || ""), esc(meta.country || ""), esc(meta.locName || rec.title || ""),
+        (rec.lat != null ? rec.lat.toFixed(6) : ""), (rec.lon != null ? rec.lon.toFixed(6) : ""),
+        meta.protocol || "Stationary",
+        (meta.duration === "" || meta.duration == null) ? "" : String(meta.duration),
+        (meta.allObs === "N") ? "N" : "Y",
+        (meta.protocol === "Traveling" && meta.distance !== "") ? String(meta.distance) : "",
+        (meta.protocol === "Area" && meta.area !== "") ? String(meta.area) : "",
+        String(meta.observers || 1),
+        esc(meta.effortNotes || ""), esc(meta.submitNotes || "")
+      ].join(","));
+    });
+    return lines.join("\n");
+  }
+
+  // Placeholder for an eventual API submit. Kept as a function so the call
+  // site doesn't need to change once eBird grants partner credentials.
+  function ebirdSubmitGroup(/* rec, grp */) {
+    setStatus(t("review.apiStub"));
+  }
+
+  var REVIEW_RECID = null;
+  function openReviewPage() {
+    var rec = curFieldRecord(false);
+    if (!rec || !rec.log || !rec.log.length) { setStatus(t("review.empty")); return; }
+    REVIEW_RECID = rec.id;
+    document.getElementById("review-page").style.display = "flex";
+    renderReviewPage();
+  }
+  function closeReviewPage() {
+    document.getElementById("review-page").style.display = "none";
+    REVIEW_RECID = null;
+  }
+
+  function renderReviewPage() {
+    var rec = getFieldRecord(REVIEW_RECID);
+    var list = document.getElementById("review-list");
+    if (!rec) { list.innerHTML = '<p class="fc-empty">' + escapeHtml(t("review.empty")) + "</p>"; return; }
+    var groups = recordGroups(rec);
+    var html = groups.map(function (g) { return renderGroupCardHtml(rec, g, groups); }).join("");
+    if (!html) html = '<p class="fc-empty">' + escapeHtml(t("review.empty")) + "</p>";
+    list.innerHTML = html;
+  }
+
+  function renderGroupCardHtml(rec, grp, allGroups) {
+    var entries = entriesInGroup(rec, grp);
+    var meta = readGroupMeta(rec, grp, entries);
+    var rows = aggregateForUpload(entries);
+    var esc = escapeHtml;
+    var protoOpts = EBIRD_PROTOCOLS.map(function (p) {
+      var lab = t("review.proto" + p);
+      return '<option value="' + p + '"' + (meta.protocol === p ? " selected" : "") + ">" + esc(lab) + "</option>";
+    }).join("");
+    var moveOpts = allGroups.filter(function (x) { return x !== grp; })
+      .map(function (x) { return '<option value="' + x + '">' + esc(t("review.group") + " " + x.toUpperCase()) + "</option>"; })
+      .concat('<option value="__new__">' + esc(t("review.newGroup")) + "</option>").join("");
+
+    var speciesHtml = rows.map(function (a) {
+      var lbl = labelsByKey[a.key] || {};
+      var nm = lbl.common ? speciesName(lbl) : a.key;
+      var split = ebirdActSplit(a.acts);
+      var codeOpts = ['<option value=""></option>'].concat(
+        ["F","S","H","S7","P","T","A","C","NB","ON","FY","NY","FL","N","FS","UN","DD","PE"].map(function (c) {
+          return '<option value="' + c + '"' + (split.code === c ? " selected" : "") + ">" + c + "</option>";
+        })
+      ).join("");
+      var note = (split.residual ? split.residual + (a.notes.length ? " — " : "") : "") + a.notes.join(" | ");
+      var srcEntries = entriesInGroup(rec, grp).filter(function (e) { return e.key === a.key; });
+      var srcHtml = srcEntries.map(function (e) {
+        return '<div class="rv-src" data-eid="' + esc(e.id) + '">' +
+          '<span class="rv-src-meta">' + esc(fmtClock(e.ts) + " · " + (e.count != null ? e.count : "·") + (e.act ? " · " + actName(e.act) : "") + (e.note ? " · " + e.note : "")) + "</span>" +
+          '<select class="rv-move" data-eid="' + esc(e.id) + '" data-grp="' + esc(grp) + '">' +
+            '<option value="">' + esc(t("review.moveTo")) + "</option>" + moveOpts +
+          "</select>" +
+          "</div>";
+      }).join("");
+      return '<div class="rv-sp" data-key="' + esc(a.key) + '" data-grp="' + esc(grp) + '">' +
+        '<div class="rv-sp-head">' +
+          '<span class="rv-sp-name">' + esc(nm) + "</span>" +
+          '<input type="text" class="rv-count" data-grp="' + esc(grp) + '" data-key="' + esc(a.key) + '" inputmode="numeric" value="' + esc(a.hadCount && a.count > 0 ? String(a.count) : (a.hadCount ? "0" : "X")) + '" />' +
+          '<select class="rv-code" data-grp="' + esc(grp) + '" data-key="' + esc(a.key) + '" title="Breeding/behaviour code">' + codeOpts + "</select>" +
+          '<button type="button" class="rv-expand" data-key="' + esc(a.key) + '" data-grp="' + esc(grp) + '" aria-label="Show entries">▾</button>' +
+        "</div>" +
+        '<input type="text" class="rv-note" data-grp="' + esc(grp) + '" data-key="' + esc(a.key) + '" value="' + esc(note) + '" placeholder="' + esc(t("th.notes")) + '" />' +
+        '<div class="rv-src-list" hidden>' + srcHtml + "</div>" +
+      "</div>";
+    }).join("");
+
+    var showDist = meta.protocol === "Traveling";
+    return '<div class="rv-group" data-grp="' + esc(grp) + '">' +
+      '<div class="rv-group-head">' +
+        '<h3>' + esc(t("review.group") + " " + grp.toUpperCase()) + " · " + entries.length + "</h3>" +
+        '<button type="button" class="demo-btn rv-dl" data-grp="' + esc(grp) + '" data-i18n="review.dlEbird">⬇ eBird CSV</button>' +
+        '<button type="button" class="demo-btn demo-btn-light rv-api" data-grp="' + esc(grp) + '" title="' + esc(t("review.apiStub")) + '" data-i18n="review.apiEbird">Submit to eBird</button>' +
+      "</div>" +
+      '<div class="rv-meta">' +
+        '<label>' + esc(t("review.protocol")) + ' <select class="rv-m" data-grp="' + esc(grp) + '" data-f="protocol">' + protoOpts + "</select></label>" +
+        '<label>' + esc(t("review.start")) + ' <input type="time" class="rv-m" data-grp="' + esc(grp) + '" data-f="start" value="' + esc(meta.start || "") + '"></label>' +
+        '<label>' + esc(t("review.duration")) + ' <input type="number" min="0" class="rv-m" data-grp="' + esc(grp) + '" data-f="duration" value="' + esc(String(meta.duration || 0)) + '"></label>' +
+        (showDist ? '<label>' + esc(t("review.distance")) + ' <input type="number" min="0" step="0.1" class="rv-m" data-grp="' + esc(grp) + '" data-f="distance" value="' + esc(String(meta.distance || "")) + '"></label>' : "") +
+        '<label>' + esc(t("review.observers")) + ' <input type="number" min="1" class="rv-m" data-grp="' + esc(grp) + '" data-f="observers" value="' + esc(String(meta.observers || 1)) + '"></label>' +
+        '<label>' + esc(t("review.allObs")) + ' <select class="rv-m" data-grp="' + esc(grp) + '" data-f="allObs"><option value="Y"' + (meta.allObs !== "N" ? " selected" : "") + ">" + esc(t("review.yes")) + '</option><option value="N"' + (meta.allObs === "N" ? " selected" : "") + ">" + esc(t("review.no")) + "</option></select></label>" +
+        '<label class="rv-wide">' + esc(t("review.locName")) + ' <input type="text" class="rv-m" data-grp="' + esc(grp) + '" data-f="locName" value="' + esc(meta.locName || "") + '"></label>' +
+        '<label>' + esc(t("review.state")) + ' <input type="text" class="rv-m" data-grp="' + esc(grp) + '" data-f="state" value="' + esc(meta.state || "") + '"></label>' +
+        '<label>' + esc(t("review.country")) + ' <input type="text" class="rv-m" data-grp="' + esc(grp) + '" data-f="country" value="' + esc(meta.country || "") + '"></label>' +
+        '<label class="rv-wide">' + esc(t("review.effortNotes")) + ' <input type="text" class="rv-m" data-grp="' + esc(grp) + '" data-f="effortNotes" value="' + esc(meta.effortNotes || "") + '"></label>' +
+        '<label class="rv-wide">' + esc(t("review.submitNotes")) + ' <input type="text" class="rv-m" data-grp="' + esc(grp) + '" data-f="submitNotes" value="' + esc(meta.submitNotes || "") + '"></label>' +
+      "</div>" +
+      (rows.length ? '<div class="rv-sp-list">' + speciesHtml + "</div>" : '<p class="fc-empty">' + esc(t("review.empty")) + "</p>") +
+    "</div>";
+  }
+
+  // ---- Review handlers ----
+  // Move a single log entry between groups. "__new__" allocates a fresh letter.
+  function reviewMoveEntry(rec, eid, targetGrp) {
+    var e = rec.log.filter(function (x) { return x.id === eid; })[0]; if (!e) return;
+    if (targetGrp === "__new__") targetGrp = nextGroupKey(rec);
+    e.grp = targetGrp;
+    putFieldRecord(rec);
+  }
+  // Edit an aggregated species' count / breeding code / shared note. Counts
+  // and notes act on the species' entries WITHIN this group: count gets
+  // stamped on the most recent entry (others zeroed), code/note on the most
+  // recent entry — pragmatic since the source-entries list still lets users
+  // touch individual entries when needed.
+  function reviewEditSpecies(rec, grp, key, patch) {
+    var ents = entriesInGroup(rec, grp).filter(function (e) { return e.key === key; });
+    if (!ents.length) return;
+    var last = ents[ents.length - 1];
+    if (patch.count !== undefined) {
+      ents.forEach(function (e) { e.count = null; });
+      last.count = patch.count;
+    }
+    if (patch.code !== undefined) {
+      var residual = ents.reduce(function (s, e) {
+        var others = String(e.act || "").split(" / ").filter(function (a) { return a && !EBIRD_BREEDING[a]; });
+        return s.concat(others);
+      }, []);
+      // Map code back to first FIELD_ACTS entry that produces it
+      var actForCode = null;
+      Object.keys(EBIRD_BREEDING).some(function (k) { if (EBIRD_BREEDING[k] === patch.code) { actForCode = k; return true; } });
+      var newActs = [];
+      if (actForCode) newActs.push(actForCode);
+      residual.forEach(function (r) { if (newActs.indexOf(r) < 0) newActs.push(r); });
+      last.act = newActs.join(" / ");
+      ents.slice(0, -1).forEach(function (e) {
+        e.act = String(e.act || "").split(" / ").filter(function (a) { return !EBIRD_BREEDING[a]; }).join(" / ");
+      });
+    }
+    if (patch.note !== undefined) {
+      last.note = patch.note;
+      ents.slice(0, -1).forEach(function (e) { e.note = ""; });
+    }
+    putFieldRecord(rec);
   }
 
   function fieldChecklistCsv() {
