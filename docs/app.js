@@ -1543,7 +1543,6 @@
           '<button type="button" class="sp-menu-item" data-act="distmap" data-i18n="menu.distmap">Distribution map</button>' +
           '<button type="button" class="sp-menu-item" data-act="wiki" data-i18n="menu.wiki">Wikipedia</button>' +
           '<button type="button" class="sp-menu-item" data-act="birdlife" data-i18n="menu.birdlife">BirdLife</button>' +
-          '<button type="button" class="sp-menu-item" data-act="ebird" data-i18n="menu.ebird">eBird (recent sightings)</button>' +
           '<button type="button" class="sp-menu-item" data-act="macaulay" data-i18n="menu.macaulay">Macaulay Library</button>' +
           '<button type="button" class="sp-menu-item" data-act="xeno" data-i18n="menu.xeno">Xeno-canto (audio)</button>' +
           '<button type="button" class="sp-menu-item" data-act="interesting" data-i18n="menu.interestingAdd">★ Mark interesting</button>' +
@@ -2958,12 +2957,10 @@
         menuKey = link.getAttribute("data-key");
         menuName = link.getAttribute("data-name");
         menuSci = link.getAttribute("data-sci") || "";
-        // BirdLife DataZone and eBird cover birds only — hide for other groups.
+        // BirdLife DataZone covers birds only — hide for other groups.
         var bird = isBirdKey(menuKey);
         var blBtn = spMenu.querySelector('[data-act="birdlife"]');
         if (blBtn) blBtn.style.display = bird ? "" : "none";
-        var ebBtn = spMenu.querySelector('[data-act="ebird"]');
-        if (ebBtn) ebBtn.style.display = bird ? "" : "none";
         // Dynamic label on the Interesting item — add vs remove based on state.
         var intBtn = spMenu.querySelector('[data-act="interesting"]');
         if (intBtn) intBtn.textContent = t(isInteresting(menuKey) ? "menu.interestingRemove" : "menu.interestingAdd");
@@ -2986,11 +2983,6 @@
         else if (act === "filter") applyNameFilter(menuName);
         else if (act === "wiki") openWikipedia(menuSci || menuName);
         else if (act === "birdlife") openBirdLife((labelsByKey[menuKey] && labelsByKey[menuKey].common) || menuName, menuSci || menuName);
-        else if (act === "ebird") {
-          // With a personal key, show eBird sightings in-app; otherwise the page.
-          if (ebirdKey()) { var er = marker ? marker.getLatLng() : map.getCenter(); showRecent(menuName, menuSci || menuName, er.lat, er.lng, menuKey); }
-          else openExternal(ebirdUrl(menuKey, menuSci || menuName));
-        }
         else if (act === "macaulay") openExternal(macaulayUrl(menuKey, menuSci || menuName));
         else if (act === "xeno") openExternal(xenoCantoUrl(menuSci || menuName));
         else if (act === "distmap") showDistMap(menuName, menuSci || menuName, menuKey);
