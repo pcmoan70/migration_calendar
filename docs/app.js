@@ -1036,7 +1036,7 @@
             '<button id="sp-pdf-btn" class="demo-btn demo-btn-light" title="Download PDF">⬇ PDF</button>' +
           '</div>' +
           '<table id="species-list-table">' +
-            '<thead><tr><th data-i18n="th.species">Species</th><th class="name2" id="sp-name2-head"></th><th data-i18n="th.sci">Scientific name</th><th data-i18n="th.prob">Probability</th><th></th><th id="sp-delta-head"></th></tr></thead>' +
+            '<thead><tr><th data-i18n="th.species">Species</th><th class="name2" id="sp-name2-head"></th><th data-i18n="th.sci">Scientific name</th><th id="sp-prob-head" data-i18n="th.prob">Probability</th><th></th><th id="sp-delta-head"></th></tr></thead>' +
             '<tbody id="sp-tbody"></tbody>' +
           '</table>' +
         '</div>' +
@@ -2228,6 +2228,18 @@
       renderFieldChecklist(ll.lat, ll.lng);
     });
     document.getElementById("sp-pdf-btn").addEventListener("click", exportSpeciesPdf);
+
+    // Click the "Probability" column header in country view to cycle the
+    // aggregation: max → 90th percentile → median → max. Cached, so it just
+    // re-renders without re-running inference.
+    document.getElementById("sp-prob-head").addEventListener("click", function () {
+      if (!currentSpView || currentSpView.mode !== "country") return;
+      if (!this.classList.contains("clickable-head")) return;
+      var modes = ["max", "p90", "median"];
+      countryAgg = modes[(modes.indexOf(countryAgg) + 1) % modes.length];
+      window.GeoState.save({ countryAgg: countryAgg });
+      renderSpeciesInCountry(currentSpView.lat, currentSpView.lon);
+    });
 
     document.getElementById("csv-download-btn").addEventListener("click", function () {
       if (lastCsvData) downloadCsv(lastCsvData.filename, lastCsvData.content);
@@ -3893,7 +3905,9 @@
   // (at a configurable resolution) infer probabilities, then aggregate the
   // peak probability per species across all cells. Cached by (cc, res) for
   // cells and (cc, res, week) for the species-max vector.
-  var countryGeomCache = {}, countryCellsCache = {}, countryMaxCache = {}, countryEBirdCache = {};
+  var countryGeomCache = {}, countryCellsCache = {}, countryAggCache = {}, countryEBirdCache = {};
+  // Active per-species aggregation for the country list: 'max' | 'p90' | 'median'.
+  var countryAgg = (window.GeoState.get("countryAgg", "max") || "max");
   // Which species-panel context is showing — drives whether the Checklist
   // button creates a point-anchored checklist or a country-wide one.
   var currentSpView = null;
@@ -3970,9 +3984,15 @@
   // For each H3 cell in `cells`, infer (lat, lon, week); keep the per-species
   // max across all cells. One worker call per CHUNK; the raw output is
   // reduced batch-by-batch so memory stays bounded.
-  async function speciesMaxAcrossCells(cells, week, progress) {
+  // Compute three per-species aggregations across the cells: max (always) and
+  // — when the matrix fits — 90th percentile and median (require per-species
+  // sorts). The cap keeps the browser stable at high resolution / large countries.
+  var SPECIES_AGG_CAP_CELLS = 3000;
+  async function speciesAggsAcrossCells(cells, week, progress) {
     var nSpecies = labels.length, CHUNK = inferChunk();
+    var allowMatrix = cells.length <= SPECIES_AGG_CAP_CELLS;
     var maxArr = new Float32Array(nSpecies);
+    var mat = allowMatrix ? new Float32Array(cells.length * nSpecies) : null;
     for (var s = 0; s < cells.length; s += CHUNK) {
       var batch = cells.slice(s, s + CHUNK);
       var inputs = new Float32Array(batch.length * 3);
@@ -3981,13 +4001,25 @@
         inputs[j * 3] = ll[0]; inputs[j * 3 + 1] = ll[1]; inputs[j * 3 + 2] = week;
       }
       var out = await runInference(inputs, batch.length);
+      if (mat) mat.set(out, s * nSpecies);
       for (var k = 0; k < batch.length; k++) {
         var base = k * nSpecies;
         for (var i = 0; i < nSpecies; i++) { var v = out[base + i]; if (v > maxArr[i]) maxArr[i] = v; }
       }
       if (progress) progress(Math.min(s + batch.length, cells.length), cells.length);
     }
-    return maxArr;
+    if (!mat) return { max: maxArr };
+    var p90 = new Float32Array(nSpecies), median = new Float32Array(nSpecies);
+    var col = new Float32Array(cells.length);
+    var p90Idx = Math.min(cells.length - 1, Math.floor(cells.length * 0.9));
+    var medIdx = Math.floor(cells.length / 2);
+    for (var i2 = 0; i2 < nSpecies; i2++) {
+      for (var c = 0; c < cells.length; c++) col[c] = mat[c * nSpecies + i2];
+      var sorted = new Float32Array(col); sorted.sort();
+      p90[i2] = sorted[p90Idx];
+      median[i2] = sorted[medIdx];
+    }
+    return { max: maxArr, p90: p90, median: median };
   }
   async function renderSpeciesInCountry(lat, lon) {
     var info = await countryInfo(lat, lon);
@@ -4005,15 +4037,14 @@
       var cells = countryCellsCache[cellsKey] || (countryCellsCache[cellsKey] = cellsCoveringCountry(geom, res));
       if (!cells.length) { setStatus(t("status.error", { msg: "no cells" })); return; }
       if (cells.length > SP_COUNTRY_MAX_CELLS) { setStatus(t("status.countryTooMany", { n: cells.length, max: SP_COUNTRY_MAX_CELLS })); return; }
-      var maxKey = info.cc + ":" + res + ":" + week;
-      var maxArr = countryMaxCache[maxKey];
-      if (!maxArr) {
+      var aggKey = info.cc + ":" + res + ":" + week;
+      var aggs = countryAggCache[aggKey];
+      if (!aggs) {
         setStatus(t("status.countrySampling", { country: info.name || info.cc, n: cells.length, week: week, res: res }));
-        maxArr = await speciesMaxAcrossCells(cells, week, function (done, total) {
-          setComputeProgress(done / total);
-        });
-        countryMaxCache[maxKey] = maxArr;
+        aggs = await speciesAggsAcrossCells(cells, week, function (done, total) { setComputeProgress(done / total); });
+        countryAggCache[aggKey] = aggs;
       }
+      var maxArr = aggs[countryAgg] || aggs.max;
       var spp = await ebirdCountrySpecies(info.cc);   // null when no key / fetch fails
       var results = [];
       for (var i = 0; i < labels.length; i++) {
@@ -4035,6 +4066,17 @@
       });
       var nList = spp ? results.filter(function (r) { return !r.inModel && r.inList; }).length : 0;
       currentSpView = { mode: "country", cc: info.cc, name: info.name, lat: lat, lon: lon, results: results };
+      var ph = document.getElementById("sp-prob-head");
+      var aggLabel = countryAgg === "median" ? t("agg.median") : countryAgg === "p90" ? t("agg.p90") : t("agg.max");
+      if (aggs.p90 && aggs.median) {
+        ph.textContent = aggLabel + " ▾";
+        ph.title = t("agg.tooltip");
+        ph.classList.add("clickable-head");
+      } else {
+        ph.textContent = aggLabel;
+        ph.title = t("agg.unavail", { n: cells.length });
+        ph.classList.remove("clickable-head");
+      }
       document.getElementById("sp-delta-head").textContent = spp ? t("th.source") : "";
       var tbl = document.getElementById("species-list-table");
       tbl.classList.toggle("has-name2", !!secondLang);
@@ -4089,6 +4131,9 @@
 
   async function renderSpeciesList(lat, lon) {
     currentSpView = { mode: "point", lat: lat, lon: lon };
+    // Reset the agg toggle on the prob column header (country-only feature).
+    var ph0 = document.getElementById("sp-prob-head");
+    if (ph0) { ph0.textContent = t("th.prob"); ph0.title = ""; ph0.classList.remove("clickable-head"); }
     var week = +document.getElementById("week-select").value;
     var pmin = +document.getElementById("prob-min").value / 100;
     var pmax = +document.getElementById("prob-max").value / 100;

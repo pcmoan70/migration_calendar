@@ -1461,6 +1461,10 @@ table.recent-table .rc-srccell { white-space: nowrap; }
 #recent-map { border-color: var(--brand); background: var(--brand-soft, #eef3ff); color: var(--brand-strong, var(--brand)); font-weight: 600; }
 #recent-map:hover { background: var(--brand); color: #fff; }
 
+/* Country list: clickable column header for cycling the aggregation. */
+th.clickable-head { cursor: pointer; user-select: none; }
+th.clickable-head:hover { text-decoration: underline; }
+
 /* "Species in country" merged-list source chips + de-emphasised list-only rows. */
 .src-chip { display: inline-block; width: 18px; height: 18px; line-height: 16px; text-align: center; border-radius: 50%;
   font-size: 0.78rem; font-weight: 700; border: 1px solid currentColor; }
