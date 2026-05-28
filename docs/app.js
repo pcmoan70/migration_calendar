@@ -398,11 +398,14 @@
     persistInteresting(); refreshCurrentView();
   }
 
-  // Clickable species-name span (opens the species menu).
+  // "★ " prefix for species the user has tagged as interesting (lists/cards).
+  function interestingStar(key) { return isInteresting(key) ? "★ " : ""; }
+  // Clickable species-name span (opens the species menu). Prepends ★ when the
+  // species is tagged interesting; data-name keeps the bare name (no star).
   function nameLinkHtml(label) {
     var n = escapeHtml(speciesName(label));
     return '<span class="sp-link" data-key="' + escapeHtml(label.key) + '" data-name="' + n +
-           '" data-sci="' + escapeHtml(label.sci || "") + '">' + n + "</span>";
+           '" data-sci="' + escapeHtml(label.sci || "") + '">' + interestingStar(label.key) + n + "</span>";
   }
 
   function openExternal(url) { window.open(url, "_blank", "noopener"); }
@@ -1757,7 +1760,7 @@
         var e = detPlot[k], nm = escapeHtml(detName(e));
         var vis = (e.group && e.group._visibleCount != null) ? e.group._visibleCount : e.rows.length;
         var ct = (vis === e.rows.length) ? String(vis) : (vis + "/" + e.rows.length);
-        return '<div class="det-row"><span class="det-sw" style="background:' + e.color + '"></span><span class="det-nm" title="' + nm + '">' + nm + '</span><span class="det-ct">' + ct + '</span><button type="button" class="det-del" data-key="' + escapeHtml(k) + '" aria-label="remove">×</button></div>';
+        return '<div class="det-row"><span class="det-sw" style="background:' + e.color + '"></span><span class="det-nm" title="' + nm + '">' + interestingStar(e.key) + nm + '</span><span class="det-ct">' + ct + '</span><button type="button" class="det-del" data-key="' + escapeHtml(k) + '" aria-label="remove">×</button></div>';
       }).join("");
     el.querySelector(".det-clear").addEventListener("click", clearDetections);
     el.querySelectorAll(".det-del").forEach(function (b) { b.addEventListener("click", function () { removeDetection(this.getAttribute("data-key")); }); });
@@ -2514,7 +2517,7 @@
     if (probs) matches.sort(function (a, b) { return (probs[b.index] || 0) - (probs[a.index] || 0); });
     matches = matches.slice(0, 30);
     resultsEl.innerHTML = matches.map(function (l) {
-      return '<div class="sr-item" data-key="' + l.key + '">' + escapeHtml(speciesName(l)) + ' <span class="sr-sci">' + escapeHtml(l.sci) + '</span></div>';
+      return '<div class="sr-item" data-key="' + l.key + '">' + interestingStar(l.key) + escapeHtml(speciesName(l)) + ' <span class="sr-sci">' + escapeHtml(l.sci) + '</span></div>';
     }).join("");
     resultsEl.style.display = matches.length ? "block" : "none";
     resultsEl.querySelectorAll(".sr-item").forEach(function (el) {
@@ -3832,7 +3835,7 @@
       return '<div class="fc-card' + (en.seen ? " fc-on" : "") + (d.note ? " fc-note-on" : "") + '" data-key="' + escapeHtml(r.key) + '">' +
         '<div class="fc-top">' +
           '<label class="fc-tick"><input type="checkbox" class="fc-seen" data-key="' + escapeHtml(r.key) + '"' + (en.seen ? " checked" : "") + "></label>" +
-          '<span class="fc-name sp-link" data-key="' + escapeHtml(r.key) + '" data-name="' + escapeHtml(r.name) + '" data-sci="' + escapeHtml(lbl ? (lbl.sci || "") : "") + '">' + escapeHtml(r.name) + badge + "</span>" +
+          '<span class="fc-name sp-link" data-key="' + escapeHtml(r.key) + '" data-name="' + escapeHtml(r.name) + '" data-sci="' + escapeHtml(lbl ? (lbl.sci || "") : "") + '">' + interestingStar(r.key) + escapeHtml(r.name) + badge + "</span>" +
           '<button type="button" class="fc-count' + (hasN ? " has-n" : "") + '" data-key="' + escapeHtml(r.key) + '">' + (hasN ? d.count : "#") + "</button>" +
           '<button type="button" class="fc-act-btn' + (d.act ? " has-act" : "") + '" data-key="' + escapeHtml(r.key) + '" title="' + escapeHtml(t("chk.activity")) + '">' + (d.act ? escapeHtml(actName(d.act)) : "🏷") + "</button>" +
           '<button type="button" class="fc-add" data-key="' + escapeHtml(r.key) + '" title="' + escapeHtml(t("fc.add")) + '" aria-label="' + escapeHtml(t("fc.add")) + '">＋</button>' +
