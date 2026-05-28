@@ -364,6 +364,8 @@
 
   // Species the user has chosen to hide ("Do not show"). species_code -> true.
   var hiddenSpecies = {};
+  var interestingSpecies = {};
+  var filterInterestingOnly = false;   // when on, lists show only interesting species
   var menuKey = null, menuName = "", menuSci = "";  // species the menu targets
 
   function isHidden(key) { return !!hiddenSpecies[key]; }
@@ -380,6 +382,20 @@
   function unhideSpecies(key) {
     delete hiddenSpecies[key];
     persistHidden(); refreshHiddenUI(); refreshCurrentView();
+  }
+
+  // ★ Interesting — a user-tagged set persisted alongside the hidden list. Used
+  // to filter species lists and the field checklist down to the ones flagged.
+  function isInteresting(key) { return !!interestingSpecies[key]; }
+  function loadInteresting() {
+    interestingSpecies = {};
+    (window.GeoState.get("interesting", []) || []).forEach(function (k) { interestingSpecies[k] = true; });
+  }
+  function persistInteresting() { window.GeoState.save({ interesting: Object.keys(interestingSpecies) }); }
+  function toggleInteresting(key) {
+    if (!key) return;
+    if (interestingSpecies[key]) delete interestingSpecies[key]; else interestingSpecies[key] = true;
+    persistInteresting(); refreshCurrentView();
   }
 
   // Clickable species-name span (opens the species menu).
@@ -1057,7 +1073,7 @@
             '<button id="sp-pdf-btn" class="demo-btn demo-btn-light" title="Download PDF">⬇ PDF</button>' +
           '</div>' +
           '<table id="species-list-table">' +
-            '<thead><tr><th data-i18n="th.species">Species</th><th class="name2" id="sp-name2-head"></th><th data-i18n="th.sci">Scientific name</th><th id="sp-prob-head" data-i18n="th.prob">Probability</th><th></th><th id="sp-delta-head"></th></tr></thead>' +
+            '<thead><tr><th id="sp-species-head" data-i18n="th.species">Species</th><th class="name2" id="sp-name2-head"></th><th data-i18n="th.sci">Scientific name</th><th id="sp-prob-head" data-i18n="th.prob">Probability</th><th></th><th id="sp-delta-head"></th></tr></thead>' +
             '<tbody id="sp-tbody"></tbody>' +
           '</table>' +
         '</div>' +
@@ -1082,6 +1098,7 @@
               '<button type="button" class="chk-filter-btn is-active" data-ffilter="all" data-i18n="chk.all">All</button>' +
               '<button type="button" class="chk-filter-btn" data-ffilter="seen" data-i18n="chk.seen">Seen</button>' +
               '<button type="button" class="chk-filter-btn" data-ffilter="missing" data-i18n="chk.missing">Missing</button>' +
+              '<button type="button" class="chk-filter-btn" data-ffilter="interesting" data-i18n="chk.interesting">★ Interesting</button>' +
             '</div>' +
           '</div>' +
           '<div id="field-list"></div>' +
@@ -1158,7 +1175,7 @@
           '<button type="button" class="sp-menu-item" data-act="ebird" data-i18n="menu.ebird">eBird (recent sightings)</button>' +
           '<button type="button" class="sp-menu-item" data-act="macaulay" data-i18n="menu.macaulay">Macaulay Library</button>' +
           '<button type="button" class="sp-menu-item" data-act="xeno" data-i18n="menu.xeno">Xeno-canto (audio)</button>' +
-          '<button type="button" class="sp-menu-item" data-act="filter" data-i18n="menu.filter">Filter</button>' +
+          '<button type="button" class="sp-menu-item" data-act="interesting" data-i18n="menu.interestingAdd">★ Mark interesting</button>' +
           '<button type="button" class="sp-menu-item" data-act="hide" data-i18n="menu.hide">Do not show</button>' +
         '</div>' +
         '<div id="distmap-modal" style="display:none"><div id="distmap-box">' +
@@ -1416,6 +1433,9 @@
 
   // Re-render whatever panel/overlay is currently shown (after a language change).
   function refreshCurrentView() {
+    if (currentSpView && currentSpView.mode === "country" && document.getElementById("species-panel").style.display !== "none") {
+      renderSpeciesInCountry(currentSpView.lat, currentSpView.lon); return;
+    }
     if (currentMode === "list" && marker) {
       var ll = marker.getLatLng();
       renderSpeciesList(ll.lat, ll.lng);
@@ -1424,6 +1444,8 @@
     } else if ((currentMode === "range" || currentMode === "richness") && cachedRender) {
       showCachedWeek();
     }
+    // Field-list re-render so the chk-filter buttons reflect interesting set changes.
+    if (document.getElementById("field-page").style.display === "flex") renderFieldList();
   }
 
   // ---- Map setup -----------------------------------------------------------
@@ -2262,6 +2284,14 @@
     });
     document.getElementById("sp-pdf-btn").addEventListener("click", exportSpeciesPdf);
 
+    // Click the "Species" column header to toggle the "show only interesting"
+    // filter on the current list. The header label gets a ★ when active.
+    document.getElementById("sp-species-head").addEventListener("click", function () {
+      filterInterestingOnly = !filterInterestingOnly;
+      this.textContent = (filterInterestingOnly ? "★ " : "") + t("th.species");
+      refreshCurrentView();
+    });
+
     // Click the "Probability" column header in country view to cycle the
     // aggregation: max → 90th percentile → median → max. Cached, so it just
     // re-renders without re-running inference.
@@ -2294,6 +2324,9 @@
         if (blBtn) blBtn.style.display = bird ? "" : "none";
         var ebBtn = spMenu.querySelector('[data-act="ebird"]');
         if (ebBtn) ebBtn.style.display = bird ? "" : "none";
+        // Dynamic label on the Interesting item — add vs remove based on state.
+        var intBtn = spMenu.querySelector('[data-act="interesting"]');
+        if (intBtn) intBtn.textContent = t(isInteresting(menuKey) ? "menu.interestingRemove" : "menu.interestingAdd");
         spMenu.style.left = e.pageX + "px";
         spMenu.style.top = e.pageY + "px";
         spMenu.style.display = "block";
@@ -2307,6 +2340,7 @@
       btn.addEventListener("click", function () {
         var act = this.getAttribute("data-act");
         if (act === "hide") hideSpecies(menuKey);
+        else if (act === "interesting") toggleInteresting(menuKey);
         else if (act === "apprange") showSpeciesRange(menuKey);
         else if (act === "appmig") showSpeciesMigration(menuKey);
         else if (act === "filter") applyNameFilter(menuName);
@@ -3686,6 +3720,7 @@
     });
     var shown = rows.filter(function (r) {
       if (!fuzzyMatch(r.name, fieldQuery)) return false;
+      if (fieldFilter === "interesting") return isInteresting(r.key);
       if (fieldFilter === "all") return true;
       var seen = !!(entries[r.key] && entries[r.key].seen);
       return fieldFilter === "seen" ? seen : !seen;
@@ -4114,6 +4149,9 @@
         if (ka === 2) return speciesName(a.label).localeCompare(speciesName(b.label));
         return b.prob - a.prob;
       });
+      if (filterInterestingOnly) results = results.filter(function (r) { return isInteresting(r.label.key); });
+      var sh1 = document.getElementById("sp-species-head");
+      if (sh1) sh1.textContent = (filterInterestingOnly ? "★ " : "") + t("th.species");
       var nList = spp ? results.filter(function (r) { return !r.inModel && r.inList; }).length : 0;
       currentSpView = { mode: "country", cc: info.cc, name: info.name, lat: lat, lon: lon, results: results };
       var ph = document.getElementById("sp-prob-head");
@@ -4191,6 +4229,8 @@
     // Reset the agg toggle on the prob column header (country-only feature).
     var ph0 = document.getElementById("sp-prob-head");
     if (ph0) { ph0.textContent = t("th.prob"); ph0.title = ""; ph0.classList.remove("clickable-head"); }
+    var sh0 = document.getElementById("sp-species-head");
+    if (sh0) sh0.textContent = (filterInterestingOnly ? "★ " : "") + t("th.species");
     var week = +document.getElementById("week-select").value;
     var pmin = +document.getElementById("prob-min").value / 100;
     var pmax = +document.getElementById("prob-max").value / 100;
@@ -4213,6 +4253,7 @@
         }
       }
       results.sort(function (a, b) { return b.prob - a.prob; });
+      if (filterInterestingOnly) results = results.filter(function (r) { return isInteresting(r.label.key); });
       // When every comparison value is positive, show it as a probability-style
       // bar; otherwise (e.g. week-over-week change) show the value with
       // negatives in red.
@@ -4809,6 +4850,7 @@
     document.getElementById("prob-max-val").textContent = "100%";
 
     loadHidden();
+    loadInteresting();
 
     var sp = window.GeoState.get("species", null);
     if (sp && labelsByKey[sp]) {
