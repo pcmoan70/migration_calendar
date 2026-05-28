@@ -1558,6 +1558,9 @@ tr.row-list-only .prob-na { color: var(--ink-muted, #999); }
   border: none; background: transparent; color: inherit; border-radius: 4px;
 }
 .fp-dl-item:hover { background: var(--md-code-bg-color, #f0f4f3); }
+.fp-dl-sep { height: 1px; margin: 4px 4px; background: var(--md-default-fg-color--lightest, #e3e8e6); }
+.fp-dl-danger { color: var(--danger, #b34); }
+.fp-dl-danger:hover { background: rgba(195, 60, 80, 0.08); }
 /* Cycle-button filter: All → Seen → Missing → Interesting → All */
 .chk-filter-cycle {
   flex: 0 0 auto; padding: 6px 12px; font-size: 0.88rem; cursor: pointer;

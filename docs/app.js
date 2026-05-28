@@ -1449,15 +1449,17 @@
             '<span class="field-seen" id="field-seen"></span>' +
             '<span class="field-actions">' +
               '<span class="fp-dl-wrap">' +
-                '<button id="field-dl-btn" class="demo-btn" data-i18n-title="btn.download" title="Download">⬇</button>' +
+                '<button id="field-dl-btn" class="demo-btn" data-i18n-title="btn.actions" title="Actions">⋮</button>' +
                 '<div id="field-dl-menu" class="fp-dl-menu" style="display:none">' +
                   '<button id="field-pdf" class="fp-dl-item">⬇ PDF</button>' +
                   '<button id="field-csv" class="fp-dl-item" data-i18n="btn.csv">⬇ CSV</button>' +
                   '<button id="field-log" class="fp-dl-item" data-i18n="btn.logcsv">⬇ Log</button>' +
+                  '<div class="fp-dl-sep"></div>' +
+                  '<button id="field-review" class="fp-dl-item" data-i18n="btn.review">⬆ Upload</button>' +
+                  '<div class="fp-dl-sep"></div>' +
+                  '<button id="field-clear" class="fp-dl-item fp-dl-danger" data-i18n="btn.clear">Clear</button>' +
                 '</div>' +
               '</span>' +
-              '<button id="field-review" class="demo-btn" data-i18n="btn.review" title="Review & upload">⬆ Upload</button>' +
-              '<button id="field-clear" class="demo-btn demo-btn-light" data-i18n="btn.clear">Clear</button>' +
             '</span>' +
           '</div>' +
           '<div id="field-far-msg" class="fp-far-msg" data-i18n="chk.farWarn" style="display:none"></div>' +
@@ -2625,9 +2627,9 @@
       if (e.target.closest("#field-dl-menu") || e.target.closest("#field-dl-btn")) return;
       hideDlMenu();
     });
-    document.getElementById("field-review").addEventListener("click", openReviewPage);
+    document.getElementById("field-review").addEventListener("click", function () { hideDlMenu(); openReviewPage(); });
     document.getElementById("field-clear").addEventListener("click", function () {
-      fcClear(); renderFieldList();
+      hideDlMenu(); fcClear(); renderFieldList();
     });
 
     // ---- Review page wiring -------------------------------------------------
