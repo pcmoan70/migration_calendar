@@ -945,21 +945,30 @@
     var sci = ensureSciIndex();
     var agg = Object.create(null);     // model species: key -> { count, latestTs }
     var extras = Object.create(null);  // species the model doesn't cover: sciLower -> { sci, name, count, latestTs }
-    function bump(key, dt) {
+    var MP_ROWS = 25;   // per-species coordinate cap (enough to plot, bounded memory)
+    function pushRow(arr, row) { if (row && row.lat != null && row.lon != null && arr.length < MP_ROWS) arr.push(row); }
+    function bump(key, dt, row) {
       if (!key) return;
-      if (!agg[key]) agg[key] = { count: 0, latestTs: 0 };
+      if (!agg[key]) agg[key] = { count: 0, latestTs: 0, rows: [] };
       agg[key].count++;
+      pushRow(agg[key].rows, row);
       var t = Date.parse(dt); if (!isNaN(t) && t > agg[key].latestTs) agg[key].latestTs = t;
     }
-    function bumpExtra(sciName, commonName, dt, cls) {
+    function bumpExtra(sciName, commonName, dt, cls, row) {
       if (!sciName) return;
       var k = sciName.toLowerCase();
-      if (!extras[k]) extras[k] = { sci: sciName, name: commonName || "", cls: cls || "", count: 0, latestTs: 0 };
+      if (!extras[k]) extras[k] = { sci: sciName, name: commonName || "", cls: cls || "", count: 0, latestTs: 0, rows: [] };
       if (!extras[k].name && commonName) extras[k].name = commonName;
       if (!extras[k].cls && cls) extras[k].cls = cls;
       extras[k].count++;
+      pushRow(extras[k].rows, row);
       var t = Date.parse(dt); if (!isNaN(t) && t > extras[k].latestTs) extras[k].latestTs = t;
     }
+    var inatLatLon = function (o) {
+      if (o.geojson && o.geojson.coordinates) return { lat: +o.geojson.coordinates[1], lon: +o.geojson.coordinates[0] };
+      if (o.location) { var pr = String(o.location).split(","); return { lat: parseFloat(pr[0]), lon: parseFloat(pr[1]) }; }
+      return { lat: null, lon: null };
+    };
     (gbif || []).forEach(function (o) {
       // Drop higher-rank identifications (ORDER, FAMILY, GENUS, …). Without
       // this filter "Passeriformes" or "Passer" — observations the recorder
@@ -971,9 +980,10 @@
       sciName = sciName.replace(/\s+\([^)]*\)\s*/g, " ").replace(/,\s*\d{4}.*$/, "").trim();
       // Skip leftovers that are clearly not binomials (one word = genus or above).
       if (!/\s/.test(sciName)) return;
+      var row = { lat: o.decimalLatitude != null ? +o.decimalLatitude : null, lon: o.decimalLongitude != null ? +o.decimalLongitude : null, date: (o.eventDate || "").slice(0, 10), src: "GBIF" };
       var lbl = sci[sciName.toLowerCase()];
-      if (lbl) bump(lbl.key, o.eventDate);
-      else bumpExtra(sciName, "", o.eventDate, normClass(o.class));
+      if (lbl) bump(lbl.key, o.eventDate, row);
+      else bumpExtra(sciName, "", o.eventDate, normClass(o.class), row);
     });
     (inat || []).forEach(function (o) {
       var tax = o.taxon || {};
@@ -981,13 +991,16 @@
       if (rank && rank !== "species" && rank !== "subspecies" && rank !== "variety" && rank !== "form") return;
       var sciName = tax.name; if (!sciName) return;
       if (!/\s/.test(sciName)) return;   // genus-only name slipped through
+      var ll = inatLatLon(o);
+      var row = { lat: isFinite(ll.lat) ? ll.lat : null, lon: isFinite(ll.lon) ? ll.lon : null, date: o.observed_on || (o.time_observed_at || "").slice(0, 10), src: "iNaturalist" };
       var lbl = sci[sciName.toLowerCase()];
-      if (lbl) bump(lbl.key, o.observed_on || o.time_observed_at);
-      else bumpExtra(sciName, tax.preferred_common_name || "", o.observed_on || o.time_observed_at, normClass(tax.iconic_taxon_name));
+      if (lbl) bump(lbl.key, o.observed_on || o.time_observed_at, row);
+      else bumpExtra(sciName, tax.preferred_common_name || "", o.observed_on || o.time_observed_at, normClass(tax.iconic_taxon_name), row);
     });
     (ebird || []).forEach(function (o) {
-      if (labelsByKey[o.speciesCode]) bump(o.speciesCode, o.obsDt);
-      else bumpExtra(o.sciName || "", o.comName || "", o.obsDt, "Aves");
+      var row = { lat: o.lat != null ? +o.lat : null, lon: o.lng != null ? +o.lng : null, date: (o.obsDt || "").slice(0, 10), src: "eBird" };
+      if (labelsByKey[o.speciesCode]) bump(o.speciesCode, o.obsDt, row);
+      else bumpExtra(o.sciName || "", o.comName || "", o.obsDt, "Aves", row);
     });
     return { agg: agg, extras: extras };
   }
@@ -1622,6 +1635,7 @@
           '<div class="sp-coords" id="sp-coords"></div>' +
           '<div class="sp-actions">' +
             '<button id="sp-checklist-btn" class="demo-btn" data-i18n="btn.checklist">✓ Checklist</button>' +
+            '<button id="sp-map-btn" class="demo-btn demo-btn-light" data-i18n="btn.showInMap" title="Plot all observations on the map">📍 Map</button>' +
             '<button id="sp-pdf-btn" class="demo-btn demo-btn-light" title="Download PDF">⬇ PDF</button>' +
           '</div>' +
           '<table id="species-list-table">' +
@@ -2276,16 +2290,46 @@
     g._visibleCount = visible;
     return g;
   }
-  function plotDetections(key, name, rows, fit) {
+  function plotDetections(key, name, rows, fit, defer) {
     var slim = detSlim(rows);
-    if (!slim.length) { setStatus(t("det.none")); return; }
+    if (!slim.length) { if (!defer) setStatus(t("det.none")); return; }
     var color = (detPlot[key] && detPlot[key].color) || DET_COLORS[Object.keys(detPlot).length % DET_COLORS.length];
     if (detPlot[key]) map.removeLayer(detPlot[key].group);
     var e = { key: key, name: name, color: color, rows: slim, group: null };
     e.group = renderDetGroup(detName(e), slim, color); e.group.addTo(map);
     detPlot[key] = e;
-    updateDetLegend(); saveDetections();
+    if (!defer) { updateDetLegend(); saveDetections(); }   // batch when plotting many at once
     if (fit) { try { map.fitBounds(e.group.getBounds().pad(0.25)); } catch (err) { /* single point / bad bounds */ } }
+  }
+  // Plot every species' nearby observations from the cached all-species fetch
+  // (GBIF + iNaturalist + eBird) on the map, one coloured layer per species.
+  // Capped at 40 species (by count) to keep the legend and CPU sane.
+  function plotAllSightings() {
+    if (!currentSpView || currentSpView.mode !== "point") { setStatus(t("det.none")); return; }
+    setStatus(t("sp.plotting"));
+    fetchAllSightingsAt(currentSpView.lat, currentSpView.lon).then(function (result) {
+      var entries = [];
+      Object.keys(result.agg).forEach(function (key) {
+        var a = result.agg[key];
+        if (a.rows && a.rows.length) entries.push({ key: key, name: (labelsByKey[key] && speciesName(labelsByKey[key])) || key, rows: a.rows, count: a.count });
+      });
+      Object.keys(result.extras).forEach(function (k) {
+        var ex = result.extras[k];
+        if (ex.rows && ex.rows.length) entries.push({ key: "x:" + k, name: ex.name || ex.sci, rows: ex.rows, count: ex.count });
+      });
+      if (!entries.length) { setStatus(t("det.none")); return; }
+      entries.sort(function (a, b) { return b.count - a.count; });
+      var CAP = 40, capped = entries.length > CAP;
+      entries.slice(0, CAP).forEach(function (e) { plotDetections(e.key, e.name, e.rows, false, true); });
+      updateDetLegend(); saveDetections();   // one batch update after the loop
+      var bounds = L.latLngBounds([]);
+      Object.keys(detPlot).forEach(function (k) { var g = detPlot[k] && detPlot[k].group; if (g) { try { bounds.extend(g.getBounds()); } catch (e2) {} } });
+      if (bounds.isValid()) { try { map.fitBounds(bounds.pad(0.2)); } catch (e3) {} }
+      // Surface the map so the user sees the plotted points.
+      document.getElementById("species-panel").style.display = "none";
+      if (map) map.invalidateSize();
+      setStatus(capped ? t("sp.plottedCapped", { n: CAP }) : t("sp.plotted", { n: entries.slice(0, CAP).length }));
+    }).catch(function () { setStatus(t("det.none")); });
   }
   // Plot every per-entry GPS fix from the open field checklist on the map,
   // grouped by species — reuses the detPlot legend / recency filter / spider,
@@ -3568,6 +3612,7 @@
       renderFieldChecklist(ll.lat, ll.lng);
     });
     document.getElementById("sp-pdf-btn").addEventListener("click", exportSpeciesPdf);
+    document.getElementById("sp-map-btn").addEventListener("click", plotAllSightings);
 
     // Click a count cell in the per-point species list to open the recent-
     // sightings panel for that species (multi-source merge with Show in map).

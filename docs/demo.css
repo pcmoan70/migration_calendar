@@ -438,9 +438,9 @@ input:focus-visible {
 #custom-urls-wrap { margin-top: 4px; border-top: 1px solid var(--border, #d8e1dd); padding-top: 8px; }
 #custom-urls-wrap summary { cursor: pointer; font-size: 0.9rem; font-weight: 700; color: var(--ink, inherit); padding: 2px 0; }
 #custom-urls-wrap .cu-hint { font-size: 0.72rem; color: var(--ink-muted, #5b6f69); margin: 6px 0; }
-.cu-row { display: flex; gap: 4px; margin-bottom: 4px; align-items: center; }
-.cu-row .cu-cc { width: 42px; flex: 0 0 auto; text-transform: uppercase; }
-.cu-row .cu-url { flex: 1 1 auto; min-width: 0; }
+.cu-row { display: flex; gap: 4px; margin-bottom: 4px; align-items: center; width: 100%; }
+.cu-row .cu-cc { width: 3.2em; flex: 0 0 auto; text-transform: uppercase; text-align: center; }
+.cu-row .cu-url { flex: 1 1 auto; min-width: 0; width: 100%; }
 .cu-row input { font: inherit; font-size: 0.82rem; padding: 3px 6px; border: 1px solid var(--border, #ccc); border-radius: 4px; background: var(--md-default-bg-color, #fff); color: var(--ink, inherit); }
 .cu-row .cu-del { flex: 0 0 auto; width: 26px; height: 26px; border: 1px solid var(--border, #ccc); border-radius: 4px; background: var(--surface, #fff); color: var(--danger, #c0392b); cursor: pointer; line-height: 1; }
 .cu-actions { display: flex; gap: 6px; margin-top: 4px; }
@@ -1129,7 +1129,8 @@ button.dd-name:hover { text-decoration: underline; }
 
 /* ===== Settings dropdown (Week, Language, 2nd name, Compare, Species group, About) ===== */
 #settings-panel.settings-panel {
-  min-width: 250px;
+  min-width: 280px;
+  max-width: min(94vw, 420px);   /* wider than other dropdowns so URLs fit */
   max-height: min(80vh, 560px);
   padding: 12px 14px;
   left: 0;           /* drops down from the header bird icon (upper-left) */
