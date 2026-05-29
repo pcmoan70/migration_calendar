@@ -2472,8 +2472,8 @@
       return;
     }
     var rDays = detRecencyDays();
-    var recOpts = [[1, "1"], [7, "7"], [14, "14"], [30, "30"], [0, "∞"]]
-      .map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === rDays ? " selected" : "") + ">" + o[1] + (o[0] ? " " + escapeHtml(t("det.days")) : " " + escapeHtml(t("det.allTime"))) + "</option>"; })
+    var recOpts = [[1, "1"], [7, "7"], [14, "14"], [30, "30"], [0, ""]]
+      .map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === rDays ? " selected" : "") + ">" + (o[0] ? o[1] + " " + escapeHtml(t("det.days")) : escapeHtml(t("det.allTime"))) + "</option>"; })
       .join("");
     el.innerHTML = '<div class="det-legend-head">' +
         '<button type="button" class="det-min" title="' + escapeHtml(t("det.minimise")) + '" aria-label="' + escapeHtml(t("det.minimise")) + '">−</button>' +
