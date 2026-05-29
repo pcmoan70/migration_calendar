@@ -593,10 +593,18 @@
     EE: "https://elurikkus.ee/",
     LT: "https://birdlife.lt/",
     SI: "https://www.ptice.si/",
-    HU: "https://www.mme.hu/",
+    HU: "https://map.mme.hu/",
     GR: "https://www.ornithologiki.gr/",
     TR: "https://ebird.org/region/TR",
-    MT: "https://birdlifemalta.org/"
+    MT: "https://birdlifemalta.org/",
+    RO: "https://openbirdmaps.ro/",
+    BG: "https://smartbirds.org/",
+    UA: "https://ukrbin.com/",
+    RS: "https://pticesrbije.rs/",
+    ME: "https://czip.me/",
+    MK: "https://mes.org.mk/",
+    AL: "https://aos-alb.org/",
+    BA: "https://naseptice.ba/"
   };
   var NAT_LIST_KEY = {
     NO: "menu.artsobs", SE: "menu.artportalen", DK: "menu.dofbasen", FI: "menu.tiira",
@@ -605,7 +613,9 @@
     NL: "menu.waarnemingnl", BE: "menu.waarnemingenbe", GB: "menu.birdtrack", IE: "menu.birdtrack",
     LV: "menu.dabasdati", CZ: "menu.avif", SK: "menu.avessk",
     ES: "menu.ebirdes", PT: "menu.portugalaves", EE: "menu.elurikkus", LT: "menu.birdlifelt",
-    SI: "menu.dopps", HU: "menu.mme", GR: "menu.hos", TR: "menu.ebirdtr", MT: "menu.birdlifemt"
+    SI: "menu.dopps", HU: "menu.mme", GR: "menu.hos", TR: "menu.ebirdtr", MT: "menu.birdlifemt",
+    RO: "menu.openbirdmaps", BG: "menu.smartbirds", UA: "menu.ukrbin", RS: "menu.pticesrbije",
+    ME: "menu.czip", MK: "menu.mesmk", AL: "menu.aosal", BA: "menu.naseptice"
   };
   function natListUrl(cc, sci) {
     var base = NAT_LIST_URLS[cc]; if (!base) return null;
@@ -1557,8 +1567,8 @@
                 '</select>' +
               '</div>' +
               '<div class="ctrl-group">' +
-                '<details id="custom-urls-wrap">' +
-                  '<summary data-i18n="ctrl.customurls">Custom country links</summary>' +
+                '<details id="custom-urls-wrap" open>' +
+                  '<summary data-i18n="ctrl.customurls">National databases</summary>' +
                   '<p class="cu-hint" data-i18n="ctrl.customurlsHint">Open extra sites for a country in the map popups. Country code = ISO-3166 (e.g. NO, GB).</p>' +
                   '<div id="custom-urls-list"></div>' +
                   '<div class="cu-actions">' +
