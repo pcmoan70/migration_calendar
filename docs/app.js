@@ -599,6 +599,48 @@
     var name = String(sci || "").trim();
     return name ? base + "#species=" + encodeURIComponent(name) : base;
   }
+  // User-defined extra links per country: [{ cc, url }]. Stored in GeoState.
+  function loadCustomCountryUrls() {
+    return (window.GeoState.get("customCountryUrls", []) || []).filter(function (c) { return c && c.cc && c.url; });
+  }
+  function saveCustomCountryUrls(arr) { window.GeoState.save({ customCountryUrls: arr }); }
+  // Settings UI: one editable row per custom (cc, url) pair.
+  function cuRowHtml(cc, url) {
+    return '<div class="cu-row">' +
+      '<input type="text" class="cu-cc" maxlength="2" value="' + escapeHtml(cc || "") + '" placeholder="' + escapeHtml(t("ph.cc")) + '">' +
+      '<input type="url" class="cu-url" value="' + escapeHtml(url || "") + '" placeholder="' + escapeHtml(t("ph.url")) + '">' +
+      '<button type="button" class="cu-del" aria-label="remove">×</button>' +
+    '</div>';
+  }
+  function renderCustomUrls() {
+    var list = document.getElementById("custom-urls-list"); if (!list) return;
+    list.innerHTML = loadCustomCountryUrls().map(function (c) { return cuRowHtml(c.cc, c.url); }).join("");
+  }
+  // Read the editable rows back out (DOM is the source of truth while editing);
+  // only complete cc+url pairs are persisted.
+  function collectCustomUrls() {
+    var arr = [];
+    document.querySelectorAll("#custom-urls-list .cu-row").forEach(function (row) {
+      var cc = (row.querySelector(".cu-cc").value || "").trim().toUpperCase();
+      var url = (row.querySelector(".cu-url").value || "").trim();
+      if (cc && url) arr.push({ cc: cc, url: url });
+    });
+    return arr;
+  }
+  function urlHostLabel(u) {
+    try { return new URL(u).hostname.replace(/^www\./, ""); } catch (e) { return String(u || "").slice(0, 40); }
+  }
+  // All observation/registration links to offer for a country: the built-in
+  // national service (if any) plus the user's custom links for that cc.
+  // Returns [{ label, url }].
+  function natServicesFor(cc) {
+    var out = [];
+    if (cc && NAT_LIST_KEY[cc]) out.push({ label: t(NAT_LIST_KEY[cc]), url: natListUrl(cc, "") });
+    loadCustomCountryUrls().forEach(function (c) {
+      if (String(c.cc).toUpperCase() === cc) out.push({ label: urlHostLabel(c.url), url: c.url });
+    });
+    return out;
+  }
 
   // eBird species page (label keys are eBird taxon codes) — shows recent
   // sightings and a map; falls back to a search for non-code keys.
@@ -1487,6 +1529,14 @@
                 '<select id="recent-radius">' +
                   '<option value="5">5 km</option><option value="10">10 km</option><option value="25">25 km</option><option value="50">50 km</option><option value="100">100 km</option>' +
                 '</select>' +
+              '</div>' +
+              '<div class="ctrl-group">' +
+                '<details id="custom-urls-wrap">' +
+                  '<summary data-i18n="ctrl.customurls">Custom country links</summary>' +
+                  '<p class="cu-hint" data-i18n="ctrl.customurlsHint">Open extra sites for a country in the map popups. Country code = ISO-3166 (e.g. NO, GB).</p>' +
+                  '<div id="custom-urls-list"></div>' +
+                  '<button type="button" id="custom-urls-add" class="demo-btn" data-i18n="ctrl.customurlsAdd">+ Add</button>' +
+                '</details>' +
               '</div>' +
               '<div class="ctrl-group" id="barchart-threshold-wrap" style="display:none">' +
                 '<label data-i18n="ctrl.bcthreshold">Probability range</label>' +
@@ -2460,15 +2510,16 @@
     });
     var del = document.getElementById("mp-del");
     if (del) del.addEventListener("click", function () { deleteMapPoint(p.id); map.closePopup(); });
-    // Country-gated link to a national observation service. Hidden until the
-    // reverse-geocode resolves; shown only when the point's country has a
-    // matching site in NAT_LIST_URLS.
+    // Country links (built-in national service + the user's custom links).
+    // Hidden until the reverse-geocode resolves.
     countryCode(p.lat, p.lon).then(function (cc) {
       var slot = document.getElementById("mp-natlist"); if (!slot) return;
-      var key = NAT_LIST_KEY[cc], url = natListUrl(cc, "");
-      if (!key || !url) return;
+      var svcs = natServicesFor(cc);
+      if (!svcs.length) return;
       slot.style.display = "";
-      slot.innerHTML = '<a href="' + escapeHtml(url) + '" target="_blank" rel="noopener">' + escapeHtml(t(key)) + " ↗</a>";
+      slot.innerHTML = svcs.map(function (s) {
+        return '<a href="' + escapeHtml(s.url) + '" target="_blank" rel="noopener">' + escapeHtml(s.label) + " ↗</a>";
+      }).join("");
     }).catch(function () { /* leave hidden */ });
   }
   // Right-click on desktop, long-press on touch — Leaflet fires both as "contextmenu".
@@ -2937,6 +2988,19 @@
       showSci = !!this.checked;
       window.GeoState.save({ showSci: showSci });
       applyShowSci();
+    });
+
+    // Custom per-country links: add / edit / remove rows; persist complete pairs.
+    var cuList = document.getElementById("custom-urls-list");
+    cuList.addEventListener("input", function () { saveCustomCountryUrls(collectCustomUrls()); });
+    cuList.addEventListener("click", function (e) {
+      var del = e.target.closest && e.target.closest(".cu-del");
+      if (del) { del.closest(".cu-row").remove(); saveCustomCountryUrls(collectCustomUrls()); }
+    });
+    document.getElementById("custom-urls-add").addEventListener("click", function () {
+      cuList.insertAdjacentHTML("beforeend", cuRowHtml("", ""));
+      var rows = cuList.querySelectorAll(".cu-row");
+      rows[rows.length - 1].querySelector(".cu-cc").focus();
     });
 
 
@@ -4315,16 +4379,18 @@
       mk.closePopup();
       countryInfo(lat, lon).then(function (info) { openExternal(birdLifeCountryUrl(info.cc, info.name)); });
     }));
-    // National observation/registration service — only when this point's
-    // country has one (see NAT_LIST_KEY). Appended once the reverse-geocode
+    // National observation/registration services for this point's country
+    // (built-in + the user's custom links). Appended once the reverse-geocode
     // resolves so the popup opens instantly.
     countryInfo(lat, lon).then(function (info) {
-      var key = NAT_LIST_KEY[info.cc], url = natListUrl(info.cc, "");
-      if (!key || !url) return;
-      wrap.appendChild(makePopupBtn(t(key) + " ↗", "demo-btn-light", function () {
-        mk.closePopup(); openExternal(url);
-      }));
-      var pop = mk.getPopup(); if (pop && pop.isOpen()) pop.update();   // re-layout for the added button
+      var svcs = natServicesFor(info.cc);
+      if (!svcs.length) return;
+      svcs.forEach(function (s) {
+        wrap.appendChild(makePopupBtn(s.label + " ↗", "demo-btn-light", function () {
+          mk.closePopup(); openExternal(s.url);
+        }));
+      });
+      var pop = mk.getPopup(); if (pop && pop.isOpen()) pop.update();   // re-layout for added buttons
     }).catch(function () { /* leave as-is */ });
     mk.bindPopup(wrap, { closeButton: true, autoClose: false, autoPan: true, className: "choose-popup", offset: [0, -8] });
     mk.openPopup();
@@ -6461,6 +6527,8 @@
     showSci = window.GeoState.get("showSci", true) !== false;
     document.getElementById("show-sci-toggle").checked = showSci;
     applyShowSci();
+
+    renderCustomUrls();
 
     analysisTab = window.GeoState.get("analysisTab", "timeline");
     document.getElementById("an-rankby").value = window.GeoState.get("scatterRankBy", "arrival");
