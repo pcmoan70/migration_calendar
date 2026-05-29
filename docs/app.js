@@ -980,7 +980,7 @@
       sciName = sciName.replace(/\s+\([^)]*\)\s*/g, " ").replace(/,\s*\d{4}.*$/, "").trim();
       // Skip leftovers that are clearly not binomials (one word = genus or above).
       if (!/\s/.test(sciName)) return;
-      var row = { lat: o.decimalLatitude != null ? +o.decimalLatitude : null, lon: o.decimalLongitude != null ? +o.decimalLongitude : null, date: (o.eventDate || "").slice(0, 10), src: "GBIF" };
+      var row = { lat: o.decimalLatitude != null ? +o.decimalLatitude : null, lon: o.decimalLongitude != null ? +o.decimalLongitude : null, date: (o.eventDate || "").slice(0, 10), src: "GBIF", url: o.key ? "https://www.gbif.org/occurrence/" + o.key : "" };
       var lbl = sci[sciName.toLowerCase()];
       if (lbl) bump(lbl.key, o.eventDate, row);
       else bumpExtra(sciName, "", o.eventDate, normClass(o.class), row);
@@ -992,13 +992,13 @@
       var sciName = tax.name; if (!sciName) return;
       if (!/\s/.test(sciName)) return;   // genus-only name slipped through
       var ll = inatLatLon(o);
-      var row = { lat: isFinite(ll.lat) ? ll.lat : null, lon: isFinite(ll.lon) ? ll.lon : null, date: o.observed_on || (o.time_observed_at || "").slice(0, 10), src: "iNaturalist" };
+      var row = { lat: isFinite(ll.lat) ? ll.lat : null, lon: isFinite(ll.lon) ? ll.lon : null, date: o.observed_on || (o.time_observed_at || "").slice(0, 10), src: "iNaturalist", url: o.id ? "https://www.inaturalist.org/observations/" + o.id : "" };
       var lbl = sci[sciName.toLowerCase()];
       if (lbl) bump(lbl.key, o.observed_on || o.time_observed_at, row);
       else bumpExtra(sciName, tax.preferred_common_name || "", o.observed_on || o.time_observed_at, normClass(tax.iconic_taxon_name), row);
     });
     (ebird || []).forEach(function (o) {
-      var row = { lat: o.lat != null ? +o.lat : null, lon: o.lng != null ? +o.lng : null, date: (o.obsDt || "").slice(0, 10), src: "eBird" };
+      var row = { lat: o.lat != null ? +o.lat : null, lon: o.lng != null ? +o.lng : null, date: (o.obsDt || "").slice(0, 10), src: "eBird", url: o.subId ? "https://ebird.org/checklist/" + o.subId : "" };
       if (labelsByKey[o.speciesCode]) bump(o.speciesCode, o.obsDt, row);
       else bumpExtra(o.sciName || "", o.comName || "", o.obsDt, "Aves", row);
     });
@@ -2086,7 +2086,8 @@
     ensureMpLayer();
     renderMapPoints();
     map.on("contextmenu", onMapContextMenu);   // right-click / long-press → add point dialog
-    map.on("movestart zoomstart click", clearSpider);   // collapse hover-spider when the view changes
+    map.on("movestart zoomstart click", clearSpider);   // collapse the fan-out when the view changes / map is clicked
+    document.addEventListener("keydown", function (e) { if (e.key === "Escape") clearSpider(); });
 
     map.on("moveend", function () {
       var c = map.getCenter();
@@ -2284,15 +2285,16 @@
       visible++;
       var m = L.circleMarker([r.lat, r.lon], { radius: 5, color: "#1a1a1a", weight: 1, opacity: strokeOp, fillColor: fill, fillOpacity: fillOp });
       m.bindTooltip(detTooltipHtml(name, r), { direction: "top", className: "area-tip" });
-      // Metadata for the hover spider so it can reconstruct clones in place.
-      m._detRow = r; m._detName = name; m._detColor = fill;
-      m.on("mouseover", maybeSpiderize);
-      m.on("mouseout", scheduleSpiderClear);
-      // Always stop click propagation so a hit on the dot doesn't also
-      // trigger onMapClick (which would open the point-options popup behind
-      // the marker). External link still opens for rows that carry one.
+      // Metadata for the fan-out so it can reconstruct clones in place. Keep
+      // the true species colour too, so fanned clones are distinguishable even
+      // when the map is in the muted/grey (no-selection) state.
+      m._detRow = r; m._detName = name; m._detColor = fill; m._detTrueColor = color;
+      // Click a lone dot → open its observation source. Click a dot that hides
+      // others underneath → fan the cluster out (sticky) so each can be reached.
       m.on("click", function (e) {
         if (e && e.originalEvent) L.DomEvent.stopPropagation(e.originalEvent);
+        var overlaps = findOverlapsAt(m.getLatLng(), 10);
+        if (overlaps.length >= 2) { clearSpider(); spiderOut(m.getLatLng(), overlaps); return; }
         if (r.url) openExternal(r.url);
       });
       g.addLayer(m);
@@ -2867,15 +2869,13 @@
     throw new Error("KMZ: no .kml entry found");
   }
 
-  // ---- Hover spider for overlapping detection markers -----------------------
-  // When you hover a detection dot that's stacked under others (same/near
-  // coordinates), the cluster fans out around the cursor on a circle so each
-  // can be hovered and clicked. Collapses on mouseout / map pan / zoom.
-  var spiderLayer = null, spiderHidden = [], spiderClearTimer = null;
-  function cancelSpiderClear() { if (spiderClearTimer) { clearTimeout(spiderClearTimer); spiderClearTimer = null; } }
-  function scheduleSpiderClear() { cancelSpiderClear(); spiderClearTimer = setTimeout(clearSpider, 250); }
+  // ---- Sticky fan-out for overlapping detection markers ---------------------
+  // Clicking a detection dot that sits over others (same/near coordinates)
+  // fans the cluster out around the point on a circle. It STAYS open so each
+  // clone can be hovered (tooltip) and clicked (→ its observation source).
+  // Dismisses on map-background click, pan, zoom, or Escape.
+  var spiderLayer = null, spiderHidden = [];
   function clearSpider() {
-    cancelSpiderClear();
     if (!spiderLayer) return;
     spiderHidden.forEach(function (m) { try { m.setStyle({ opacity: 0.9, fillOpacity: 0.9 }); } catch (e) {} });
     spiderHidden = [];
@@ -2895,30 +2895,25 @@
     });
     return out;
   }
-  function maybeSpiderize(e) {
-    cancelSpiderClear();
-    if (spiderLayer) return;   // already showing
-    var overlaps = findOverlapsAt(e.target.getLatLng(), 10);
-    if (overlaps.length < 2) return;
-    spiderOut(e.target.getLatLng(), overlaps);
-  }
   function spiderOut(centerLatLng, overlaps) {
     var centerPt = map.latLngToContainerPoint(centerLatLng);
-    var n = overlaps.length, radius = Math.min(60, 22 + n * 3);
+    var n = overlaps.length, radius = Math.min(70, 24 + n * 4);
     var g = L.layerGroup();
     overlaps.forEach(function (orig, i) {
       var angle = -Math.PI / 2 + (i / n) * 2 * Math.PI;
       var pt = L.point(centerPt.x + Math.cos(angle) * radius, centerPt.y + Math.sin(angle) * radius);
       var ll = map.containerPointToLatLng(pt);
       g.addLayer(L.polyline([centerLatLng, ll], { color: "#666", weight: 1, opacity: 0.55, interactive: false }));
-      var clone = L.circleMarker(ll, { radius: 6, color: "#1a1a1a", weight: 1, opacity: 0.95, fillColor: orig._detColor, fillOpacity: 0.95 });
+      var clone = L.circleMarker(ll, { radius: 6, color: "#1a1a1a", weight: 1, opacity: 0.95, fillColor: orig._detTrueColor || orig._detColor, fillOpacity: 0.95 });
       var r = orig._detRow;
+      // Permanent tooltip on hover; click → the observation's source page.
       clone.bindTooltip(detTooltipHtml(orig._detName, r), { direction: "top", className: "area-tip" });
-      if (r.url) clone.on("click", function (ev) { if (ev && ev.originalEvent) L.DomEvent.stopPropagation(ev.originalEvent); openExternal(r.url); });
-      clone.on("mouseover", cancelSpiderClear);
-      clone.on("mouseout", scheduleSpiderClear);
+      clone.on("click", function (ev) {
+        if (ev && ev.originalEvent) L.DomEvent.stopPropagation(ev.originalEvent);   // keep the fan open
+        if (r.url) openExternal(r.url);
+      });
       g.addLayer(clone);
-      orig.setStyle({ opacity: 0, fillOpacity: 0 });
+      orig.setStyle({ opacity: 0, fillOpacity: 0 });   // hide the stacked original while fanned
       spiderHidden.push(orig);
     });
     g.addTo(map); spiderLayer = g;
