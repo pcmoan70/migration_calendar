@@ -152,6 +152,13 @@
     el.style.height = Math.max(320, Math.round(window.innerHeight - top - 8)) + "px";
     if (map) map.invalidateSize();
   }
+  var animCtrlEl = null;   // the on-map migration-animation control container
+  // Circular arrow to start the animation; pause bars while it's playing.
+  function animIconSvg(playing) {
+    return playing
+      ? '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>'
+      : '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v4h4"/></svg>';
+  }
   function isFullscreen() { return !!(document.fullscreenElement || document.webkitFullscreenElement); }
   function fsIconSvg() {
     // Outward arrows when normal (→ expand), inward when already full-screen.
@@ -2287,6 +2294,24 @@
     });
     map.addControl(new PlaceSearchControl());
 
+    // Migration animation toggle — an on-map button (shown in Species
+    // distribution / richness) that plays the range across the 48 weeks.
+    var AnimControl = L.Control.extend({
+      options: { position: "topleft" },
+      onAdd: function () {
+        var c = L.DomUtil.create("div", "leaflet-bar leaflet-control anim-ctrl");
+        L.DomEvent.disableClickPropagation(c);
+        var a = L.DomUtil.create("a", "anim-btn", c);
+        a.href = "#"; a.title = t("btn.play"); a.setAttribute("aria-label", t("btn.play"));
+        a.innerHTML = animIconSvg(false);
+        L.DomEvent.on(a, "click", function (e) { L.DomEvent.preventDefault(e); L.DomEvent.stopPropagation(e); toggleAnimation(); });
+        animCtrlEl = c;
+        c.style.display = (currentMode === "range" || currentMode === "richness") ? "" : "none";
+        return c;
+      }
+    });
+    map.addControl(new AnimControl());
+
     // Full-screen toggle — expands the whole page (collapsing the browser's
     // address bar). Only added where the Fullscreen API is available.
     if (document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen) {
@@ -3215,10 +3240,16 @@
     // Week applies in every mode (incl. Migration timeline, where it sets the
     // "current week" used by the Probability / Arrivals / Scatter tabs).
     document.getElementById("week-select-wrap").style.display = "";
-    document.getElementById("play-btn-wrap").style.display = isMap ? "" : "none";
+    // The migration animation now runs from an on-map button (range/richness),
+    // so keep the controls-bar play button out of the bar.
+    document.getElementById("play-btn-wrap").style.display = "none";
+    if (animCtrlEl) animCtrlEl.style.display = isMap ? "" : "none";
     // High-resolution only affects the range/richness map overlays.
     document.getElementById("hires-wrap").style.display = isMap ? "" : "none";
-    updateRangeSpecies();   // clickable species name above the map (range only)
+    // In Range the linked species name above the map is the only label we need,
+    // so hide the status line (its "(step°) [cached]" detail just took space).
+    document.getElementById("demo-status").style.display = isRange ? "none" : "";
+    updateRangeSpecies();   // clickable species name + week above the map (range only)
     relocateCsvButton();
     updateControlsBarVisibility();
     fitMapHeight();         // controls/mode changes shift the map's top edge
@@ -3759,6 +3790,7 @@
       window.GeoState.save({ week: +this.value });
       if (currentMode === "range" || currentMode === "richness") showCachedWeek();  // re-filter cached cells
       if (currentMode === "barchart" && analysisData) renderActiveTab();
+      updateRangeSpecies();   // keep the "· Week N" label in sync
       rerenderPointList();   // update the per-point list (list or range with a marker)
       updateLegend();
     });
@@ -4538,7 +4570,8 @@
     if (!el) return;
     var key = document.getElementById("species-search").dataset.selectedKey;
     if (currentMode === "range" && key && labelsByKey[key]) {
-      el.innerHTML = nameLinkHtml(labelsByKey[key]);
+      var wk = +document.getElementById("week-select").value;
+      el.innerHTML = nameLinkHtml(labelsByKey[key]) + ' <span class="rng-wk">· ' + escapeHtml(weekText(wk)) + "</span>";
       el.style.display = "block";
     } else {
       el.innerHTML = "";
@@ -6664,6 +6697,8 @@
   function setPlayBtn(playing) {
     var b = document.getElementById("play-btn");
     if (b) b.textContent = playing ? t("btn.pause") : t("btn.play");
+    var a = animCtrlEl && animCtrlEl.querySelector(".anim-btn");
+    if (a) { a.innerHTML = animIconSvg(playing); a.title = playing ? t("btn.pause") : t("btn.play"); a.setAttribute("aria-label", a.title); }
   }
 
   // Month-divided progress bar (map width) shown during migration playback,
