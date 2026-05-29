@@ -2580,6 +2580,15 @@
     if (mpActiveName === name) mpActiveName = "";
     saveMapPoints(); renderMapPoints();
   }
+  // Rebuild a named list from imported pins (replaces one of the same name).
+  function importCollection(name, pts) {
+    var points = pts.map(function (p) { return Object.assign({ id: mpUid(), createdAt: new Date().toISOString() }, p); });
+    var c = mpCollections.filter(function (x) { return x.name === name; })[0];
+    if (c) c.points = points; else mpCollections.push({ name: name, points: points });
+  }
+  // "Unsaved" = pins on the map that aren't captured by any named list. Happens
+  // when no list is active (a loaded list auto-syncs, so it's always saved).
+  function mpHasUnsaved() { return !mpActiveName && mapPoints.length > 0; }
   function addMapPoint(p) {
     p.id = p.id || mpUid();
     p.createdAt = p.createdAt || new Date().toISOString();
@@ -2754,8 +2763,8 @@
           escapeHtml(t("points.show")) +
         "</label>" +
         '<button type="button" id="mp-import" class="demo-btn">' + escapeHtml(t("points.load")) + "</button>" +
-        '<button type="button" id="mp-export" class="demo-btn"' + (mapPoints.length ? "" : " disabled") + '>' + escapeHtml(t("points.export")) + "</button>" +
-        '<button type="button" id="mp-clear" class="demo-btn demo-btn-light">' + escapeHtml(t("points.delete")) + "</button>" +
+        '<button type="button" id="mp-export" class="demo-btn"' + ((mapPoints.length || mpCollections.length) ? "" : " disabled") + '>' + escapeHtml(t("points.export")) + "</button>" +
+        '<button type="button" id="mp-clear" class="demo-btn demo-btn-light">' + escapeHtml(t("points.clear")) + "</button>" +
       "</div>" +
       '<div class="mp-coll">' +
         '<select id="mp-coll-select" title="' + escapeHtml(t("points.collection")) + '">' +
@@ -2768,6 +2777,7 @@
         '<button type="button" id="mp-coll-save" class="demo-btn">' + escapeHtml(t("points.saveAs")) + "</button>" +
         (mpActiveName ? '<button type="button" id="mp-coll-del" class="demo-btn demo-btn-light" title="' + escapeHtml(t("points.deleteColl")) + '">🗑</button>' : "") +
       "</div>" +
+      (mpHasUnsaved() ? '<div class="mp-unsaved">' + escapeHtml(t("points.unsaved", { n: mapPoints.length })) + "</div>" : "") +
       (chipsHtml ? '<div class="mp-chips">' + chipsHtml + "</div>" : "") +
       '<div class="mp-list">' + listHtml + "</div>";
     // Wire interactions
@@ -2794,16 +2804,26 @@
     if (imp) imp.addEventListener("click", function () { document.getElementById("mp-file").click(); });
     var exp = panel.querySelector("#mp-export");
     if (exp) exp.addEventListener("click", function () {
-      if (!mapPoints.length) return;
+      if (!mapPoints.length && !mpCollections.length) return;
       var date = new Date().toISOString().slice(0, 10);
       downloadCsv("map_points_" + date + ".kml", buildPointsKml());
     });
     var sh = panel.querySelector("#mp-show");
     if (sh) sh.addEventListener("change", function () { mpShown = !!this.checked; saveMapPoints(); renderMapPoints(); });
     var clr = panel.querySelector("#mp-clear");
-    if (clr) clr.addEventListener("click", function () { if (mapPoints.length && confirm(t("points.clearAllPrompt"))) clearMapPoints(); });
+    if (clr) clr.addEventListener("click", function () {
+      if (!mapPoints.length) return;
+      var msg = mpHasUnsaved() ? t("points.clearUnsavedPrompt") : t("points.clearAllPrompt");
+      if (confirm(msg)) clearMapPoints();
+    });
     var collSel = panel.querySelector("#mp-coll-select");
-    if (collSel) collSel.addEventListener("change", function () { if (this.value) loadCollection(this.value); });
+    if (collSel) collSel.addEventListener("change", function () {
+      if (!this.value) return;
+      // Loading a list replaces the working set — warn if that would lose pins
+      // not kept in any list.
+      if (mpHasUnsaved() && !confirm(t("points.discardUnsavedPrompt"))) { this.value = ""; return; }
+      loadCollection(this.value);
+    });
     var collSave = panel.querySelector("#mp-coll-save");
     if (collSave) collSave.addEventListener("click", function () {
       var n = prompt(t("points.saveAsPrompt"), mpActiveName || "");
@@ -2826,11 +2846,17 @@
     var name = f.name.toLowerCase();
     var done = function (pts) {
       if (!pts || !pts.length) { setStatus(t("points.importEmpty")); return; }
+      var loose = [], byList = {}, n = 0;
       pts.forEach(function (p) {
         if (!isFinite(p.lat) || !isFinite(p.lon)) return;
-        addMapPoint({ lat: +p.lat, lon: +p.lon, name: p.name || "", tags: p.tags || [], note: p.note || "", source: p.source || "file" });
+        var rec = { lat: +p.lat, lon: +p.lon, name: p.name || "", tags: p.tags || [], note: p.note || "", source: p.source || "file" };
+        n++;
+        if (p.list) (byList[p.list] = byList[p.list] || []).push(rec); else loose.push(rec);
       });
-      setStatus(t("points.importOk", { n: pts.length }));
+      Object.keys(byList).forEach(function (nm) { importCollection(nm, byList[nm]); });
+      loose.forEach(addMapPoint);   // each saves + renders; works with/without an active list
+      if (Object.keys(byList).length) { saveMapPoints(); renderMapPoints(); }
+      setStatus(t("points.importOk", { n: n }));
     };
     var fail = function (err) { setStatus(t("points.importFail", { msg: (err && err.message) || "" })); console.warn(err); };
     if (name.endsWith(".kml")) {
@@ -2846,23 +2872,35 @@
     e.target.value = "";
   }
 
-  // Export all stored points to a KML the round-trips through parseKml:
-  // tags land in <ExtendedData><Data name="tags"><value>…</value></Data></ExtendedData>,
-  // notes in <description>, and coordinates as "lon,lat,0".
+  // Export everything to a KML that round-trips through parseKml: tags land in
+  // <Data name="tags">, notes in <description>, coordinates as "lon,lat,0".
+  // Named lists become <Folder>s and each of their placemarks carries a
+  // <Data name="list"> so import can rebuild the lists (not just flat pins).
   function buildPointsKml() {
     var xml = function (s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); };
     var parts = ['<?xml version="1.0" encoding="UTF-8"?>',
       '<kml xmlns="http://www.opengis.net/kml/2.2"><Document>',
       "<name>Map points</name>"];
-    mapPoints.forEach(function (p) {
+    var placemark = function (p, listName) {
       var tagStr = (p.tags || []).join(", ");
+      var ed = "";
+      if (tagStr) ed += '<Data name="tags"><value>' + xml(tagStr) + "</value></Data>";
+      if (listName) ed += '<Data name="list"><value>' + xml(listName) + "</value></Data>";
       parts.push("<Placemark>");
       if (p.name) parts.push("<name>" + xml(p.name) + "</name>");
       if (p.note) parts.push("<description>" + xml(p.note) + "</description>");
-      if (tagStr) parts.push('<ExtendedData><Data name="tags"><value>' + xml(tagStr) + "</value></Data></ExtendedData>");
+      if (ed) parts.push("<ExtendedData>" + ed + "</ExtendedData>");
       parts.push("<Point><coordinates>" + p.lon.toFixed(6) + "," + p.lat.toFixed(6) + ",0</coordinates></Point>");
       parts.push("</Placemark>");
+    };
+    mpCollections.forEach(function (c) {
+      parts.push("<Folder><name>" + xml(c.name) + "</name>");
+      (c.points || []).forEach(function (p) { placemark(p, c.name); });
+      parts.push("</Folder>");
     });
+    // The active list's pins live in mpCollections already (auto-synced); only
+    // export the working set when it isn't representing a saved list.
+    if (!mpActiveName) mapPoints.forEach(function (p) { placemark(p, ""); });
     parts.push("</Document></kml>");
     return parts.join("\n");
   }
@@ -2882,24 +2920,28 @@
       var name = (n.getElementsByTagName("name")[0] || {}).textContent || "";
       var desc = (n.getElementsByTagName("description")[0] || {}).textContent || "";
       var tags = [];
-      // Folder ancestor → tag
-      var anc = n.parentNode;
-      while (anc && anc.nodeType === 1) {
-        if (anc.nodeName === "Folder") {
-          var fn = anc.getElementsByTagName("name")[0];
-          if (fn && fn.parentNode === anc && fn.textContent.trim()) tags.push(fn.textContent.trim());
-        }
-        anc = anc.parentNode;
-      }
-      // ExtendedData/Data[name="tags"]
+      var listName = "";
+      // ExtendedData/Data[name="tags"|"list"]
       var datas = n.getElementsByTagName("Data");
       for (var d = 0; d < datas.length; d++) {
-        if (datas[d].getAttribute("name") === "tags") {
-          var v = datas[d].getElementsByTagName("value")[0];
-          if (v && v.textContent) mpParseTags(v.textContent).forEach(function (x) { tags.push(x); });
+        var dn = datas[d].getAttribute("name");
+        var v = datas[d].getElementsByTagName("value")[0];
+        if (dn === "tags") { if (v && v.textContent) mpParseTags(v.textContent).forEach(function (x) { tags.push(x); }); }
+        else if (dn === "list") { if (v) listName = (v.textContent || "").trim(); }
+      }
+      // Folder ancestor → tag, but only for foreign files: when this placemark
+      // belongs to one of our saved lists the folder *is* the list, not a tag.
+      if (!listName) {
+        var anc = n.parentNode;
+        while (anc && anc.nodeType === 1) {
+          if (anc.nodeName === "Folder") {
+            var fn = anc.getElementsByTagName("name")[0];
+            if (fn && fn.parentNode === anc && fn.textContent.trim()) tags.push(fn.textContent.trim());
+          }
+          anc = anc.parentNode;
         }
       }
-      pts.push({ lat: lat, lon: lon, name: name.trim(), tags: mpParseTags(tags.join(",")), note: desc.trim(), source: "kml" });
+      pts.push({ lat: lat, lon: lon, name: name.trim(), tags: mpParseTags(tags.join(",")), note: desc.trim(), source: "kml", list: listName });
     }
     return pts;
   }
