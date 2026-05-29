@@ -3171,7 +3171,19 @@
     document.getElementById("hires-wrap").style.display = isMap ? "" : "none";
     updateRangeSpecies();   // clickable species name above the map (range only)
     relocateCsvButton();
+    updateControlsBarVisibility();
     fitMapHeight();         // controls/mode changes shift the map's top edge
+  }
+
+  // Hide the controls-bar card entirely when nothing in it is visible (e.g.
+  // Species List mode, where its controls live in the header) so it doesn't sit
+  // as an empty card between the header and the map.
+  function updateControlsBarVisibility() {
+    var bar = document.getElementById("demo-controls");
+    if (!bar) return;
+    bar.style.display = "";   // show so children's visibility can be measured
+    var anyVisible = Array.prototype.some.call(bar.children, function (ch) { return ch.offsetParent !== null; });
+    bar.style.display = anyVisible ? "" : "none";
   }
 
   // Show the "Last change" timestamp (written into last-change.txt by the
@@ -6859,6 +6871,10 @@
     panel.querySelectorAll(".dd-del").forEach(function (b) {
       b.addEventListener("click", function (e) { e.stopPropagation(); unhideSpecies(this.getAttribute("data-key")); });
     });
+    // The hidden-species control is the only thing that can populate the bar in
+    // List mode, so re-evaluate whether the bar should show.
+    updateControlsBarVisibility();
+    fitMapHeight();
   }
 
   // ---- Restore persisted control values ------------------------------------
