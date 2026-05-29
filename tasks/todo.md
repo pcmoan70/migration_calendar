@@ -1,3 +1,45 @@
+# Map Points Feature (v1)
+
+## Decisions
+1. **Manual add**: long-press on touch / right-click on desktop → opens a dialog with name, tags, notes.
+2. **Tags**: free-form, comma-separated. Tags from imported files merge into the same pool.
+3. **Filter**: multi-select OR — chips for each unique tag + "(no tag)"; active chips show only matching points.
+4. **Import**: KML + GPX (DOMParser) + **KMZ** via native `DecompressionStream('deflate-raw')` + a minimal local ZIP central-directory parser — no JSZip vendored.
+
+## Data model
+- `GeoState.mapPoints` = array of `{ id, lat, lon, name, tags[], note, source, createdAt }`.
+- `GeoState.mapPointsFilter` = array of active tag strings (`""` for "(no tag)").
+
+## Tasks
+- [ ] Storage helpers: `loadMapPoints`, `saveMapPoints`, `addMapPoint`, `updateMapPoint`, `deleteMapPoint`, `clearMapPoints`.
+- [ ] Tag-colour palette + hash function.
+- [ ] Leaflet layer group + per-tag marker rendering; filter respect.
+- [ ] `map.on("contextmenu", addPointHere)` → opens the point dialog at lat/lon.
+- [ ] Marker `.on("click", openPointEdit)` → same dialog, prefilled, with delete button.
+- [ ] Header dropdown "Points (N)" mirroring the Checklists one: list of points with chips + distance + delete, "Import file" button, "Clear all", and the filter chip bar with all distinct tags.
+- [ ] File-picker accepts `.kml,.kmz,.gpx` and dispatches by extension.
+- [ ] Parsers:
+  - `parseKml(text)` → DOMParser, walk `Placemark` nodes with `Point/coordinates`. Name from `<name>`, tags merge from folder names + `<ExtendedData>` `<Data name="tags">` + comma-separated `<description>`. Drop placemarks without `<Point>`.
+  - `parseGpx(text)` → DOMParser, walk `<wpt lat="" lon="">` nodes. Name from `<name>`, tags from `<type>` and (`<sym>`).
+  - `parseKmz(arrayBuffer)` → minimal ZIP central-directory parser → find `*.kml` entry → `DecompressionStream('deflate-raw')` → `parseKml`.
+- [ ] i18n: ~12 keys in 15 languages.
+
+## Verification (headless)
+- [ ] Right-click on map → dialog opens → save → point appears, persisted to localStorage.
+- [ ] Import a synthetic KML (3 placemarks, 2 tags) → 3 points added with merged tag pool.
+- [ ] Import a synthetic GPX (2 waypoints) → 2 points added.
+- [ ] Import a synthetic KMZ (1 KML inside, deflate-compressed) → 1 point added.
+- [ ] Click a tag chip → marker count drops to those matching.
+- [ ] Click a point marker → edit dialog opens with prefilled fields, delete works.
+
+## Out of scope (v1)
+- Per-tag icon/color customization UI (color is hashed by first tag automatically).
+- Export back to KML/GPX (could add later).
+- Clustering at high counts (uncluster at hundreds).
+- Sync across devices (localStorage only).
+
+---
+
 # Upload Checklist Feature — eBird (v1)
 
 ## Decisions (user-confirmed)

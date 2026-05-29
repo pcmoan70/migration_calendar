@@ -1344,6 +1344,15 @@
             '</button>' +
             '<div id="checklists-panel" class="dd-panel" style="display:none"></div>' +
           '</div>' +
+          '<div class="ctrl-group" id="mp-wrap">' +
+            '<button type="button" id="mp-toggle" class="hdr-icon-btn" aria-haspopup="true" data-i18n-title="points.title" title="Points" aria-label="Points">' +
+              '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+                '<path d="M12 22s-7-7.58-7-13a7 7 0 1 1 14 0c0 5.42-7 13-7 13z"/><circle cx="12" cy="9" r="2.5"/></svg>' +
+              '<span id="mp-btn-text" class="hdr-count"></span>' +
+            '</button>' +
+            '<div id="mp-panel" class="dd-panel" style="display:none"></div>' +
+            '<input type="file" id="mp-file" accept=".kml,.kmz,.gpx" style="display:none" />' +
+          '</div>' +
           '<div class="ctrl-group" id="settings-wrap">' +
             '<button type="button" id="settings-toggle" class="settings-icon-btn" aria-haspopup="true" aria-label="Settings" title="Settings"></button>' +
             '<div id="settings-panel" class="dd-panel settings-panel" style="display:none">' +
@@ -1629,6 +1638,8 @@
       if (hdr && modeWrap) hdr.appendChild(modeWrap);
       var chkWrap = document.getElementById("checklists-wrap");
       if (hdr && chkWrap) hdr.appendChild(chkWrap);
+      var mpWrap = document.getElementById("mp-wrap");
+      if (hdr && mpWrap) hdr.appendChild(mpWrap);
       syncHeaderHeight();
       window.addEventListener("resize", syncHeaderHeight);
       populateLangSelect();
@@ -1914,6 +1925,10 @@
 
     setupAreaOverlays();   // protected/priority-area overlay toggles (off by default)
     loadDetections();      // restore any "Show in map" detection points
+    loadMapPoints();       // user-added pins + imported KML/KMZ/GPX points
+    ensureMpLayer();
+    renderMapPoints();
+    map.on("contextmenu", onMapContextMenu);   // right-click / long-press → add point dialog
     map.on("movestart zoomstart click", clearSpider);   // collapse hover-spider when the view changes
 
     map.on("moveend", function () {
@@ -2246,6 +2261,342 @@
       });
       updateDetLegend();
     });
+  }
+
+  // ---- Map points (user-added pins + KML/KMZ/GPX import) --------------------
+  // Storage: GeoState.mapPoints = [{ id, lat, lon, name, tags[], note, source, createdAt }]
+  // Filter:  GeoState.mapPointsFilter = [tag, ...]; "" means the "(no tag)" chip.
+  // Markers live in mpLayer (a single Leaflet layerGroup) so we can rebuild
+  // cheaply on edit/filter changes without touching the rest of the map.
+  var mapPoints = [];
+  var mpFilter = [];
+  var mpLayer = null;
+
+  var MP_COLORS = ["#1f77b4","#ff7f0e","#2ca02c","#d62728","#9467bd","#8c564b","#e377c2","#7f7f7f","#bcbd22","#17becf"];
+  function mpHashColor(tag) {
+    if (!tag) return "#888";
+    var h = 0; for (var i = 0; i < tag.length; i++) h = (h * 31 + tag.charCodeAt(i)) | 0;
+    return MP_COLORS[Math.abs(h) % MP_COLORS.length];
+  }
+  function mpColorFor(p) { return mpHashColor((p.tags && p.tags[0]) || ""); }
+  // Comma-separated free-form tag input → clean, deduped lowercase-trimmed array.
+  function mpParseTags(s) {
+    return String(s || "").split(",").map(function (t) { return t.trim(); }).filter(function (t, i, a) { return t && a.indexOf(t) === i; });
+  }
+  function mpUid() { return "p" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+  function loadMapPoints() {
+    mapPoints = (window.GeoState.get("mapPoints", []) || []).filter(function (p) { return p && isFinite(p.lat) && isFinite(p.lon); });
+    mpFilter = window.GeoState.get("mapPointsFilter", []) || [];
+  }
+  function saveMapPoints() { window.GeoState.save({ mapPoints: mapPoints, mapPointsFilter: mpFilter }); }
+  function addMapPoint(p) {
+    p.id = p.id || mpUid();
+    p.createdAt = p.createdAt || new Date().toISOString();
+    mapPoints.push(p);
+    saveMapPoints();
+    renderMapPoints();
+  }
+  function updateMapPoint(id, patch) {
+    var p = mapPoints.filter(function (x) { return x.id === id; })[0]; if (!p) return;
+    Object.assign(p, patch);
+    saveMapPoints();
+    renderMapPoints();
+  }
+  function deleteMapPoint(id) {
+    mapPoints = mapPoints.filter(function (x) { return x.id !== id; });
+    saveMapPoints();
+    renderMapPoints();
+  }
+  function clearMapPoints() {
+    mapPoints = []; mpFilter = []; saveMapPoints(); renderMapPoints();
+  }
+  // Distinct tag pool across all stored points, alphabetically sorted.
+  function mpAllTags() {
+    var s = {};
+    mapPoints.forEach(function (p) { (p.tags || []).forEach(function (t) { if (t) s[t] = true; }); });
+    return Object.keys(s).sort();
+  }
+  // OR-filter: when no tags active, show everything; otherwise show points
+  // whose tag list intersects mpFilter. "(no tag)" is represented by "".
+  function mpVisible(p) {
+    if (!mpFilter.length) return true;
+    var tags = p.tags || [];
+    if (!tags.length) return mpFilter.indexOf("") >= 0;
+    for (var i = 0; i < tags.length; i++) if (mpFilter.indexOf(tags[i]) >= 0) return true;
+    return false;
+  }
+
+  function ensureMpLayer() { if (!mpLayer) { mpLayer = L.layerGroup(); if (map) mpLayer.addTo(map); } return mpLayer; }
+  // Rebuild every marker. Cheap enough for hundreds; if it ever becomes slow we
+  // can switch to a per-point patch model.
+  function renderMapPoints() {
+    if (!map) return;
+    ensureMpLayer().clearLayers();
+    mapPoints.forEach(function (p) {
+      if (!mpVisible(p)) return;
+      var m = L.circleMarker([p.lat, p.lon], {
+        radius: 7, color: "#111", weight: 1, opacity: 0.9,
+        fillColor: mpColorFor(p), fillOpacity: 0.9
+      });
+      m.bindTooltip(mpTipHtml(p), { direction: "top", className: "area-tip" });
+      // Stop propagation so clicks on the marker don't open the species-list
+      // popup behind it.
+      m.on("click", function (e) {
+        if (e && e.originalEvent) L.DomEvent.stopPropagation(e.originalEvent);
+        openPointEditor(p);
+      });
+      mpLayer.addLayer(m);
+    });
+    refreshMpPanel();
+    updateMpBadge();
+  }
+  function mpTipHtml(p) {
+    var name = escapeHtml(p.name || "(point)");
+    var tags = (p.tags && p.tags.length) ? '<span class="area-tip-sub">' + escapeHtml(p.tags.join(" · ")) + "</span>" : "";
+    return "<b>" + name + "</b>" + tags;
+  }
+  function updateMpBadge() {
+    var el = document.getElementById("mp-btn-text"); if (el) el.textContent = mapPoints.length ? String(mapPoints.length) : "";
+  }
+
+  // ---- Add / edit popup ----
+  function openPointEditor(existing) {
+    var p = existing || { lat: null, lon: null, name: "", tags: [], note: "" };
+    // Re-use a single working popup; close any other detail popups first.
+    if (mpEditPopup) map.closePopup(mpEditPopup);
+    var html = mpEditorHtml(p, !!existing);
+    var pop = L.popup({ closeButton: true, autoClose: false, maxWidth: 280, className: "mp-popup" })
+      .setLatLng([p.lat, p.lon]).setContent(html);
+    mpEditPopup = pop; pop.openOn(map);
+    setTimeout(function () { wireEditorPopup(p, !!existing); }, 0);
+  }
+  var mpEditPopup = null;
+  function mpEditorHtml(p, isEdit) {
+    var esc = escapeHtml;
+    return '<div class="mp-form">' +
+      '<label>' + esc(t("points.name")) + '<input type="text" id="mp-name" value="' + esc(p.name || "") + '" /></label>' +
+      '<label>' + esc(t("points.tags")) + '<input type="text" id="mp-tags" value="' + esc((p.tags || []).join(", ")) + '" placeholder="' + esc(t("points.tagsPh")) + '" /></label>' +
+      '<label>' + esc(t("points.note")) + '<textarea id="mp-note" rows="2">' + esc(p.note || "") + '</textarea></label>' +
+      '<div class="mp-meta">' + p.lat.toFixed(5) + ", " + p.lon.toFixed(5) + "</div>" +
+      '<div class="mp-actions">' +
+        '<button type="button" id="mp-save" class="demo-btn">' + esc(t("points.save")) + '</button>' +
+        (isEdit ? '<button type="button" id="mp-del" class="demo-btn demo-btn-light">' + esc(t("btn.delete")) + '</button>' : "") +
+      '</div>' +
+    '</div>';
+  }
+  function wireEditorPopup(p, isEdit) {
+    var save = document.getElementById("mp-save"); if (!save) return;
+    save.addEventListener("click", function () {
+      var name = (document.getElementById("mp-name").value || "").trim();
+      var tags = mpParseTags(document.getElementById("mp-tags").value);
+      var note = (document.getElementById("mp-note").value || "").trim();
+      if (isEdit) updateMapPoint(p.id, { name: name, tags: tags, note: note });
+      else addMapPoint({ lat: p.lat, lon: p.lon, name: name, tags: tags, note: note, source: "manual" });
+      map.closePopup();
+    });
+    var del = document.getElementById("mp-del");
+    if (del) del.addEventListener("click", function () { deleteMapPoint(p.id); map.closePopup(); });
+  }
+  // Right-click on desktop, long-press on touch — Leaflet fires both as "contextmenu".
+  function onMapContextMenu(e) {
+    var lat = Math.max(-90, Math.min(90, e.latlng.lat));
+    var lon = wrapLon(e.latlng.lng);
+    openPointEditor({ lat: lat, lon: lon, name: "", tags: [], note: "" });
+  }
+
+  // ---- Points dropdown panel ----
+  function refreshMpPanel() {
+    var panel = document.getElementById("mp-panel"); if (!panel) return;
+    var allTags = mpAllTags();
+    var hasUntagged = mapPoints.some(function (p) { return !p.tags || !p.tags.length; });
+    var center = map && map.getCenter();
+    var rows = mapPoints.slice().sort(function (a, b) {
+      if (!center) return 0;
+      return haversineKm(center.lat, center.lng, a.lat, a.lon) - haversineKm(center.lat, center.lng, b.lat, b.lon);
+    });
+    var chipsHtml = allTags.map(function (tag) {
+      var active = mpFilter.indexOf(tag) >= 0;
+      return '<button type="button" class="mp-chip' + (active ? " is-active" : "") + '" data-tag="' + escapeHtml(tag) + '" style="--mp-c:' + mpHashColor(tag) + '">' + escapeHtml(tag) + "</button>";
+    }).join("");
+    if (hasUntagged) {
+      var actNoTag = mpFilter.indexOf("") >= 0;
+      chipsHtml += '<button type="button" class="mp-chip' + (actNoTag ? " is-active" : "") + '" data-tag="">' + escapeHtml(t("points.notag")) + "</button>";
+    }
+    var listHtml = rows.length ? rows.map(function (p) {
+      var dist = center ? haversineKm(center.lat, center.lng, p.lat, p.lon) : null;
+      var dt = dist == null ? "" : (dist < 1 ? Math.round(dist * 1000) + " m" : dist.toFixed(1) + " km");
+      var tagText = (p.tags || []).slice(0, 3).map(function (x) { return '<span class="mp-row-tag" style="--mp-c:' + mpHashColor(x) + '">' + escapeHtml(x) + "</span>"; }).join("");
+      return '<div class="dd-row mp-row" data-id="' + escapeHtml(p.id) + '">' +
+        '<button type="button" class="dd-name mp-fly" data-id="' + escapeHtml(p.id) + '"><span class="mp-sw" style="background:' + mpColorFor(p) + '"></span>' + escapeHtml(p.name || "(point)") + '</button>' +
+        '<span class="mp-row-meta">' + tagText + '<span class="mp-dist">' + escapeHtml(dt) + "</span></span>" +
+        '<button type="button" class="dd-del mp-del" data-id="' + escapeHtml(p.id) + '" aria-label="remove">×</button>' +
+      "</div>";
+    }).join("") : '<p class="dd-empty">' + escapeHtml(t("points.empty")) + "</p>";
+    panel.innerHTML =
+      '<div class="mp-head">' +
+        '<button type="button" id="mp-import" class="demo-btn">' + escapeHtml(t("points.import")) + "</button>" +
+        '<button type="button" id="mp-clear" class="demo-btn demo-btn-light">' + escapeHtml(t("points.clearAll")) + "</button>" +
+      "</div>" +
+      (chipsHtml ? '<div class="mp-chips">' + chipsHtml + "</div>" : "") +
+      '<div class="mp-list">' + listHtml + "</div>";
+    // Wire interactions
+    panel.querySelectorAll(".mp-chip").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var tag = this.getAttribute("data-tag");
+        var i = mpFilter.indexOf(tag);
+        if (i >= 0) mpFilter.splice(i, 1); else mpFilter.push(tag);
+        saveMapPoints();
+        renderMapPoints();
+      });
+    });
+    panel.querySelectorAll(".mp-fly").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var p = mapPoints.filter(function (x) { return x.id === this.getAttribute("data-id"); }.bind(this))[0]; if (!p) return;
+        map.setView([p.lat, p.lon], Math.max(map.getZoom() || 0, 11));
+        openPointEditor(p);
+      });
+    });
+    panel.querySelectorAll(".mp-del").forEach(function (b) {
+      b.addEventListener("click", function () { deleteMapPoint(this.getAttribute("data-id")); });
+    });
+    var imp = panel.querySelector("#mp-import");
+    if (imp) imp.addEventListener("click", function () { document.getElementById("mp-file").click(); });
+    var clr = panel.querySelector("#mp-clear");
+    if (clr) clr.addEventListener("click", function () { if (mapPoints.length && confirm(t("points.clearAllPrompt"))) clearMapPoints(); });
+  }
+
+  // ---- File import ----
+  function onMpFileChange(e) {
+    var f = e.target.files && e.target.files[0]; if (!f) return;
+    var name = f.name.toLowerCase();
+    var done = function (pts) {
+      if (!pts || !pts.length) { setStatus(t("points.importEmpty")); return; }
+      pts.forEach(function (p) {
+        if (!isFinite(p.lat) || !isFinite(p.lon)) return;
+        addMapPoint({ lat: +p.lat, lon: +p.lon, name: p.name || "", tags: p.tags || [], note: p.note || "", source: p.source || "file" });
+      });
+      setStatus(t("points.importOk", { n: pts.length }));
+    };
+    var fail = function (err) { setStatus(t("points.importFail", { msg: (err && err.message) || "" })); console.warn(err); };
+    if (name.endsWith(".kml")) {
+      f.text().then(function (txt) { done(parseKml(txt)); }).catch(fail);
+    } else if (name.endsWith(".gpx")) {
+      f.text().then(function (txt) { done(parseGpx(txt)); }).catch(fail);
+    } else if (name.endsWith(".kmz")) {
+      f.arrayBuffer().then(parseKmz).then(done).catch(fail);
+    } else {
+      setStatus(t("points.importFail", { msg: name }));
+    }
+    // Reset so re-selecting the same file fires change again.
+    e.target.value = "";
+  }
+
+  function parseKml(text) {
+    var doc = new DOMParser().parseFromString(text, "application/xml");
+    if (doc.querySelector("parsererror")) throw new Error("KML parse error");
+    var pts = [];
+    var nodes = doc.getElementsByTagName("Placemark");
+    for (var i = 0; i < nodes.length; i++) {
+      var n = nodes[i];
+      var pt = n.getElementsByTagName("Point")[0]; if (!pt) continue;
+      var coords = pt.getElementsByTagName("coordinates")[0];
+      if (!coords) continue;
+      var c = String(coords.textContent || "").trim().split(/[\s,]+/);
+      var lon = parseFloat(c[0]), lat = parseFloat(c[1]);
+      if (!isFinite(lat) || !isFinite(lon)) continue;
+      var name = (n.getElementsByTagName("name")[0] || {}).textContent || "";
+      var desc = (n.getElementsByTagName("description")[0] || {}).textContent || "";
+      var tags = [];
+      // Folder ancestor → tag
+      var anc = n.parentNode;
+      while (anc && anc.nodeType === 1) {
+        if (anc.nodeName === "Folder") {
+          var fn = anc.getElementsByTagName("name")[0];
+          if (fn && fn.parentNode === anc && fn.textContent.trim()) tags.push(fn.textContent.trim());
+        }
+        anc = anc.parentNode;
+      }
+      // ExtendedData/Data[name="tags"]
+      var datas = n.getElementsByTagName("Data");
+      for (var d = 0; d < datas.length; d++) {
+        if (datas[d].getAttribute("name") === "tags") {
+          var v = datas[d].getElementsByTagName("value")[0];
+          if (v && v.textContent) mpParseTags(v.textContent).forEach(function (x) { tags.push(x); });
+        }
+      }
+      pts.push({ lat: lat, lon: lon, name: name.trim(), tags: mpParseTags(tags.join(",")), note: desc.trim(), source: "kml" });
+    }
+    return pts;
+  }
+  function parseGpx(text) {
+    var doc = new DOMParser().parseFromString(text, "application/xml");
+    if (doc.querySelector("parsererror")) throw new Error("GPX parse error");
+    var pts = [];
+    var wpts = doc.getElementsByTagName("wpt");
+    for (var i = 0; i < wpts.length; i++) {
+      var w = wpts[i];
+      var lat = parseFloat(w.getAttribute("lat")), lon = parseFloat(w.getAttribute("lon"));
+      if (!isFinite(lat) || !isFinite(lon)) continue;
+      var name = (w.getElementsByTagName("name")[0] || {}).textContent || "";
+      var desc = (w.getElementsByTagName("desc")[0] || {}).textContent || "";
+      var type = (w.getElementsByTagName("type")[0] || {}).textContent || "";
+      var sym = (w.getElementsByTagName("sym")[0] || {}).textContent || "";
+      var tags = mpParseTags([type, sym].join(","));
+      pts.push({ lat: lat, lon: lon, name: name.trim(), tags: tags, note: desc.trim(), source: "gpx" });
+    }
+    return pts;
+  }
+  // Minimal ZIP reader for KMZ: scan the End of Central Directory (EOCD), walk
+  // the Central Directory entries, find the first *.kml, slice + inflate it via
+  // the platform-native DecompressionStream (deflate-raw). No JSZip dependency.
+  async function parseKmz(buf) {
+    var view = new DataView(buf);
+    var u8 = new Uint8Array(buf);
+    // Locate EOCD signature 0x06054b50 from the end, scanning up to 64 KiB.
+    var eocd = -1;
+    var maxScan = Math.min(buf.byteLength, 65557);
+    for (var i = buf.byteLength - 22; i >= buf.byteLength - maxScan; i--) {
+      if (view.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+    }
+    if (eocd < 0) throw new Error("KMZ: EOCD not found");
+    var nEntries = view.getUint16(eocd + 10, true);
+    var cdSize = view.getUint32(eocd + 12, true);
+    var cdOff = view.getUint32(eocd + 16, true);
+    var p = cdOff;
+    for (var k = 0; k < nEntries; k++) {
+      if (view.getUint32(p, true) !== 0x02014b50) throw new Error("KMZ: bad CD entry");
+      var method = view.getUint16(p + 10, true);
+      var compSize = view.getUint32(p + 20, true);
+      var uncompSize = view.getUint32(p + 24, true);
+      var nameLen = view.getUint16(p + 28, true);
+      var extraLen = view.getUint16(p + 30, true);
+      var commentLen = view.getUint16(p + 32, true);
+      var localOff = view.getUint32(p + 42, true);
+      var fname = new TextDecoder().decode(u8.subarray(p + 46, p + 46 + nameLen));
+      p += 46 + nameLen + extraLen + commentLen;
+      if (!/\.kml$/i.test(fname)) continue;
+      // Read the local file header to get the actual data start.
+      if (view.getUint32(localOff, true) !== 0x04034b50) throw new Error("KMZ: bad local header");
+      var lfNameLen = view.getUint16(localOff + 26, true);
+      var lfExtraLen = view.getUint16(localOff + 28, true);
+      var dataStart = localOff + 30 + lfNameLen + lfExtraLen;
+      var compressed = u8.subarray(dataStart, dataStart + compSize);
+      var kmlText;
+      if (method === 0) {
+        kmlText = new TextDecoder().decode(compressed);
+      } else if (method === 8) {
+        if (typeof DecompressionStream === "undefined") throw new Error("KMZ: browser lacks DecompressionStream");
+        var blob = new Blob([compressed]);
+        var ds = new DecompressionStream("deflate-raw");
+        var stream = blob.stream().pipeThrough(ds);
+        var arr = await new Response(stream).arrayBuffer();
+        kmlText = new TextDecoder().decode(new Uint8Array(arr));
+      } else {
+        throw new Error("KMZ: unsupported compression method " + method);
+      }
+      return parseKml(kmlText);
+    }
+    throw new Error("KMZ: no .kml entry found");
   }
 
   // ---- Hover spider for overlapping detection markers -----------------------
@@ -2962,6 +3313,12 @@
     }
     wireDropdown("hidden-btn", "hidden-panel");
     wireDropdown("checklists-toggle", "checklists-panel");
+    wireDropdown("mp-toggle", "mp-panel");
+    document.getElementById("mp-file").addEventListener("change", onMpFileChange);
+    // Re-render the panel after open so distances reflect the current map centre.
+    document.getElementById("mp-toggle").addEventListener("click", function () {
+      setTimeout(refreshMpPanel, 0);
+    });
     wireDropdown("settings-toggle", "settings-panel");
 
     // About (model & methodology) opens from the Settings dropdown as a modal.
@@ -3781,18 +4138,19 @@
   // marker, so we can avoid covering it with the species-list popup just
   // because the user tapped a hair beside the dot they were aiming at.
   function clickNearDetection(latlng, thresholdPx) {
-    if (!map || !detPlot) return false;
+    if (!map) return false;
     var clickPt = map.latLngToContainerPoint(latlng);
     var th = thresholdPx || 16, hit = false;
-    Object.keys(detPlot).some(function (k) {
-      var g = detPlot[k] && detPlot[k].group; if (!g) return false;
-      g.eachLayer(function (m) {
+    function check(layerGroup) {
+      if (!layerGroup) return;
+      layerGroup.eachLayer(function (m) {
         if (hit || !m.getLatLng) return;
         var p = map.latLngToContainerPoint(m.getLatLng());
         if (Math.hypot(p.x - clickPt.x, p.y - clickPt.y) <= th) hit = true;
       });
-      return hit;
-    });
+    }
+    Object.keys(detPlot || {}).some(function (k) { check(detPlot[k] && detPlot[k].group); return hit; });
+    check(mpLayer);   // user-added map points also count
     return hit;
   }
   function onMapClick(e) {
