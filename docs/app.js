@@ -629,15 +629,21 @@
   function builtinCountryLinks() {
     return Object.keys(NAT_LIST_URLS).map(function (cc) { return { cc: cc, url: NAT_LIST_URLS[cc] }; });
   }
-  // The effective national-database list. Once the user edits it (GeoState
-  // "countryLinks" set) that becomes authoritative; otherwise the built-in
-  // defaults apply — merged with any links saved by the older custom-links
-  // feature for backward compatibility.
+  // The effective national-database list. The built-in defaults are ALWAYS
+  // present (so the leading national portals can never be accidentally lost by
+  // editing) and the user's saved / legacy custom entries are layered on top,
+  // de-duplicated by cc+url.
   function effectiveCountryLinks() {
-    var saved = window.GeoState.get("countryLinks", null);
-    if (saved && saved.length) return saved.filter(function (c) { return c && c.cc && c.url; });
-    var legacy = (window.GeoState.get("customCountryUrls", []) || []).filter(function (c) { return c && c.cc && c.url; });
-    return builtinCountryLinks().concat(legacy);
+    var out = builtinCountryLinks(), seen = {};
+    out.forEach(function (e) { seen[e.cc.toUpperCase() + "|" + e.url] = 1; });
+    var extra = (window.GeoState.get("countryLinks", []) || [])
+      .concat(window.GeoState.get("customCountryUrls", []) || [])
+      .filter(function (c) { return c && c.cc && c.url; });
+    extra.forEach(function (c) {
+      var key = String(c.cc).toUpperCase() + "|" + c.url;
+      if (!seen[key]) { seen[key] = 1; out.push({ cc: String(c.cc).toUpperCase(), url: c.url }); }
+    });
+    return out;
   }
   function saveCountryLinks(arr) { window.GeoState.save({ countryLinks: arr }); }
   // A built-in entry keeps its localised brand label; user/custom entries show
@@ -665,7 +671,9 @@
     document.querySelectorAll("#custom-urls-list .cu-row").forEach(function (row) {
       var cc = (row.querySelector(".cu-cc").value || "").trim().toUpperCase();
       var url = (row.querySelector(".cu-url").value || "").trim();
-      if (cc && url) arr.push({ cc: cc, url: url });
+      // Persist only true additions — built-in defaults are always reapplied by
+      // effectiveCountryLinks(), so storing them again would just risk staleness.
+      if (cc && url && NAT_LIST_URLS[cc] !== url) arr.push({ cc: cc, url: url });
     });
     return arr;
   }
@@ -3109,7 +3117,7 @@
       rows[rows.length - 1].querySelector(".cu-cc").focus();
     });
     document.getElementById("custom-urls-reset").addEventListener("click", function () {
-      window.GeoState.save({ countryLinks: null });   // revert to built-in defaults
+      window.GeoState.save({ countryLinks: null, customCountryUrls: null });   // revert to built-in defaults
       renderCustomUrls();
     });
 
