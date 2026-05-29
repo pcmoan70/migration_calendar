@@ -150,7 +150,20 @@
     el.style.aspectRatio = "auto";
     el.style.maxHeight = "none";
     el.style.height = Math.max(320, Math.round(window.innerHeight - top - 8)) + "px";
-    if (map) map.invalidateSize();
+    if (map) { map.invalidateSize(); updateWorldMinZoom(); }
+  }
+  // Allow zooming out far enough to see the whole world on the current screen.
+  // The H3 ladder pins minZoom ~2.8, which on a narrow phone can't fit the
+  // world; lower minZoom (snapped down to the ladder) so the full map fits.
+  function updateWorldMinZoom() {
+    if (!map) return;
+    var step = window.h3 ? H3_ZOOM_STEP : 1;
+    var ladderMin = window.h3 ? Math.ceil(2 / step) * step : 2;
+    var fit;
+    try { fit = map.getBoundsZoom([[-85, -179.9], [85, 179.9]], false); } catch (e) { return; }
+    var floored = window.h3 ? Math.floor(fit / step) * step : Math.floor(fit);
+    var mz = Math.max(0, Math.min(ladderMin, floored));
+    if (map.getMinZoom() !== mz) map.setMinZoom(mz);
   }
   var animCtrlEl = null;   // the on-map migration-animation control container
   // Circular arrow to start the animation; pause bars while it's playing.
@@ -1773,7 +1786,10 @@
           '</div>' +
         '</div>' +
         '<div id="demo-status">&nbsp;</div>' +
-        '<div id="range-species" style="display:none"></div>' +
+        '<div id="map-top-row">' +
+          '<div id="range-species" style="display:none"></div>' +
+          '<div id="play-progress" style="display:none"><div class="pp-fill"></div><div class="pp-marker"></div><div class="pp-months"></div></div>' +
+        '</div>' +
         '<div id="demo-map-wrap">' +
           '<div id="demo-map"></div>' +
           '<div id="demo-computing" style="display:none">' +
@@ -1783,7 +1799,6 @@
           '</div>' +
           '<div id="demo-legend"></div>' +
         '</div>' +
-        '<div id="play-progress" style="display:none"><div class="pp-fill"></div><div class="pp-marker"></div><div class="pp-months"></div></div>' +
         '<div id="csv-btn-wrap" style="display:none">' +
           '<button id="csv-download-btn" class="demo-btn" data-i18n="btn.csv" title="Download CSV">\u2b07 CSV</button>' +
         '</div>' +
@@ -6716,6 +6731,7 @@
       }).join("");
     }
     el.style.display = on ? "block" : "none";
+    fitMapHeight();   // the bar sits above the map — refit so it still fills the screen
   }
   function updatePlayProgress(week) {
     var el = document.getElementById("play-progress");

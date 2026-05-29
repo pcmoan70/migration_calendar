@@ -233,10 +233,15 @@ input:focus-visible {
 #range-species .rng-wk { font-weight: 400; color: var(--ink-muted, #777); }
 
 /* Migration-playback progress bar (map width, divided into months) */
+/* Row above the map: species name (left) + migration progress bar (right) */
+#map-top-row { display: flex; align-items: center; gap: 10px; }
+#map-top-row #range-species { flex: 0 0 auto; }
+#map-top-row #play-progress { flex: 1 1 auto; min-width: 0; }
+
 #play-progress {
   position: relative;
-  height: 26px;
-  margin: 8px 0;
+  height: 24px;
+  margin: 2px 0;
   border: 1px solid var(--border);
   border-radius: var(--radius-xs);
   background: var(--surface);
