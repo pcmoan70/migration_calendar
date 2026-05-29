@@ -425,10 +425,10 @@
     return !isHidden(key);
   }
   // Header label for the "Age" column reflecting the current threshold.
-  function ageHeadLabel() { return speciesAgeFilterDays ? "≤" + speciesAgeFilterDays + "d ▾" : t("th.age"); }
+  function ageHeadLabel() { return speciesAgeFilterDays ? "≤" + speciesAgeFilterDays + "d ▾" : t("th.nd"); }
   // Refresh the sort-arrow indicator on the sortable column headers.
   function updateSortIndicators() {
-    var pairs = [["sci", "sp-sci-head", "th.sci"], ["count", "sp-count-head", "th.count"]];
+    var pairs = [["sci", "sp-sci-head", "th.sci"]];
     pairs.forEach(function (p) {
       var el = document.getElementById(p[1]); if (!el) return;
       var arrow = speciesListSort.col === p[0] ? (speciesListSort.dir === "asc" ? " ▲" : " ▼") : "";
@@ -912,19 +912,13 @@
       if (!tbody || tbody.dataset.sightingsToken !== token) return;
       var agg = result.agg, extras = result.extras;
       tbody._sightingsAgg = agg;
-      tbody.querySelectorAll(".det-count").forEach(function (td) {
+      tbody.querySelectorAll(".det-nd").forEach(function (td) {
         var key = td.getAttribute("data-key"); if (!key) return;   // skip extras rows
         var entry = agg[key];
-        var ageTd = td.nextElementSibling;
-        if (!entry || !entry.count) {
-          td.textContent = ""; if (ageTd) ageTd.textContent = "";
-          return;
-        }
-        td.innerHTML = '<button type="button" class="det-count-btn" data-key="' + escapeHtml(key) + '">' + entry.count + "</button>";
-        if (ageTd && entry.latestTs) {
-          var days = Math.max(0, Math.round((Date.now() - entry.latestTs) / 86400000));
-          ageTd.textContent = days + "d";
-        }
+        if (!entry || !entry.count) { td.textContent = ""; return; }
+        var days = entry.latestTs ? Math.max(0, Math.round((Date.now() - entry.latestTs) / 86400000)) : null;
+        td.innerHTML = '<button type="button" class="det-count-btn" data-key="' + escapeHtml(key) + '">' + entry.count + "</button>" +
+          (days != null ? '<span class="det-d">(' + days + ")</span>" : "");
       });
       prependExtraSightings(tbody, extras);
       // Re-apply the active age filter and sort once data has arrived.
@@ -965,10 +959,10 @@
       var clsBadge = e.cls ? '<span class="sp-extra-cls" title="' + escapeHtml(e.cls) + '">' + classGlyph(e.cls) + "</span> " : "";
       tr.innerHTML = '<td>' + clsBadge + '<span class="sp-extra-name" title="' + escapeHtml(t("sp.extraHint")) + '">' + escapeHtml(name) + '</span></td>' +
         '<td class="name2"></td>' +
-        '<td style="font-style:italic">' + escapeHtml(e.sci) + '</td>' +
-        '<td class="prob-na">—</td><td></td>' +
-        '<td class="num"><button type="button" class="det-count-btn det-count-extra" data-sci="' + escapeHtml(e.sci) + '" data-name="' + escapeHtml(name) + '">' + e.count + '</button></td>' +
-        '<td class="num">' + (days != null ? days + "d" : "") + '</td>' +
+        '<td class="sci">' + escapeHtml(e.sci) + '</td>' +
+        '<td class="prob-cell prob-na">—</td>' +
+        '<td class="num det-nd"><button type="button" class="det-count-btn det-count-extra" data-sci="' + escapeHtml(e.sci) + '" data-name="' + escapeHtml(name) + '">' + e.count + '</button>' +
+          (days != null ? '<span class="det-d">(' + days + ")</span>" : "") + '</td>' +
         '<td></td>';
       frag.appendChild(tr);
     });
@@ -1509,7 +1503,7 @@
             '<button id="sp-pdf-btn" class="demo-btn demo-btn-light" title="Download PDF">⬇ PDF</button>' +
           '</div>' +
           '<table id="species-list-table">' +
-            '<thead><tr><th id="sp-species-head" data-i18n="th.species">Species</th><th class="name2" id="sp-name2-head"></th><th id="sp-sci-head" class="clickable-head" data-i18n="th.sci">Scientific name</th><th id="sp-prob-head" data-i18n="th.prob">Probability</th><th></th><th id="sp-count-head" class="num clickable-head" data-i18n="th.count">#</th><th id="sp-age-head" class="num clickable-head" data-i18n="th.age">Age</th><th id="sp-delta-head"></th></tr></thead>' +
+            '<thead><tr><th id="sp-species-head" data-i18n="th.species">Species</th><th class="name2" id="sp-name2-head"></th><th id="sp-sci-head" class="clickable-head" data-i18n="th.sci">Scientific name</th><th id="sp-prob-head" data-i18n="th.prob">Probability</th><th id="sp-nd-head" class="num clickable-head" data-i18n="th.nd">n(d)</th><th id="sp-delta-head"></th></tr></thead>' +
             '<tbody id="sp-tbody"></tbody>' +
           '</table>' +
         '</div>' +
@@ -3447,12 +3441,12 @@
     // list by that column (toggling asc → desc → off, where off returns to the
     // natural Probability-descending ranking).
     document.getElementById("sp-sci-head").addEventListener("click", function () { cycleSpeciesListSort("sci"); });
-    document.getElementById("sp-count-head").addEventListener("click", function () { cycleSpeciesListSort("count"); });
-
-    // Click the "Age" column header to cycle a recency filter on the per-point
-    // species list: off → 1d → 3d → 1w → 2w → 3w → 4w → off. Applies live
-    // against the cached sightings aggregation (no re-fetch).
-    document.getElementById("sp-age-head").addEventListener("click", function () {
+    // Click the combined "n(d)" column header to cycle a recency filter:
+    // off → 1d → 3d → 1w → 2w → 3w → 4w → off. Applies live against the
+    // cached sightings aggregation (no re-fetch). Filtering is the only
+    // interaction on this column now — count-sort was retired with the
+    // separate # column.
+    document.getElementById("sp-nd-head").addEventListener("click", function () {
       if (!currentSpView || currentSpView.mode !== "point") return;
       var seq = [0, 1, 3, 7, 14, 21, 28];
       speciesAgeFilterDays = seq[(seq.indexOf(speciesAgeFilterDays) + 1) % seq.length];
@@ -4331,10 +4325,10 @@
   }
 
   function deltaCell(delta) {
-    var pct = (delta * 100);
+    var pct = Math.round(delta * 100);
     var cls = delta > 0.001 ? "delta-up" : (delta < -0.001 ? "delta-down" : "delta-flat");
     var arrow = delta > 0.001 ? "\u25b2" : (delta < -0.001 ? "\u25bc" : "\u00b7");
-    return '<td class="' + cls + '">' + arrow + " " + (pct >= 0 ? "+" : "") + pct.toFixed(1) + "%</td>";
+    return '<td class="' + cls + '">' + arrow + (pct >= 0 ? "+" : "") + pct + "%</td>";
   }
 
   // Cell for "Annual max" comparison: current week as a fraction of the
@@ -4358,9 +4352,8 @@
   function cmpBarCell(kind, v) {
     var pct = Math.max(0, Math.min(100, kind === "focus" ? v : v * 100));
     var label = kind === "focus" ? String(Math.round(v))
-      : kind === "ratio" ? (v * 100).toFixed(0) + "%"
-      : (v * 100).toFixed(1) + "%";
-    return '<td class="cmp-bar-cell"><span class="cmp-num">' + label + '</span><div class="cmp-bar" style="width:' + pct.toFixed(1) + '%"></div></td>';
+      : Math.round(v * 100) + "%";
+    return '<td class="cmp-bar-cell"><span class="cmp-num">' + label + '</span><div class="cmp-bar" style="width:' + Math.round(pct) + '%"></div></td>';
   }
 
   // Reverse-geocoded place names for the coords line, cached per location.
@@ -5749,15 +5742,16 @@
         : t("sp.countrySummary", { country: info.name || info.cc, n: cells.length, week: week, ns: results.length, p: (pmin * 100).toFixed(0) })) + mergeHint;
       document.getElementById("sp-tbody").innerHTML = results.map(function (r) {
         var name2Cell = '<td class="name2">' + (secondLang ? escapeHtml(secondName(r.label)) : "") + "</td>";
+        var pctC = r.inModel ? Math.round(r.prob * 100) : null;
         var probCell = r.inModel
-          ? "<td>" + (r.prob * 100).toFixed(1) + '%</td><td class="prob-bar-cell"><div class="prob-bar" style="width:' + Math.round(r.prob * 100) + '%"></div></td>'
-          : '<td class="prob-na">—</td><td></td>';
+          ? '<td class="prob-cell"><span class="prob-num">' + pctC + '%</span><div class="prob-bar" style="width:' + pctC + '%"></div></td>'
+          : '<td class="prob-cell prob-na">—</td>';
         var chip;
         if (!spp) chip = "";
         else if (r.inModel && r.inList) chip = '<span class="src-chip src-both" title="' + escapeHtml(t("src.both")) + '">✓</span>';
         else if (r.inModel) chip = '<span class="src-chip src-model" title="' + escapeHtml(t("src.modelOnly")) + '">?</span>';
         else chip = '<span class="src-chip src-list" title="' + escapeHtml(t("src.listOnly")) + '">●</span>';
-        return "<tr" + (!r.inModel ? ' class="row-list-only"' : "") + "><td>" + nameLinkHtml(r.label) + "</td>" + name2Cell + '<td style="font-style:italic">' + escapeHtml(r.label.sci) + "</td>" + probCell + '<td class="num"></td><td class="num"></td><td>' + chip + "</td></tr>";
+        return "<tr" + (!r.inModel ? ' class="row-list-only"' : "") + "><td>" + nameLinkHtml(r.label) + "</td>" + name2Cell + '<td class="sci">' + escapeHtml(r.label.sci) + "</td>" + probCell + '<td class="num det-nd"></td><td>' + chip + "</td></tr>";
       }).join("");
       var sp = document.getElementById("species-panel");
       sp.classList.toggle("as-page", currentMode === "list");
@@ -5799,7 +5793,7 @@
     if (ph0) { ph0.textContent = t("th.prob"); ph0.title = ""; ph0.classList.remove("clickable-head"); }
     var sh0 = document.getElementById("sp-species-head");
     if (sh0) sh0.textContent = speciesHeadLabel();
-    var ah0 = document.getElementById("sp-age-head");
+    var ah0 = document.getElementById("sp-nd-head");
     if (ah0) ah0.textContent = ageHeadLabel();
     updateSortIndicators();
     var week = +document.getElementById("week-select").value;
@@ -5841,9 +5835,11 @@
         var cmpCell = !hasCompare ? "<td></td>" : cmpAllPositive ? cmpBarCell(kind, r.cmpVal) : deltaCell(r.cmpVal);
         var name2Cell = '<td class="name2">' + (secondLang ? escapeHtml(secondName(r.label)) : "") + '</td>';
         var dKey = escapeHtml(r.label.key);
-        return '<tr><td>' + nameLinkHtml(r.label) + '</td>' + name2Cell + '<td style="font-style:italic">' +
-               escapeHtml(r.label.sci) + '</td><td>' + (r.prob * 100).toFixed(1) + '%</td><td class="prob-bar-cell"><div class="prob-bar" style="width:' +
-               Math.round(r.prob * 100) + '%"></div></td><td class="num det-count" data-key="' + dKey + '">…</td><td class="num det-age">…</td>' + cmpCell + '</tr>';
+        var pct = Math.round(r.prob * 100);
+        return '<tr><td>' + nameLinkHtml(r.label) + '</td>' + name2Cell + '<td class="sci">' +
+               escapeHtml(r.label.sci) + '</td><td class="prob-cell"><span class="prob-num">' + pct +
+               '%</span><div class="prob-bar" style="width:' + pct + '%"></div></td>' +
+               '<td class="num det-nd" data-key="' + dKey + '">…</td>' + cmpCell + '</tr>';
       }).join("");
       var sp = document.getElementById("species-panel");
       // In Species-List mode show the list as a full-screen page; in Range mode
