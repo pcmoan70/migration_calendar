@@ -2205,30 +2205,39 @@
     map.on("locationerror", function () { setStatus(t("status.locateError")); });
 
     // Place (location-name) search — a map-pointer button below the crosshairs
-    // that expands into a search box. Results appear as you type and stay
-    // within the current view (see wirePlaceSearch).
+    // that expands into a search box. The panel itself lives in the map wrapper
+    // (above the map) so it's never clipped/stacked behind the tiles.
+    var psPanel = L.DomUtil.create("div", "place-search-panel", document.getElementById("demo-map-wrap"));
+    psPanel.style.display = "none";
+    psPanel.innerHTML = '<input id="place-search" type="text" autocomplete="off" data-i18n-ph="ph.place" placeholder="' + escapeHtml(t("ph.place")) + '" />' +
+      '<div id="place-results"></div>';
+    function togglePlaceSearch() {
+      var btn = document.querySelector(".place-search-btn");
+      var wrap = document.getElementById("demo-map-wrap");
+      if (!btn || !wrap) return;
+      if (psPanel.style.display === "none") {
+        var br = btn.getBoundingClientRect(), wr = wrap.getBoundingClientRect();
+        psPanel.style.left = Math.round(br.right - wr.left + 6) + "px";
+        psPanel.style.top = Math.round(br.top - wr.top) + "px";
+        psPanel.style.display = "block";
+        btn.classList.add("is-open");
+        var inp = document.getElementById("place-search"); if (inp) { inp.focus(); inp.select(); }
+      } else {
+        psPanel.style.display = "none";
+        btn.classList.remove("is-open");
+        var res = document.getElementById("place-results"); if (res) res.style.display = "none";
+      }
+    }
     var PlaceSearchControl = L.Control.extend({
       options: { position: "topleft" },
       onAdd: function () {
         var c = L.DomUtil.create("div", "leaflet-bar leaflet-control place-search-ctrl");
         L.DomEvent.disableClickPropagation(c);
-        L.DomEvent.disableScrollPropagation(c);
         var a = L.DomUtil.create("a", "place-search-btn", c);
         a.href = "#"; a.title = t("ctrl.placeSearch"); a.setAttribute("aria-label", t("ctrl.placeSearch"));
         a.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
           '<path d="M12 22s-7-7.58-7-13a7 7 0 1 1 14 0c0 5.42-7 13-7 13z"/><circle cx="12" cy="9" r="2.5"/></svg>';
-        var pop = L.DomUtil.create("div", "place-search-pop", c);
-        pop.style.display = "none";
-        pop.innerHTML = '<input id="place-search" type="text" autocomplete="off" data-i18n-ph="ph.place" placeholder="' + escapeHtml(t("ph.place")) + '" />' +
-          '<div id="place-results"></div>';
-        L.DomEvent.on(a, "click", function (e) {
-          L.DomEvent.preventDefault(e); L.DomEvent.stopPropagation(e);
-          var open = pop.style.display === "none";
-          pop.style.display = open ? "block" : "none";
-          c.classList.toggle("is-open", open);
-          if (open) { var inp = pop.querySelector("#place-search"); if (inp) inp.focus(); }
-          else { var res = pop.querySelector("#place-results"); if (res) res.style.display = "none"; }
-        });
+        L.DomEvent.on(a, "click", function (e) { L.DomEvent.preventDefault(e); L.DomEvent.stopPropagation(e); togglePlaceSearch(); });
         return c;
       }
     });

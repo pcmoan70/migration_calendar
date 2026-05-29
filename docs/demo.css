@@ -104,24 +104,25 @@ input:focus-visible {
 }
 
 /* Place search: a map-pointer button (in the top-left bar, below the locate
-   crosshairs) that expands into a small search box floating to its right. */
+   crosshairs) that expands a search box. The box lives in the map wrapper
+   (above the tiles) so it's never clipped or stacked behind the map. */
 .place-search-ctrl { position: relative; }
-.place-search-pop {
-  position: absolute; left: calc(100% + 6px); top: 0;
+.place-search-panel {
+  position: absolute; z-index: 1200;
   width: min(320px, calc(100vw - 72px));
   background: var(--md-default-bg-color, #fff); border: 1px solid var(--md-default-fg-color--lightest, #ccc);
-  border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,.18); padding: 6px;
+  border-radius: 6px; box-shadow: 0 4px 14px rgba(0,0,0,.22); padding: 6px;
 }
-.place-search-pop #place-search {
+.place-search-panel #place-search {
   width: 100%; box-sizing: border-box; padding: 8px 10px; font-size: 0.9rem;
   border: 1px solid var(--md-default-fg-color--lightest, #ccc); border-radius: 5px;
   background: var(--md-default-bg-color, #fff); color: var(--md-default-fg-color, #333);
 }
-.place-search-pop #place-results {
+.place-search-panel #place-results {
   position: static; display: none; margin-top: 6px; max-height: 260px; overflow-y: auto;
   border: 1px solid var(--md-default-fg-color--lightest, #eee); border-radius: 5px; box-shadow: none;
 }
-.place-search-pop #place-results .sr-item { padding: 8px 10px; white-space: normal; line-height: 1.3; }
+.place-search-panel #place-results .sr-item { padding: 8px 10px; white-space: normal; line-height: 1.3; }
 
 #species-search {
   width: 100%;
@@ -1657,7 +1658,7 @@ tr.row-list-only .prob-na { color: var(--ink-muted, #999); }
 .leaflet-bar a.fs-toggle-btn,
 .leaflet-bar a.place-search-btn { display: flex; align-items: center; justify-content: center; color: var(--brand-deep); }
 .geo-locate-btn svg, .fs-toggle-btn svg, .place-search-btn svg { display: block; }
-.place-search-ctrl.is-open a.place-search-btn { background: var(--brand-soft, #e6f0ee); }
+a.place-search-btn.is-open { background: var(--brand-soft, #e6f0ee); }
 
 /* ---------- Field checklist (full-screen mobile live entry) ---------- */
 #field-page {
