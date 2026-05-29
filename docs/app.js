@@ -1481,10 +1481,10 @@
           '<div class="ctrl-group" id="mode-wrap">' +
             '<label for="mode-select" data-i18n="ctrl.mode">Mode</label>' +
             '<select id="mode-select">' +
-              '<option value="range" data-i18n="mode.range">Species Range</option>' +
-              '<option value="richness" data-i18n="mode.richness">Species Richness</option>' +
               '<option value="list" data-i18n="mode.list">📍 Species List</option>' +
               '<option value="barchart" data-i18n="mode.barchart">📍 Migration</option>' +
+              '<option value="range" data-i18n="mode.range">Species Range</option>' +
+              '<option value="richness" data-i18n="mode.richness">Species Richness</option>' +
             '</select>' +
           '</div>' +
           '<div class="ctrl-group" id="species-search-wrap">' +
