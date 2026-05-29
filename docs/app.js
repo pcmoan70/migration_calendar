@@ -585,14 +585,16 @@
     BE: "https://waarnemingen.be/",
     GB: "https://www.bto.org/our-science/projects/birdtrack",
     IE: "https://www.bto.org/our-science/projects/birdtrack",
-    LV: "https://dabasdati.lv/"
+    LV: "https://dabasdati.lv/",
+    CZ: "https://avif.birds.cz/",
+    SK: "https://aves.vtaky.sk/"
   };
   var NAT_LIST_KEY = {
     NO: "menu.artsobs", SE: "menu.artportalen", DK: "menu.dofbasen", FI: "menu.tiira",
     DE: "menu.ornithode", AT: "menu.ornithoat", CH: "menu.ornithoch", FR: "menu.faunefr",
     IT: "menu.ornithoit", LU: "menu.ornitholu", PL: "menu.ornithopl", HR: "menu.faunahr",
     NL: "menu.waarnemingnl", BE: "menu.waarnemingenbe", GB: "menu.birdtrack", IE: "menu.birdtrack",
-    LV: "menu.dabasdati"
+    LV: "menu.dabasdati", CZ: "menu.avif", SK: "menu.avessk"
   };
   function natListUrl(cc, sci) {
     var base = NAT_LIST_URLS[cc]; if (!base) return null;
