@@ -2484,10 +2484,11 @@
       '<div class="mp-head">' +
         '<label class="mp-show-label" title="' + escapeHtml(t("points.showOnMap")) + '">' +
           '<input type="checkbox" id="mp-show"' + (mpShown ? " checked" : "") + '>' +
-          escapeHtml(t("points.showOnMap")) +
+          escapeHtml(t("points.show")) +
         "</label>" +
-        '<button type="button" id="mp-import" class="demo-btn">' + escapeHtml(t("points.import")) + "</button>" +
-        '<button type="button" id="mp-clear" class="demo-btn demo-btn-light">' + escapeHtml(t("points.clearAll")) + "</button>" +
+        '<button type="button" id="mp-import" class="demo-btn">' + escapeHtml(t("points.load")) + "</button>" +
+        '<button type="button" id="mp-export" class="demo-btn"' + (mapPoints.length ? "" : " disabled") + '>' + escapeHtml(t("points.export")) + "</button>" +
+        '<button type="button" id="mp-clear" class="demo-btn demo-btn-light">' + escapeHtml(t("points.delete")) + "</button>" +
       "</div>" +
       (chipsHtml ? '<div class="mp-chips">' + chipsHtml + "</div>" : "") +
       '<div class="mp-list">' + listHtml + "</div>";
@@ -2513,6 +2514,12 @@
     });
     var imp = panel.querySelector("#mp-import");
     if (imp) imp.addEventListener("click", function () { document.getElementById("mp-file").click(); });
+    var exp = panel.querySelector("#mp-export");
+    if (exp) exp.addEventListener("click", function () {
+      if (!mapPoints.length) return;
+      var date = new Date().toISOString().slice(0, 10);
+      downloadCsv("map_points_" + date + ".kml", buildPointsKml());
+    });
     var sh = panel.querySelector("#mp-show");
     if (sh) sh.addEventListener("change", function () { mpShown = !!this.checked; saveMapPoints(); renderMapPoints(); });
     var clr = panel.querySelector("#mp-clear");
@@ -2545,6 +2552,26 @@
     e.target.value = "";
   }
 
+  // Export all stored points to a KML the round-trips through parseKml:
+  // tags land in <ExtendedData><Data name="tags"><value>…</value></Data></ExtendedData>,
+  // notes in <description>, and coordinates as "lon,lat,0".
+  function buildPointsKml() {
+    var xml = function (s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); };
+    var parts = ['<?xml version="1.0" encoding="UTF-8"?>',
+      '<kml xmlns="http://www.opengis.net/kml/2.2"><Document>',
+      "<name>Map points</name>"];
+    mapPoints.forEach(function (p) {
+      var tagStr = (p.tags || []).join(", ");
+      parts.push("<Placemark>");
+      if (p.name) parts.push("<name>" + xml(p.name) + "</name>");
+      if (p.note) parts.push("<description>" + xml(p.note) + "</description>");
+      if (tagStr) parts.push('<ExtendedData><Data name="tags"><value>' + xml(tagStr) + "</value></Data></ExtendedData>");
+      parts.push("<Point><coordinates>" + p.lon.toFixed(6) + "," + p.lat.toFixed(6) + ",0</coordinates></Point>");
+      parts.push("</Placemark>");
+    });
+    parts.push("</Document></kml>");
+    return parts.join("\n");
+  }
   function parseKml(text) {
     var doc = new DOMParser().parseFromString(text, "application/xml");
     if (doc.querySelector("parsererror")) throw new Error("KML parse error");

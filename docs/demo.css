@@ -1049,14 +1049,15 @@ button.dd-name:hover { text-decoration: underline; }
 .dd-del:hover { color: var(--danger-strong); }
 
 /* ---- Map Points dropdown + popup form ---- */
-.mp-head { display: flex; gap: 6px; padding: 6px 8px; align-items: center; flex-wrap: wrap; }
-.mp-head .demo-btn { flex: 1 1 auto; font-size: 0.78rem; padding: 4px 8px; }
+.mp-head { display: flex; gap: 4px; padding: 5px 6px; align-items: center; }
+.mp-head .demo-btn { flex: 0 1 auto; font-size: 0.74rem; padding: 3px 6px; line-height: 1.2; }
+.mp-head .demo-btn[disabled] { opacity: 0.45; cursor: not-allowed; }
 .mp-show-label {
-  flex: 1 0 100%; display: flex; align-items: center; gap: 6px;
-  font-size: 0.8rem; color: var(--ink, inherit); cursor: pointer;
-  padding: 2px 0;
+  flex: 0 0 auto; display: inline-flex; align-items: center; gap: 4px;
+  font-size: 0.74rem; color: var(--ink, inherit); cursor: pointer;
+  padding: 2px 4px; margin-right: 2px; white-space: nowrap;
 }
-.mp-show-label input { width: 16px; height: 16px; margin: 0; cursor: pointer; }
+.mp-show-label input { width: 14px; height: 14px; margin: 0; cursor: pointer; }
 #mp-wrap.mp-off .hdr-icon-btn { opacity: 0.45; }
 .mp-chips { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px 8px 6px; border-top: 1px solid var(--md-default-fg-color--lightest, #eee); }
 .mp-chip {
