@@ -2372,6 +2372,10 @@
       if (!entries.length) { setStatus(t("det.none")); return; }
       entries.sort(function (a, b) { return b.count - a.count; });
       var CAP = 40, capped = entries.length > CAP;
+      // Fresh plot: drop any previously-plotted layers (incl. ones restored from
+      // localStorage or from an earlier, unfiltered plot) so the result reflects
+      // only the current group filter.
+      clearDetections();
       entries.slice(0, CAP).forEach(function (e) { plotDetections(e.key, e.name, e.rows, false, true); });
       updateDetLegend(); saveDetections();   // one batch update after the loop
       var bounds = L.latLngBounds([]);
