@@ -3973,13 +3973,17 @@
       });
     });
   }
-  // Pan to a found place (keeping the current zoom so it stays in the same view)
-  // and drop a labelled marker that clears on the next map click.
+  // Pan to a found place and drop the same interactive pin a map click makes
+  // (with the Species list / Checklist options, or the mode's action). Close
+  // the search panel so the pin's popup is unobstructed.
   function gotoPlace(lat, lon, label) {
     if (!isFinite(lat) || !isFinite(lon) || !map) return;
     map.panTo([lat, lon]);
-    if (placeMarker) map.removeLayer(placeMarker);
-    placeMarker = L.marker([lat, lon]).addTo(map).bindPopup(escapeHtml(label || "")).openPopup();
+    var pan = document.querySelector(".place-search-panel");
+    if (pan) pan.style.display = "none";
+    var btn = document.querySelector(".place-search-btn");
+    if (btn) btn.classList.remove("is-open");
+    selectMapPoint(lat, lon);
   }
 
   // Per-species probabilities at the current map centre/week, used to rank the
@@ -4667,6 +4671,18 @@
     check(mpLayer);   // user-added map points also count
     return hit;
   }
+  // Drop the interactive location pin at a point and run the mode's action:
+  // List → the point-options popup (Species list / Checklist), Migration →
+  // analysis, Range → the inline species list. Shared by map clicks and the
+  // place search so a searched location behaves exactly like a clicked one.
+  function selectMapPoint(lat, lon) {
+    if (placeMarker) { map.removeLayer(placeMarker); placeMarker = null; }
+    if (marker) map.removeLayer(marker);
+    marker = L.marker([lat, lon]).addTo(map);
+    if (currentMode === "barchart") renderAnalysis(lat, lon);
+    else if (currentMode === "range") renderSpeciesList(lat, lon);
+    else bindPointPopup(marker, lat, lon);   // list (and any click-driven default)
+  }
   function onMapClick(e) {
     // Debounce every map click: ignore any click that lands within 200 ms of the
     // previous one (rapid double-taps, or a legend re-render leaking through).
@@ -4677,21 +4693,9 @@
     // Don't fire the point-options popup if the user was tapping a plotted
     // detection (or just a few pixels off it).
     if (clickNearDetection(e.latlng)) return;
-    if (placeMarker) { map.removeLayer(placeMarker); placeMarker = null; }
-    if (marker) map.removeLayer(marker);
     // Normalize: latitude clamped to [-90, 90]; longitude wrapped to [-180, 180]
     // (a click on a panned world-copy can otherwise give e.g. lon = 635).
-    var lat = Math.max(-90, Math.min(90, e.latlng.lat));
-    var lon = wrapLon(e.latlng.lng);
-    marker = L.marker([lat, lon]).addTo(map);
-    if (currentMode === "list") {
-      // Let the user pick: the Species list, or the (tickable) Checklist.
-      bindPointPopup(marker, lat, lon);
-    } else if (currentMode === "barchart") {
-      renderAnalysis(lat, lon);
-    } else {
-      renderSpeciesList(lat, lon);   // range (inline under map)
-    }
+    selectMapPoint(Math.max(-90, Math.min(90, e.latlng.lat)), wrapLon(e.latlng.lng));
   }
 
   function makePopupBtn(label, cls, fn) {
