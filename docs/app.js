@@ -1579,11 +1579,6 @@
             '<input id="species-search" type="text" autocomplete="off" data-i18n-ph="ph.species" placeholder="Search species\u2026" />' +
             '<div id="species-results"></div>' +
           '</div>' +
-          '<div class="ctrl-group" id="place-search-wrap" style="display:none">' +
-            '<label for="place-search" data-i18n="ctrl.place">Place</label>' +
-            '<input id="place-search" type="text" autocomplete="off" data-i18n-ph="ph.place" placeholder="Search place\u2026" />' +
-            '<div id="place-results"></div>' +
-          '</div>' +
           '<div class="ctrl-group ctrl-group-btn" id="play-btn-wrap">' +
             '<button id="play-btn" class="demo-btn" data-i18n="btn.play">\u25b6 Play migration</button>' +
           '</div>' +
@@ -2208,6 +2203,36 @@
     });
     map.addControl(new LocateControl());
     map.on("locationerror", function () { setStatus(t("status.locateError")); });
+
+    // Place (location-name) search — a map-pointer button below the crosshairs
+    // that expands into a search box. Results appear as you type and stay
+    // within the current view (see wirePlaceSearch).
+    var PlaceSearchControl = L.Control.extend({
+      options: { position: "topleft" },
+      onAdd: function () {
+        var c = L.DomUtil.create("div", "leaflet-bar leaflet-control place-search-ctrl");
+        L.DomEvent.disableClickPropagation(c);
+        L.DomEvent.disableScrollPropagation(c);
+        var a = L.DomUtil.create("a", "place-search-btn", c);
+        a.href = "#"; a.title = t("ctrl.placeSearch"); a.setAttribute("aria-label", t("ctrl.placeSearch"));
+        a.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+          '<path d="M12 22s-7-7.58-7-13a7 7 0 1 1 14 0c0 5.42-7 13-7 13z"/><circle cx="12" cy="9" r="2.5"/></svg>';
+        var pop = L.DomUtil.create("div", "place-search-pop", c);
+        pop.style.display = "none";
+        pop.innerHTML = '<input id="place-search" type="text" autocomplete="off" data-i18n-ph="ph.place" placeholder="' + escapeHtml(t("ph.place")) + '" />' +
+          '<div id="place-results"></div>';
+        L.DomEvent.on(a, "click", function (e) {
+          L.DomEvent.preventDefault(e); L.DomEvent.stopPropagation(e);
+          var open = pop.style.display === "none";
+          pop.style.display = open ? "block" : "none";
+          c.classList.toggle("is-open", open);
+          if (open) { var inp = pop.querySelector("#place-search"); if (inp) inp.focus(); }
+          else { var res = pop.querySelector("#place-results"); if (res) res.style.display = "none"; }
+        });
+        return c;
+      }
+    });
+    map.addControl(new PlaceSearchControl());
 
     // Full-screen toggle — expands the whole page (collapsing the browser's
     // address bar). Only added where the Fullscreen API is available.
@@ -3120,9 +3145,6 @@
     var isRange = currentMode === "range";
     var isMap = currentMode === "range" || currentMode === "richness";
     document.getElementById("species-search-wrap").style.display = isRange ? "" : "none";
-    // The same slot above the map hosts a place (location) search in every mode
-    // except Range, where it's the species picker.
-    document.getElementById("place-search-wrap").style.display = isRange ? "none" : "";
     // Species List + Species Range both produce a per-point species list (which
     // uses "Compare to" and the 2nd-name column), so show these in both.
     var listish = currentMode === "list" || currentMode === "range";

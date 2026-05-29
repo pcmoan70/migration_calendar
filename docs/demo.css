@@ -97,24 +97,31 @@ input:focus-visible {
 }
 
 /* Species search */
-#species-search-wrap,
-#place-search-wrap {
+#species-search-wrap {
   position: relative;
-}
-#species-search-wrap { flex: 1 1 260px; max-width: 400px; }
-/* Place search stays a tight, fixed-ish box so it doesn't grow and its
-   results dropdown doesn't blanket the map. */
-#place-search-wrap { flex: 0 1 230px; max-width: 260px; }
-#place-results { max-height: 190px; }
-/* Place search is a single row: hide its label (the placeholder labels it),
-   but keep it for screen readers. */
-#place-search-wrap label {
-  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
-  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+  flex: 1 1 260px;
+  max-width: 400px;
 }
 
-#species-search,
-#place-search {
+/* Place search: a map-pointer button (in the top-left bar, below the locate
+   crosshairs) that expands into a small search box floating to its right. */
+.place-search-ctrl { position: relative; }
+.place-search-pop {
+  position: absolute; left: calc(100% + 6px); top: 0; width: 220px;
+  background: var(--md-default-bg-color, #fff); border: 1px solid var(--md-default-fg-color--lightest, #ccc);
+  border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,.18); padding: 5px;
+}
+.place-search-pop #place-search {
+  width: 100%; box-sizing: border-box; padding: 5px 8px; font-size: 0.85rem;
+  border: 1px solid var(--md-default-fg-color--lightest, #ccc); border-radius: 4px;
+  background: var(--md-default-bg-color, #fff); color: var(--md-default-fg-color, #333);
+}
+.place-search-pop #place-results {
+  position: static; display: none; margin-top: 4px; max-height: 190px; overflow-y: auto;
+  border: 0; box-shadow: none; border-radius: 0;
+}
+
+#species-search {
   width: 100%;
   padding: 6px 10px;
   font-size: 0.9rem;
@@ -1645,8 +1652,10 @@ tr.row-list-only .prob-na { color: var(--ink-muted, #999); }
 /* Center the crosshair SVG in the Leaflet bar button (higher specificity than
    Leaflet's own ".leaflet-bar a { display:block }" so flex centering wins). */
 .leaflet-bar a.geo-locate-btn,
-.leaflet-bar a.fs-toggle-btn { display: flex; align-items: center; justify-content: center; color: var(--brand-deep); }
-.geo-locate-btn svg, .fs-toggle-btn svg { display: block; }
+.leaflet-bar a.fs-toggle-btn,
+.leaflet-bar a.place-search-btn { display: flex; align-items: center; justify-content: center; color: var(--brand-deep); }
+.geo-locate-btn svg, .fs-toggle-btn svg, .place-search-btn svg { display: block; }
+.place-search-ctrl.is-open a.place-search-btn { background: var(--brand-soft, #e6f0ee); }
 
 /* ---------- Field checklist (full-screen mobile live entry) ---------- */
 #field-page {
