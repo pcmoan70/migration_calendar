@@ -66,7 +66,7 @@ docs/
   analysis.js           Probability / Arrivals heatmaps + Scatter renderers
   i18n/strings.js       UI strings (en, sv) + language ↔ taxonomy column map
   state.js              localStorage persistence
-  demo.css              Styles
+  app.css               Styles
   geomodel_fp16.onnx    Model weights (FP16, ~7 MB)
   labels.txt            Output-index → species_code/sci/common
   taxonomy.csv          Multilingual common names (joined to labels by species_code)
