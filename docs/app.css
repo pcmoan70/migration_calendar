@@ -80,6 +80,15 @@ input:focus-visible {
   border-radius: var(--radius);
   box-shadow: var(--shadow-sm);
 }
+/* Species distribution: just the search box — no card, sit tight under the header. */
+#demo-controls.controls-bare {
+  margin: 6px 0 2px;
+  padding: 0;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
 
 #demo-controls label {
   font-size: 0.7rem;

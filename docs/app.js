@@ -3251,6 +3251,9 @@
     document.getElementById("demo-status").style.display = isRange ? "none" : "";
     updateRangeSpecies();   // clickable species name + week above the map (range only)
     relocateCsvButton();
+    // In Species distribution the bar holds only the search box, so drop the
+    // card chrome and sit it tight under the header.
+    document.getElementById("demo-controls").classList.toggle("controls-bare", isRange);
     updateControlsBarVisibility();
     fitMapHeight();         // controls/mode changes shift the map's top edge
   }
