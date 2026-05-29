@@ -604,7 +604,11 @@
     ME: "https://czip.me/",
     MK: "https://mes.org.mk/",
     AL: "https://aos-alb.org/",
-    BA: "https://naseptice.ba/"
+    BA: "https://naseptice.ba/",
+    CA: "https://ebird.org/canada/home",
+    US: "https://ebird.org/home",
+    AU: "https://ebird.org/australia/home",
+    NZ: "https://ebird.org/newzealand/home"
   };
   var NAT_LIST_KEY = {
     NO: "menu.artsobs", SE: "menu.artportalen", DK: "menu.dofbasen", FI: "menu.tiira",
@@ -615,7 +619,8 @@
     ES: "menu.ebirdes", PT: "menu.portugalaves", EE: "menu.elurikkus", LT: "menu.birdlifelt",
     SI: "menu.dopps", HU: "menu.mme", GR: "menu.hos", TR: "menu.ebirdtr", MT: "menu.birdlifemt",
     RO: "menu.openbirdmaps", BG: "menu.smartbirds", UA: "menu.ukrbin", RS: "menu.pticesrbije",
-    ME: "menu.czip", MK: "menu.mesmk", AL: "menu.aosal", BA: "menu.naseptice"
+    ME: "menu.czip", MK: "menu.mesmk", AL: "menu.aosal", BA: "menu.naseptice",
+    CA: "menu.ebirdca", US: "menu.ebirdus", AU: "menu.ebirdau", NZ: "menu.ebirdnz"
   };
   function natListUrl(cc, sci) {
     var base = NAT_LIST_URLS[cc]; if (!base) return null;
