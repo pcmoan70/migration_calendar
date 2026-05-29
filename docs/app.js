@@ -448,7 +448,7 @@
     var tbody = document.getElementById("sp-tbody");
     if (!tbody || !speciesListSort.col) return;
     var agg = tbody._sightingsAgg || {};
-    // Keep "not in model" rows anchored on top; only sort the model rows.
+    // Keep "not in model" rows anchored at the bottom; only sort the model rows.
     var all = Array.prototype.slice.call(tbody.children);
     var extras = all.filter(function (tr) { return tr.classList.contains("sp-extra"); });
     var rows = all.filter(function (tr) { return !tr.classList.contains("sp-extra"); });
@@ -467,8 +467,8 @@
       return speciesListSort.dir === "asc" ? cmp : -cmp;
     });
     var frag = document.createDocumentFragment();
-    extras.forEach(function (tr) { frag.appendChild(tr); });
     rows.forEach(function (tr) { frag.appendChild(tr); });
+    extras.forEach(function (tr) { frag.appendChild(tr); });   // uncovered species stay at the bottom
     tbody.appendChild(frag);
   }
   function cycleSpeciesListSort(col) {
@@ -587,14 +587,19 @@
     IE: "https://www.bto.org/our-science/projects/birdtrack",
     LV: "https://dabasdati.lv/",
     CZ: "https://avif.birds.cz/",
-    SK: "https://aves.vtaky.sk/"
+    SK: "https://aves.vtaky.sk/",
+    ES: "https://ebird.org/spain/home",
+    PT: "https://ebird.org/portugal/home",
+    EE: "https://elurikkus.ee/",
+    LT: "https://birdlife.lt/"
   };
   var NAT_LIST_KEY = {
     NO: "menu.artsobs", SE: "menu.artportalen", DK: "menu.dofbasen", FI: "menu.tiira",
     DE: "menu.ornithode", AT: "menu.ornithoat", CH: "menu.ornithoch", FR: "menu.faunefr",
     IT: "menu.ornithoit", LU: "menu.ornitholu", PL: "menu.ornithopl", HR: "menu.faunahr",
     NL: "menu.waarnemingnl", BE: "menu.waarnemingenbe", GB: "menu.birdtrack", IE: "menu.birdtrack",
-    LV: "menu.dabasdati", CZ: "menu.avif", SK: "menu.avessk"
+    LV: "menu.dabasdati", CZ: "menu.avif", SK: "menu.avessk",
+    ES: "menu.ebirdes", PT: "menu.portugalaves", EE: "menu.elurikkus", LT: "menu.birdlifelt"
   };
   function natListUrl(cc, sci) {
     var base = NAT_LIST_URLS[cc]; if (!base) return null;
@@ -1000,9 +1005,10 @@
       if (speciesListSort.col) sortSpeciesList();
     }).catch(function () { /* keep "…" placeholders silently */ });
   }
-  // Prepend species the model doesn't cover (matched only via GBIF/iNat/eBird
-  // sci-name) above the model rows so the user sees what's been observed that
-  // isn't in the prediction vocabulary. Capped at 30 to keep lists readable.
+  // Append species the model doesn't cover (matched only via GBIF/iNat/eBird
+  // sci-name) BELOW the model rows so the prediction-ranked species stay at the
+  // top and the "observed but not predicted" tail sits at the bottom. Capped at
+  // 30 to keep lists readable.
   function prependExtraSightings(tbody, extras) {
     Array.prototype.slice.call(tbody.querySelectorAll("tr.sp-extra")).forEach(function (tr) { tr.remove(); });
     var keys = Object.keys(extras || {});
@@ -1040,7 +1046,7 @@
         '<td></td>';
       frag.appendChild(tr);
     });
-    tbody.insertBefore(frag, tbody.firstChild);
+    tbody.appendChild(frag);
   }
 
   // User's personal eBird API token (kept in localStorage; never shared).
