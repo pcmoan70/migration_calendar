@@ -457,7 +457,10 @@
     return !isHidden(key);
   }
   // Header label for the "Age" column reflecting the current threshold.
-  function ageHeadLabel() { return speciesAgeFilterDays ? "≤" + speciesAgeFilterDays + "d ▾" : t("th.nd"); }
+  function ageHeadLabel() {
+    if (speciesAgeFilterDays === -1) return ">0 ▾";   // any species with an observation
+    return speciesAgeFilterDays ? "≤" + speciesAgeFilterDays + "d ▾" : t("th.nd");
+  }
   // Refresh the sort-arrow indicator on the sortable column headers.
   function updateSortIndicators() {
     var pairs = [["sci", "sp-sci-head", "th.sci"]];
@@ -523,6 +526,14 @@
     var agg = tbody._sightingsAgg, days = speciesAgeFilterDays;
     Array.prototype.forEach.call(tbody.querySelectorAll("tr"), function (tr) {
       if (!days || !agg) { tr.style.display = ""; return; }
+      // ">0": keep only species that have at least one observation (any age).
+      if (days === -1) {
+        if (tr.classList.contains("sp-extra")) { tr.style.display = ""; return; }   // extras are observed by definition
+        var slX = tr.querySelector(".sp-link"), kX = slX && slX.getAttribute("data-key");
+        var eX = kX && agg[kX];
+        tr.style.display = (eX && eX.count > 0) ? "" : "none";
+        return;
+      }
       // sp-extra rows carry their age directly (no sp-link / agg entry).
       if (tr.classList.contains("sp-extra")) {
         var d = parseInt(tr.getAttribute("data-age-days"), 10);
@@ -3731,14 +3742,14 @@
     // list by that column (toggling asc → desc → off, where off returns to the
     // natural Probability-descending ranking).
     document.getElementById("sp-sci-head").addEventListener("click", function () { cycleSpeciesListSort("sci"); });
-    // Click the combined "n(d)" column header to cycle a recency filter:
-    // off → 1d → 3d → 1w → 2w → 3w → 4w → off. Applies live against the
+    // Click the combined "n(d)" column header to cycle a filter:
+    // off → >0 (any observation) → 1d → 3d → 1w → 2w → 3w → 4w → off. Applies live against the
     // cached sightings aggregation (no re-fetch). Filtering is the only
     // interaction on this column now — count-sort was retired with the
     // separate # column.
     document.getElementById("sp-nd-head").addEventListener("click", function () {
       if (!currentSpView || currentSpView.mode !== "point") return;
-      var seq = [0, 1, 3, 7, 14, 21, 28];
+      var seq = [0, -1, 1, 3, 7, 14, 21, 28];   // off → >0 → ≤1d → … → ≤4w → off
       speciesAgeFilterDays = seq[(seq.indexOf(speciesAgeFilterDays) + 1) % seq.length];
       this.textContent = ageHeadLabel();
       applyAgeFilter();
