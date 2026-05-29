@@ -2083,6 +2083,10 @@
       minZoom: window.h3 ? Math.ceil(2 / H3_ZOOM_STEP) * H3_ZOOM_STEP : 2,
       maxZoom: window.h3 ? Math.floor(MAX_ZOOM / H3_ZOOM_STEP) * H3_ZOOM_STEP : MAX_ZOOM,
       worldCopyJump: true,
+      // Don't hijack wheel/two-finger trackpad scrolling for zoom — let it
+      // scroll the page (the map fills the screen, so it would otherwise trap
+      // the scroll). Zoom stays available via the +/− control and pinch.
+      scrollWheelZoom: false,
       maxBounds: [[-90, -180], [90, 180]], maxBoundsViscosity: 1.0,
       // Zoom in ~2.65x steps (one H3 resolution per level) so hex cells keep a
       // constant on-screen size; only when the H3 overlay is available.
