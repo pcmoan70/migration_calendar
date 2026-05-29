@@ -654,10 +654,13 @@
   }
   // Settings UI: one editable row per (cc, url) pair.
   function cuRowHtml(cc, url) {
-    return '<div class="cu-row">' +
-      '<input type="text" class="cu-cc" maxlength="2" value="' + escapeHtml(cc || "") + '" placeholder="' + escapeHtml(t("ph.cc")) + '">' +
-      '<input type="url" class="cu-url" value="' + escapeHtml(url || "") + '" placeholder="' + escapeHtml(t("ph.url")) + '">' +
-      '<button type="button" class="cu-del" aria-label="remove">×</button>' +
+    // Inline widths so the layout can't be overridden by the panel's generic
+    // input[type=text]{width:100%} rule (which previously stretched the CC box
+    // and hid the URL field). Inline style beats any stylesheet selector.
+    return '<div class="cu-row" style="display:flex;gap:4px;align-items:center;width:100%">' +
+      '<input type="text" class="cu-cc" maxlength="3" value="' + escapeHtml(cc || "") + '" placeholder="' + escapeHtml(t("ph.cc")) + '" style="flex:0 0 auto;width:3.2em;text-align:center;text-transform:uppercase">' +
+      '<input type="url" class="cu-url" value="' + escapeHtml(url || "") + '" placeholder="' + escapeHtml(t("ph.url")) + '" style="flex:1 1 auto;min-width:0;width:auto">' +
+      '<button type="button" class="cu-del" aria-label="remove" style="flex:0 0 auto;width:26px">×</button>' +
     '</div>';
   }
   function renderCustomUrls() {
