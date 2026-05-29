@@ -408,10 +408,11 @@ input:focus-visible {
 /* Species-List page bar (back button + title), shown only as a full-screen page */
 .sp-page-bar { display: flex; align-items: center; gap: 10px; }
 .sp-page-bar h3 { margin: 0; }
-#sp-back { display: none; }   /* hidden in the inline (range-mode) card */
+#sp-back, #bc-back { display: none; }   /* hidden in the inline (range-mode) card */
 
-/* In Species-List mode the panel is a full-screen page, not an under-map card */
-#species-panel.as-page {
+/* Species List & Migration open as a full-screen page, not an under-map card */
+#species-panel.as-page,
+#barchart-panel.as-page {
   position: fixed; top: var(--header-h, 60px); left: 0; right: 0; bottom: 0;
   z-index: 1500; margin: 0;
   max-width: none; border: none; border-radius: 0; box-shadow: none;
@@ -419,8 +420,10 @@ input:focus-visible {
   overflow-y: auto; -webkit-overflow-scrolling: touch;
   padding: 12px 16px calc(28px + env(safe-area-inset-bottom));
 }
-#species-panel.as-page #sp-back { display: inline-flex; }
-#species-panel.as-page .sp-page-bar { margin-bottom: 6px; }
+#species-panel.as-page #sp-back,
+#barchart-panel.as-page #bc-back { display: inline-flex; }
+#species-panel.as-page .sp-page-bar,
+#barchart-panel.as-page .sp-page-bar { margin-bottom: 6px; }
 #species-panel.as-page #species-list-table { background: var(--surface); }
 
 #species-panel .sp-coords {
@@ -1366,8 +1369,11 @@ button.dd-name:hover { text-decoration: underline; }
 }
 
 /* ===== Checklist ===== */
-.sp-actions { margin: 6px 0 10px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.sp-actions #csv-btn-wrap { margin: 0; }
+/* Keep all action buttons (Checklist / Map / PDF / CSV) on a single row by
+   letting them shrink rather than wrap. */
+.sp-actions { margin: 6px 0 10px; display: flex; flex-wrap: nowrap; gap: 6px; align-items: center; }
+.sp-actions #csv-btn-wrap { margin: 0; flex: 0 1 auto; min-width: 0; }
+.sp-actions .demo-btn { flex: 0 1 auto; min-width: 0; white-space: nowrap; padding: 6px 8px; font-size: 0.8rem; overflow: hidden; text-overflow: ellipsis; }
 .demo-btn-light {
   background: var(--surface);
   color: var(--brand-deep);

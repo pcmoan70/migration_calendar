@@ -1871,7 +1871,11 @@
           '<div id="review-list"></div>' +
         '</div>' +
         '<div id="barchart-panel">' +
-          '<h3 id="bc-title" data-i18n="panel.bcTitle">Location analysis</h3>' +
+          '<div class="sp-page-bar">' +
+            '<button id="bc-back" class="fp-back" title="Back to map">‹</button>' +
+            '<h3 id="bc-title" data-i18n="panel.bcTitle">Location analysis</h3>' +
+          '</div>' +
+          '<div class="sp-coords" id="bc-coords"></div>' +
           '<div id="an-tabs">' +
             '<button class="an-tab" data-tab="timeline" data-i18n="tab.timeline">Timeline</button>' +
             '<button class="an-tab" data-tab="prob" data-i18n="tab.prob">Probability</button>' +
@@ -1890,7 +1894,6 @@
                 '<option value="both" data-i18n="rank.both">Both</option>' +
               '</select></label>' +
           '</div>' +
-          '<div class="sp-coords" id="bc-coords"></div>' +
           '<div id="bc-container"></div>' +
         '</div>' +
         '<div id="sp-menu" style="display:none">' +
@@ -3281,7 +3284,9 @@
       var spPanel = document.getElementById("species-panel");
       spPanel.classList.remove("as-page");
       spPanel.style.display = "none";
-      document.getElementById("barchart-panel").style.display = "none";
+      var bcPanel = document.getElementById("barchart-panel");
+      bcPanel.classList.remove("as-page");
+      bcPanel.style.display = "none";
       document.getElementById("field-page").style.display = "none";
       stopFieldGeoWatch();
       hideCsvBtn();
@@ -3731,6 +3736,13 @@
       var sp = document.getElementById("species-panel");
       sp.classList.remove("as-page");
       sp.style.display = "none";
+      if (map) map.invalidateSize();
+    });
+    // Back from the full-screen Migration analysis page to the map.
+    document.getElementById("bc-back").addEventListener("click", function () {
+      var bc = document.getElementById("barchart-panel");
+      bc.classList.remove("as-page");
+      bc.style.display = "none";
       if (map) map.invalidateSize();
     });
 
@@ -6532,7 +6544,10 @@
       for (var w = 0; w < 48; w++) { inputs[w * 3] = lat; inputs[w * 3 + 1] = lon; inputs[w * 3 + 2] = w + 1; }
       var allProbs = await runInference(inputs, 48); // 48 * nSpecies, week-major
       analysisData = { lat: lat, lon: lon, allProbs: allProbs, nSpecies: nSpecies };
-      document.getElementById("barchart-panel").style.display = "block";
+      var bc = document.getElementById("barchart-panel");
+      bc.classList.add("as-page");   // full-screen page with a back button, like the species list
+      bc.style.display = "block";
+      bc.scrollTop = 0;
       updateAnalysisControls();
       renderActiveTab();
     } catch (e) { setStatus(t("status.error", { msg: e.message })); console.error(e); }
