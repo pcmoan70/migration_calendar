@@ -3925,6 +3925,13 @@
   // Uses Nominatim with a viewbox of the current bounds + bounded=1 so results
   // stay within what's on screen, matching the user's intent.
   var placeMarker = null;
+  // Keep only genuine placenames (settlements, regions, natural features) — drop
+  // businesses/POIs (shops, offices, amenities…) and personal/house addresses.
+  var PLACE_CATEGORIES = { place: 1, boundary: 1, natural: 1, waterway: 1, water: 1 };
+  function isPlaceName(r) {
+    if (!r || !PLACE_CATEGORIES[r.category]) return false;
+    return r.type !== "house" && r.type !== "houses" && r.type !== "address";
+  }
   function wirePlaceSearch() {
     var inp = document.getElementById("place-search");
     var res = document.getElementById("place-results");
@@ -3935,7 +3942,7 @@
       if (q.length < 2) { res.style.display = "none"; res.innerHTML = ""; return; }
       var b = map.getBounds();
       var vb = [b.getWest(), b.getNorth(), b.getEast(), b.getSouth()].map(function (n) { return n.toFixed(6); }).join(",");
-      var url = "https://nominatim.openstreetmap.org/search?format=jsonv2&limit=6&addressdetails=0&bounded=1&viewbox=" +
+      var url = "https://nominatim.openstreetmap.org/search?format=jsonv2&limit=20&addressdetails=0&bounded=1&viewbox=" +
         vb + "&accept-language=" + encodeURIComponent(lang) + "&q=" + encodeURIComponent(q);
       var my = ++reqTok;
       fetch(url, { headers: { Accept: "application/json" } })
@@ -3943,7 +3950,7 @@
         .then(function (list) {
           if (my !== reqTok) return;   // a newer query superseded this one
           selIdx = -1;
-          renderPlaceResults(res, Array.isArray(list) ? list : []);
+          renderPlaceResults(res, (Array.isArray(list) ? list : []).filter(isPlaceName).slice(0, 8));
         })
         .catch(function () { if (my === reqTok) { res.style.display = "none"; } });
     };
