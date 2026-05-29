@@ -1698,6 +1698,10 @@
                   '<input type="file" id="sync-file" accept=".json,application/json" style="display:none" />' +
                 '</div>' +
               '</div>' +
+              '<div class="ctrl-group" id="points-kml-wrap">' +
+                '<label data-i18n="ctrl.exportPoints">Map points</label>' +
+                '<button type="button" id="points-kml-export" class="demo-btn" data-i18n="btn.exportPointsKml">⬇ Export KML</button>' +
+              '</div>' +
               '<button type="button" id="about-open" class="settings-about" data-i18n="ctrl.about">About &amp; how it works</button>' +
             '</div>' +
           '</div>' +
@@ -2656,6 +2660,38 @@
   // "Unsaved" = pins on the map that aren't captured by any named list. Happens
   // when no list is active (a loaded list auto-syncs, so it's always saved).
   function mpHasUnsaved() { return !mpActiveName && mapPoints.length > 0; }
+  // Export every pin to plain, interoperable KML (opens in Google Earth etc.):
+  // named lists become <Folder>s, loose pins sit at the document root. Just
+  // name / description / Point — no app-specific extensions.
+  function buildPointsKml() {
+    var xml = function (s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); };
+    var loose = mpActiveName ? [] : mapPoints;
+    var parts = ['<?xml version="1.0" encoding="UTF-8"?>',
+      '<kml xmlns="http://www.opengis.net/kml/2.2">', "<Document>", "<name>Map points</name>"];
+    var placemark = function (p) {
+      var desc = String(p.note || "");
+      var tags = (p.tags || []).join(", ");
+      if (tags) desc += (desc ? "\n" : "") + "Tags: " + tags;
+      parts.push("<Placemark>");
+      parts.push("<name>" + xml(p.name || "Point") + "</name>");
+      if (desc) parts.push("<description>" + xml(desc) + "</description>");
+      parts.push("<Point><coordinates>" + Number(p.lon).toFixed(6) + "," + Number(p.lat).toFixed(6) + ",0</coordinates></Point>");
+      parts.push("</Placemark>");
+    };
+    mpCollections.forEach(function (c) {
+      parts.push("<Folder><name>" + xml(c.name) + "</name>");
+      (c.points || []).forEach(placemark);
+      parts.push("</Folder>");
+    });
+    loose.forEach(placemark);
+    parts.push("</Document>", "</kml>");
+    return parts.join("\n");
+  }
+  function exportPointsKml() {
+    var hasAny = (mpActiveName ? 0 : mapPoints.length) + mpCollections.reduce(function (n, c) { return n + ((c.points && c.points.length) || 0); }, 0);
+    if (!hasAny) { setStatus(t("points.exportEmpty")); return; }
+    downloadCsv("map_points_" + new Date().toISOString().slice(0, 10) + ".kml", buildPointsKml());
+  }
   function addMapPoint(p) {
     p.id = p.id || mpUid();
     p.createdAt = p.createdAt || new Date().toISOString();
@@ -3192,6 +3228,7 @@
     rrEl.addEventListener("change", function () { window.GeoState.save({ recentRadiusKm: +this.value || 25 }); });
 
     document.getElementById("sync-export").addEventListener("click", exportAppData);
+    document.getElementById("points-kml-export").addEventListener("click", exportPointsKml);
     var syncFile = document.getElementById("sync-file");
     document.getElementById("sync-import").addEventListener("click", function () { syncFile.click(); });
     syncFile.addEventListener("change", function (e) {
