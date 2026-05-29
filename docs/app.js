@@ -1912,15 +1912,6 @@
       if (hdr && chkWrap) hdr.appendChild(chkWrap);
       var mpWrap = document.getElementById("mp-wrap");
       if (hdr && mpWrap) hdr.appendChild(mpWrap);
-      // Surface the basemap (Map type) selector directly in the controls bar
-      // above the map instead of burying it in Settings.
-      var ctrlsBar = document.getElementById("demo-controls");
-      var mapTypeWrap = document.getElementById("maptype-wrap");
-      var placeWrap = document.getElementById("place-search-wrap");
-      if (ctrlsBar && mapTypeWrap) {
-        if (placeWrap) ctrlsBar.insertBefore(mapTypeWrap, placeWrap.nextSibling);
-        else ctrlsBar.appendChild(mapTypeWrap);
-      }
       syncHeaderHeight();
       window.addEventListener("resize", function () { syncHeaderHeight(); fitMapHeight(); });
       populateLangSelect();
@@ -3913,7 +3904,7 @@
       if (q.length < 2) { res.style.display = "none"; res.innerHTML = ""; return; }
       var b = map.getBounds();
       var vb = [b.getWest(), b.getNorth(), b.getEast(), b.getSouth()].map(function (n) { return n.toFixed(6); }).join(",");
-      var url = "https://nominatim.openstreetmap.org/search?format=jsonv2&limit=10&addressdetails=0&bounded=1&viewbox=" +
+      var url = "https://nominatim.openstreetmap.org/search?format=jsonv2&limit=6&addressdetails=0&bounded=1&viewbox=" +
         vb + "&accept-language=" + encodeURIComponent(lang) + "&q=" + encodeURIComponent(q);
       var my = ++reqTok;
       fetch(url, { headers: { Accept: "application/json" } })

@@ -100,9 +100,12 @@ input:focus-visible {
 #species-search-wrap,
 #place-search-wrap {
   position: relative;
-  flex: 1 1 260px;
-  max-width: 400px;
 }
+#species-search-wrap { flex: 1 1 260px; max-width: 400px; }
+/* Place search stays a tight, fixed-ish box so it doesn't grow and its
+   results dropdown doesn't blanket the map. */
+#place-search-wrap { flex: 0 1 230px; max-width: 260px; }
+#place-results { max-height: 190px; }
 /* Place search is a single row: hide its label (the placeholder labels it),
    but keep it for screen readers. */
 #place-search-wrap label {
