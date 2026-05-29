@@ -2249,6 +2249,14 @@
   var DET_COLORS = ["#e6194B", "#3cb44b", "#4363d8", "#f58231", "#911eb4", "#42d4f4", "#f032e6", "#469990", "#9A6324", "#800000", "#808000", "#000075", "#a9a9a9", "#fabed4", "#bfef45"];
   var detPlot = {};     // speciesKey -> { key, name (fallback), color, rows, group }
   var detLegend = null;
+  // Legend-driven visibility: when empty, every species is drawn muted (grey).
+  // Click a legend row to "select" it — selected species draw in their colour
+  // and the unselected ones are hidden entirely.
+  var detSelected = {};
+  function detSelectionActive() { return Object.keys(detSelected).some(function (k) { return detPlot[k]; }); }
+  function detIsVisible(key) { return !detSelectionActive() || !!detSelected[key]; }
+  function detIsMuted(key) { return !detSelectionActive(); }   // no selection → all grey
+  var DET_MUTE_COLOR = "#9aa3a0";
   function detSlim(rows) {
     return (rows || []).filter(function (r) { return r.lat != null && r.lon != null; })
       .map(function (r) { return { lat: +r.lat, lon: +r.lon, url: r.url || "", date: r.date || "", src: r.src || "", place: r.place || "" }; });
@@ -2267,15 +2275,17 @@
   function detTooltipHtml(name, r) {
     return "<b>" + escapeHtml(name) + "</b><span class='area-tip-sub'>" + escapeHtml([r.src, r.date, r.place].filter(Boolean).join(" · ")) + "</span>";
   }
-  function renderDetGroup(name, rows, color) {
+  function renderDetGroup(name, rows, color, muted) {
     var g = L.layerGroup(), maxDays = detRecencyDays(), visible = 0;
+    var fill = muted ? DET_MUTE_COLOR : color;
+    var fillOp = muted ? 0.35 : 0.9, strokeOp = muted ? 0.4 : 0.9;
     rows.forEach(function (r) {
       if (!recentEnough(r.date, maxDays)) return;
       visible++;
-      var m = L.circleMarker([r.lat, r.lon], { radius: 5, color: "#1a1a1a", weight: 1, opacity: 0.9, fillColor: color, fillOpacity: 0.9 });
+      var m = L.circleMarker([r.lat, r.lon], { radius: 5, color: "#1a1a1a", weight: 1, opacity: strokeOp, fillColor: fill, fillOpacity: fillOp });
       m.bindTooltip(detTooltipHtml(name, r), { direction: "top", className: "area-tip" });
       // Metadata for the hover spider so it can reconstruct clones in place.
-      m._detRow = r; m._detName = name; m._detColor = color;
+      m._detRow = r; m._detName = name; m._detColor = fill;
       m.on("mouseover", maybeSpiderize);
       m.on("mouseout", scheduleSpiderClear);
       // Always stop click propagation so a hit on the dot doesn't also
@@ -2294,12 +2304,25 @@
     var slim = detSlim(rows);
     if (!slim.length) { if (!defer) setStatus(t("det.none")); return; }
     var color = (detPlot[key] && detPlot[key].color) || DET_COLORS[Object.keys(detPlot).length % DET_COLORS.length];
-    if (detPlot[key]) map.removeLayer(detPlot[key].group);
+    if (detPlot[key] && detPlot[key].group) map.removeLayer(detPlot[key].group);
     var e = { key: key, name: name, color: color, rows: slim, group: null };
-    e.group = renderDetGroup(detName(e), slim, color); e.group.addTo(map);
     detPlot[key] = e;
+    if (detIsVisible(key)) { e.group = renderDetGroup(detName(e), slim, color, detIsMuted(key)); e.group.addTo(map); }
     if (!defer) { updateDetLegend(); saveDetections(); }   // batch when plotting many at once
-    if (fit) { try { map.fitBounds(e.group.getBounds().pad(0.25)); } catch (err) { /* single point / bad bounds */ } }
+    if (fit && e.group) { try { map.fitBounds(e.group.getBounds().pad(0.25)); } catch (err) { /* single point / bad bounds */ } }
+  }
+  // Rebuild every detection layer from the current selection state (called when
+  // a legend row is toggled). Hidden species get no layer; visible ones are
+  // muted (grey) when nothing is selected, coloured when selected.
+  function rebuildDetLayers() {
+    clearSpider();
+    Object.keys(detPlot).forEach(function (k) {
+      var e = detPlot[k];
+      if (e.group) { map.removeLayer(e.group); e.group = null; }
+      if (!detIsVisible(k)) return;
+      e.group = renderDetGroup(detName(e), e.rows, e.color, detIsMuted(k));
+      e.group.addTo(map);
+    });
   }
   // Plot every species' nearby observations from the cached all-species fetch
   // (GBIF + iNaturalist + eBird) on the map, one coloured layer per species.
@@ -2373,15 +2396,11 @@
     document.getElementById("field-page").style.display = "none";
     if (map) map.invalidateSize();
   }
-  function removeDetection(key) { if (detPlot[key]) { clearSpider(); map.removeLayer(detPlot[key].group); delete detPlot[key]; updateDetLegend(); saveDetections(); } }
-  function clearDetections() { clearSpider(); Object.keys(detPlot).forEach(function (k) { map.removeLayer(detPlot[k].group); }); detPlot = {}; updateDetLegend(); saveDetections(); }
+  function removeDetection(key) { if (detPlot[key]) { clearSpider(); if (detPlot[key].group) map.removeLayer(detPlot[key].group); delete detPlot[key]; delete detSelected[key]; updateDetLegend(); saveDetections(); } }
+  function clearDetections() { clearSpider(); Object.keys(detPlot).forEach(function (k) { if (detPlot[k].group) map.removeLayer(detPlot[k].group); }); detPlot = {}; detSelected = {}; updateDetLegend(); saveDetections(); }
   // Re-render plotted points + legend in the current language (called on lang change).
   function refreshDetections() {
-    Object.keys(detPlot).forEach(function (k) {
-      var e = detPlot[k];
-      map.removeLayer(e.group);
-      e.group = renderDetGroup(detName(e), e.rows, e.color); e.group.addTo(map);
-    });
+    rebuildDetLayers();
     updateDetLegend();
   }
   function saveDetections() {
@@ -2394,8 +2413,8 @@
       var d = saved[sk]; if (!d || !d.rows || !d.rows.length) return;
       var key = d.key || sk;   // older builds keyed by display name and had no .key
       var e = { key: key, name: d.name || sk, color: d.color, rows: d.rows, group: null };
-      e.group = renderDetGroup(detName(e), d.rows, d.color); e.group.addTo(map);
       detPlot[key] = e;
+      e.group = renderDetGroup(detName(e), d.rows, d.color, detIsMuted(key)); e.group.addTo(map);
     });
     updateDetLegend();
   }
@@ -2432,20 +2451,28 @@
         var e = detPlot[k], nm = escapeHtml(detName(e));
         var vis = (e.group && e.group._visibleCount != null) ? e.group._visibleCount : e.rows.length;
         var ct = (vis === e.rows.length) ? String(vis) : (vis + "/" + e.rows.length);
-        return '<div class="det-row"><span class="det-sw" style="background:' + e.color + '"></span><span class="det-nm" title="' + nm + '">' + interestingStar(e.key) + nm + '</span><span class="det-ct">' + ct + '</span><button type="button" class="det-del" data-key="' + escapeHtml(k) + '" aria-label="remove">×</button></div>';
+        // When a selection is active, non-selected rows show a grey swatch and
+        // dimmed text so it's clear they're hidden on the map.
+        var selActive = detSelectionActive(), sel = !!detSelected[k];
+        var rowCls = "det-row det-row-click" + (selActive && !sel ? " det-row-off" : "") + (sel ? " det-row-on" : "");
+        var sw = (selActive && !sel) ? DET_MUTE_COLOR : e.color;
+        return '<div class="' + rowCls + '" data-key="' + escapeHtml(k) + '"><span class="det-sw" style="background:' + sw + '"></span><span class="det-nm" title="' + nm + '">' + interestingStar(e.key) + nm + '</span><span class="det-ct">' + ct + '</span><button type="button" class="det-del" data-key="' + escapeHtml(k) + '" aria-label="remove">×</button></div>';
       }).join("");
     el.querySelector(".det-clear").addEventListener("click", clearDetections);
     el.querySelector(".det-min").addEventListener("click", function () { detLegendMini = true; updateDetLegend(); });
-    el.querySelectorAll(".det-del").forEach(function (b) { b.addEventListener("click", function () { removeDetection(this.getAttribute("data-key")); }); });
+    el.querySelectorAll(".det-del").forEach(function (b) { b.addEventListener("click", function (e) { e.stopPropagation(); removeDetection(this.getAttribute("data-key")); }); });
+    // Click a row to toggle its visibility selection.
+    el.querySelectorAll(".det-row-click").forEach(function (row) {
+      row.addEventListener("click", function () {
+        var k = this.getAttribute("data-key");
+        if (detSelected[k]) delete detSelected[k]; else detSelected[k] = true;
+        rebuildDetLayers();
+        updateDetLegend();
+      });
+    });
     el.querySelector("#det-recency").addEventListener("change", function () {
       window.GeoState.save({ detRecencyDays: +this.value });
-      // Re-render every plotted group with the new recency filter (no refetch).
-      clearSpider();
-      Object.keys(detPlot).forEach(function (k) {
-        var e = detPlot[k];
-        map.removeLayer(e.group);
-        e.group = renderDetGroup(detName(e), e.rows, e.color); e.group.addTo(map);
-      });
+      rebuildDetLayers();   // re-render with the new recency filter (no refetch)
       updateDetLegend();
     });
   }
