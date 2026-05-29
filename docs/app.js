@@ -164,6 +164,47 @@
     if (!isFullscreen()) { var req = el.requestFullscreen || el.webkitRequestFullscreen; if (req) req.call(el); }
     else { var ex = d.exitFullscreen || d.webkitExitFullscreen; if (ex) ex.call(d); }
   }
+  // In-page prompt/confirm replacements. Native window.prompt/confirm drop the
+  // browser out of full-screen, so the point-list dialogs use these instead.
+  function uiDialog(opts) {
+    return new Promise(function (resolve) {
+      var ov = document.createElement("div");
+      ov.className = "ui-modal-overlay";
+      var box = document.createElement("div");
+      box.className = "ui-modal";
+      var msg = document.createElement("div");
+      msg.className = "ui-modal-msg";
+      msg.textContent = opts.message || "";
+      box.appendChild(msg);
+      var input = null;
+      if (opts.input) {
+        input = document.createElement("input");
+        input.type = "text"; input.className = "ui-modal-input"; input.value = opts.value || "";
+        box.appendChild(input);
+      }
+      var btns = document.createElement("div");
+      btns.className = "ui-modal-btns";
+      var cancel = document.createElement("button");
+      cancel.type = "button"; cancel.className = "demo-btn demo-btn-light"; cancel.textContent = t("btn.cancel");
+      var ok = document.createElement("button");
+      ok.type = "button"; ok.className = "demo-btn"; ok.textContent = t("popup.ok");
+      btns.appendChild(cancel); btns.appendChild(ok);
+      box.appendChild(btns); ov.appendChild(box);
+      document.body.appendChild(ov);
+      function close(val) { if (ov.parentNode) ov.parentNode.removeChild(ov); document.removeEventListener("keydown", onKey, true); resolve(val); }
+      function onKey(e) {
+        if (e.key === "Escape") { e.preventDefault(); close(opts.input ? null : false); }
+        else if (e.key === "Enter") { e.preventDefault(); close(opts.input ? input.value : true); }
+      }
+      cancel.addEventListener("click", function () { close(opts.input ? null : false); });
+      ok.addEventListener("click", function () { close(opts.input ? input.value : true); });
+      ov.addEventListener("click", function (e) { if (e.target === ov) close(opts.input ? null : false); });
+      document.addEventListener("keydown", onKey, true);
+      if (input) { input.focus(); input.select(); }
+    });
+  }
+  function modalPrompt(message, value) { return uiDialog({ message: message, input: true, value: value }); }
+  function modalConfirm(message) { return uiDialog({ message: message, input: false }); }
 
   // Grid resolution per zoom level (degrees per cell). Finer cells at deeper
   // zoom keep the heatmap detailed without exploding the cell count.
@@ -2998,32 +3039,37 @@
     if (clr) clr.addEventListener("click", function () {
       if (!mapPoints.length) return;
       var msg = mpHasUnsaved() ? t("points.clearUnsavedPrompt") : t("points.clearAllPrompt");
-      if (confirm(msg)) clearMapPoints();
+      modalConfirm(msg).then(function (ok) { if (ok) clearMapPoints(); });
     });
     // Pick a list from the dropdown to load it (warn first if it would discard
     // unsaved pins; revert the selection on cancel).
     var collSel = panel.querySelector("#mp-coll-select");
     if (collSel) collSel.addEventListener("change", function () {
-      var name = this.value;
+      var name = this.value, selEl = this;
       if (!name || name === mpActiveName) return;
-      if (mpHasUnsaved() && !confirm(t("points.discardUnsavedPrompt"))) { this.value = mpActiveName || ""; return; }
-      loadCollection(name);
+      if (mpHasUnsaved()) {
+        modalConfirm(t("points.discardUnsavedPrompt")).then(function (ok) {
+          if (ok) loadCollection(name); else selEl.value = mpActiveName || "";
+        });
+      } else loadCollection(name);
     });
     // The × deletes the selected list (after confirming).
     var collDel = panel.querySelector("#mp-coll-del");
     if (collDel) collDel.addEventListener("click", function () {
       var name = (collSel && collSel.value) || mpActiveName;
-      if (name && confirm(t("points.deleteCollPrompt", { name: name }))) deleteCollection(name);
+      if (!name) return;
+      modalConfirm(t("points.deleteCollPrompt", { name: name })).then(function (ok) { if (ok) deleteCollection(name); });
     });
     var collSave = panel.querySelector("#mp-coll-save");
     if (collSave) collSave.addEventListener("click", function () {
-      var n = prompt(t("points.saveAsPrompt"), mpActiveName || "");
-      if (n && n.trim()) {
+      modalPrompt(t("points.saveAsPrompt"), mpActiveName || "").then(function (n) {
+        if (!n || !n.trim()) return;
         var name = n.trim();
         var exists = mpCollections.some(function (x) { return x.name === name; });
-        if (exists && name !== mpActiveName && !confirm(t("points.overwritePrompt", { name: name }))) return;
-        saveCollection(name);
-      }
+        if (exists && name !== mpActiveName) {
+          modalConfirm(t("points.overwritePrompt", { name: name })).then(function (ok) { if (ok) saveCollection(name); });
+        } else saveCollection(name);
+      });
     });
   }
 

@@ -1109,6 +1109,22 @@ button.dd-name:hover { text-decoration: underline; }
 }
 .dd-del:hover { color: var(--danger-strong); }
 
+/* In-page prompt/confirm modal (full-screen-safe, unlike window.prompt) */
+.ui-modal-overlay {
+  position: fixed; inset: 0; z-index: 4000; display: flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,.45); padding: 16px;
+}
+.ui-modal {
+  background: var(--surface, #fff); color: var(--ink, #222); border-radius: 10px;
+  box-shadow: 0 10px 40px rgba(0,0,0,.35); padding: 18px; width: min(380px, 92vw); box-sizing: border-box;
+}
+.ui-modal-msg { font-size: 0.92rem; line-height: 1.4; white-space: pre-wrap; }
+.ui-modal-input {
+  width: 100%; box-sizing: border-box; margin-top: 12px; padding: 8px 10px; font-size: 0.95rem;
+  border: 1px solid var(--border, #ccc); border-radius: 5px;
+}
+.ui-modal-btns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+
 /* ---- Map Points dropdown + popup form ---- */
 .mp-head { display: flex; gap: 4px; padding: 5px 6px; align-items: center; }
 .mp-head .demo-btn { flex: 0 1 auto; font-size: 0.74rem; padding: 3px 6px; line-height: 1.2; }
