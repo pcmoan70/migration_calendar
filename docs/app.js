@@ -2585,9 +2585,12 @@
     el.querySelector(".det-clear").addEventListener("click", clearDetections);
     el.querySelector(".det-min").addEventListener("click", function () { mapClickGuardUntil = Date.now() + 250; detLegendMini = true; updateDetLegend(); });
     el.querySelectorAll(".det-del").forEach(function (b) { b.addEventListener("click", function (e) { e.stopPropagation(); removeDetection(this.getAttribute("data-key")); }); });
-    // Click a row to toggle its visibility selection.
+    // Click a row to toggle its visibility selection. Stop the click here so it
+    // can't leak to the map and pop the point-options popup at the legend's spot.
     el.querySelectorAll(".det-row-click").forEach(function (row) {
-      row.addEventListener("click", function () {
+      row.addEventListener("click", function (e) {
+        e.stopPropagation();
+        mapClickGuardUntil = Date.now() + 250;
         var k = this.getAttribute("data-key");
         if (detSelected[k]) delete detSelected[k]; else detSelected[k] = true;
         rebuildDetLayers();
