@@ -2276,7 +2276,7 @@
   // Click a legend row to "select" it — selected species draw in their colour
   // and the unselected ones are hidden entirely.
   var detSelected = {};
-  var mapClickGuardUntil = 0;   // onMapClick ignores clicks before this time (set after legend re-renders)
+  var mapClickGuardUntil = 0;   // onMapClick ignores clicks before this time; each accepted click re-arms it (200 ms debounce), legend re-renders set a longer window
   function detSelectionActive() { return Object.keys(detSelected).some(function (k) { return detPlot[k]; }); }
   function detIsVisible(key) { return !detSelectionActive() || !!detSelected[key]; }
   function detIsMuted(key) { return !detSelectionActive(); }   // no selection → all grey
@@ -2668,6 +2668,9 @@
   }
   // Right-click on desktop, long-press on touch — Leaflet fires both as "contextmenu".
   function onMapContextMenu(e) {
+    // A long-press fires contextmenu then often a trailing click — re-arm the
+    // debounce so that click doesn't also open the point-options popup.
+    mapClickGuardUntil = Date.now() + 200;
     var lat = Math.max(-90, Math.min(90, e.latlng.lat));
     var lon = wrapLon(e.latlng.lng);
     openPointEditor({ lat: lat, lon: lon, name: "", tags: [], note: "" });
@@ -4480,11 +4483,12 @@
     return hit;
   }
   function onMapClick(e) {
+    // Debounce every map click: ignore any click that lands within 200 ms of the
+    // previous one (rapid double-taps, or a legend re-render leaking through).
+    if (Date.now() < mapClickGuardUntil) return;
+    mapClickGuardUntil = Date.now() + 200;
     // List + Range show the per-point species list; Migration the analysis.
     if (["list", "barchart", "range"].indexOf(currentMode) < 0) return;
-    // A legend control that re-renders (minimise / restore) can let the same
-    // click leak through to the map; ignore map clicks for a short window after.
-    if (Date.now() < mapClickGuardUntil) return;
     // Don't fire the point-options popup if the user was tapping a plotted
     // detection (or just a few pixels off it).
     if (clickNearDetection(e.latlng)) return;
