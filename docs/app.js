@@ -2873,13 +2873,11 @@
         '<button type="button" class="dd-del mp-del" data-id="' + escapeHtml(p.id) + '" aria-label="remove">×</button>' +
       "</div>";
     }).join("") : '<p class="dd-empty">' + escapeHtml(t("points.empty")) + "</p>";
-    var collHtml = mpCollections.slice().sort(function (a, b) { return a.name.localeCompare(b.name); }).map(function (c) {
-      var active = c.name === mpActiveName;
-      return '<span class="mp-coll-chip' + (active ? " is-active" : "") + '">' +
-        '<button type="button" class="mp-coll-load" data-name="' + escapeHtml(c.name) + '">' + escapeHtml(c.name) + " (" + ((c.points && c.points.length) || 0) + ")</button>" +
-        '<button type="button" class="mp-coll-del" data-name="' + escapeHtml(c.name) + '" title="' + escapeHtml(t("points.deleteColl")) + '" aria-label="' + escapeHtml(t("points.deleteColl")) + '">×</button>' +
-      "</span>";
-    }).join("");
+    var collOpts = '<option value="">' + escapeHtml(t("points.collection")) + "</option>" +
+      mpCollections.slice().sort(function (a, b) { return a.name.localeCompare(b.name); }).map(function (c) {
+        return '<option value="' + escapeHtml(c.name) + '"' + (c.name === mpActiveName ? " selected" : "") + ">" +
+          escapeHtml(c.name) + " (" + ((c.points && c.points.length) || 0) + ")</option>";
+      }).join("");
     panel.innerHTML =
       '<div class="mp-head">' +
         '<label class="mp-show-label" title="' + escapeHtml(t("points.showOnMap")) + '">' +
@@ -2889,7 +2887,11 @@
         '<button type="button" id="mp-coll-save" class="demo-btn">' + escapeHtml(t("points.save")) + "</button>" +
         '<button type="button" id="mp-clear" class="demo-btn demo-btn-light">' + escapeHtml(t("points.clear")) + "</button>" +
       "</div>" +
-      (collHtml ? '<div class="mp-coll">' + collHtml + "</div>" : "") +
+      (mpCollections.length ?
+        '<div class="mp-coll">' +
+          '<select id="mp-coll-select" title="' + escapeHtml(t("points.collection")) + '">' + collOpts + "</select>" +
+          '<button type="button" id="mp-coll-del" class="mp-coll-del"' + (mpActiveName ? "" : " disabled") + ' title="' + escapeHtml(t("points.deleteColl")) + '" aria-label="' + escapeHtml(t("points.deleteColl")) + '">×</button>' +
+        "</div>" : "") +
       (mpHasUnsaved() ? '<div class="mp-unsaved">' + escapeHtml(t("points.unsaved", { n: mapPoints.length })) + "</div>" : "") +
       (chipsHtml ? '<div class="mp-chips">' + chipsHtml + "</div>" : "") +
       '<div class="mp-list">' + listHtml + "</div>";
@@ -2921,22 +2923,20 @@
       var msg = mpHasUnsaved() ? t("points.clearUnsavedPrompt") : t("points.clearAllPrompt");
       if (confirm(msg)) clearMapPoints();
     });
-    // Click a list to load it (warn first if it would discard unsaved pins).
-    panel.querySelectorAll(".mp-coll-load").forEach(function (b) {
-      b.addEventListener("click", function () {
-        var name = this.getAttribute("data-name");
-        if (name === mpActiveName) return;
-        if (mpHasUnsaved() && !confirm(t("points.discardUnsavedPrompt"))) return;
-        loadCollection(name);
-      });
+    // Pick a list from the dropdown to load it (warn first if it would discard
+    // unsaved pins; revert the selection on cancel).
+    var collSel = panel.querySelector("#mp-coll-select");
+    if (collSel) collSel.addEventListener("change", function () {
+      var name = this.value;
+      if (!name || name === mpActiveName) return;
+      if (mpHasUnsaved() && !confirm(t("points.discardUnsavedPrompt"))) { this.value = mpActiveName || ""; return; }
+      loadCollection(name);
     });
-    // The small × on each list deletes just that list (after confirming).
-    panel.querySelectorAll(".mp-coll-del").forEach(function (b) {
-      b.addEventListener("click", function (e) {
-        e.stopPropagation();
-        var name = this.getAttribute("data-name");
-        if (confirm(t("points.deleteCollPrompt", { name: name }))) deleteCollection(name);
-      });
+    // The × deletes the selected list (after confirming).
+    var collDel = panel.querySelector("#mp-coll-del");
+    if (collDel) collDel.addEventListener("click", function () {
+      var name = (collSel && collSel.value) || mpActiveName;
+      if (name && confirm(t("points.deleteCollPrompt", { name: name }))) deleteCollection(name);
     });
     var collSave = panel.querySelector("#mp-coll-save");
     if (collSave) collSave.addEventListener("click", function () {
