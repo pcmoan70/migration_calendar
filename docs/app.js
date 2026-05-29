@@ -591,7 +591,12 @@
     ES: "https://ebird.org/spain/home",
     PT: "https://ebird.org/portugal/home",
     EE: "https://elurikkus.ee/",
-    LT: "https://birdlife.lt/"
+    LT: "https://birdlife.lt/",
+    SI: "https://www.ptice.si/",
+    HU: "https://www.mme.hu/",
+    GR: "https://www.ornithologiki.gr/",
+    TR: "https://ebird.org/region/TR",
+    MT: "https://birdlifemalta.org/"
   };
   var NAT_LIST_KEY = {
     NO: "menu.artsobs", SE: "menu.artportalen", DK: "menu.dofbasen", FI: "menu.tiira",
@@ -599,19 +604,39 @@
     IT: "menu.ornithoit", LU: "menu.ornitholu", PL: "menu.ornithopl", HR: "menu.faunahr",
     NL: "menu.waarnemingnl", BE: "menu.waarnemingenbe", GB: "menu.birdtrack", IE: "menu.birdtrack",
     LV: "menu.dabasdati", CZ: "menu.avif", SK: "menu.avessk",
-    ES: "menu.ebirdes", PT: "menu.portugalaves", EE: "menu.elurikkus", LT: "menu.birdlifelt"
+    ES: "menu.ebirdes", PT: "menu.portugalaves", EE: "menu.elurikkus", LT: "menu.birdlifelt",
+    SI: "menu.dopps", HU: "menu.mme", GR: "menu.hos", TR: "menu.ebirdtr", MT: "menu.birdlifemt"
   };
   function natListUrl(cc, sci) {
     var base = NAT_LIST_URLS[cc]; if (!base) return null;
     var name = String(sci || "").trim();
     return name ? base + "#species=" + encodeURIComponent(name) : base;
   }
-  // User-defined extra links per country: [{ cc, url }]. Stored in GeoState.
-  function loadCustomCountryUrls() {
-    return (window.GeoState.get("customCountryUrls", []) || []).filter(function (c) { return c && c.cc && c.url; });
+  function urlHostLabel(u) {
+    try { return new URL(u).hostname.replace(/^www\./, ""); } catch (e) { return String(u || "").slice(0, 40); }
   }
-  function saveCustomCountryUrls(arr) { window.GeoState.save({ customCountryUrls: arr }); }
-  // Settings UI: one editable row per custom (cc, url) pair.
+  // The shipped defaults as a flat [{cc, url}] list, in declaration order.
+  function builtinCountryLinks() {
+    return Object.keys(NAT_LIST_URLS).map(function (cc) { return { cc: cc, url: NAT_LIST_URLS[cc] }; });
+  }
+  // The effective national-database list. Once the user edits it (GeoState
+  // "countryLinks" set) that becomes authoritative; otherwise the built-in
+  // defaults apply — merged with any links saved by the older custom-links
+  // feature for backward compatibility.
+  function effectiveCountryLinks() {
+    var saved = window.GeoState.get("countryLinks", null);
+    if (saved && saved.length) return saved.filter(function (c) { return c && c.cc && c.url; });
+    var legacy = (window.GeoState.get("customCountryUrls", []) || []).filter(function (c) { return c && c.cc && c.url; });
+    return builtinCountryLinks().concat(legacy);
+  }
+  function saveCountryLinks(arr) { window.GeoState.save({ countryLinks: arr }); }
+  // A built-in entry keeps its localised brand label; user/custom entries show
+  // the URL hostname.
+  function labelForLink(e) {
+    if (NAT_LIST_URLS[e.cc] === e.url && NAT_LIST_KEY[e.cc]) return t(NAT_LIST_KEY[e.cc]);
+    return urlHostLabel(e.url);
+  }
+  // Settings UI: one editable row per (cc, url) pair.
   function cuRowHtml(cc, url) {
     return '<div class="cu-row">' +
       '<input type="text" class="cu-cc" maxlength="2" value="' + escapeHtml(cc || "") + '" placeholder="' + escapeHtml(t("ph.cc")) + '">' +
@@ -621,7 +646,7 @@
   }
   function renderCustomUrls() {
     var list = document.getElementById("custom-urls-list"); if (!list) return;
-    list.innerHTML = loadCustomCountryUrls().map(function (c) { return cuRowHtml(c.cc, c.url); }).join("");
+    list.innerHTML = effectiveCountryLinks().map(function (c) { return cuRowHtml(c.cc, c.url); }).join("");
   }
   // Read the editable rows back out (DOM is the source of truth while editing);
   // only complete cc+url pairs are persisted.
@@ -634,19 +659,12 @@
     });
     return arr;
   }
-  function urlHostLabel(u) {
-    try { return new URL(u).hostname.replace(/^www\./, ""); } catch (e) { return String(u || "").slice(0, 40); }
-  }
-  // All observation/registration links to offer for a country: the built-in
-  // national service (if any) plus the user's custom links for that cc.
-  // Returns [{ label, url }].
+  // All observation/registration links to offer for a country, from the
+  // effective (possibly user-edited) list. Returns [{ label, url }].
   function natServicesFor(cc) {
-    var out = [];
-    if (cc && NAT_LIST_KEY[cc]) out.push({ label: t(NAT_LIST_KEY[cc]), url: natListUrl(cc, "") });
-    loadCustomCountryUrls().forEach(function (c) {
-      if (String(c.cc).toUpperCase() === cc) out.push({ label: urlHostLabel(c.url), url: c.url });
-    });
-    return out;
+    return effectiveCountryLinks()
+      .filter(function (e) { return String(e.cc).toUpperCase() === cc; })
+      .map(function (e) { return { label: labelForLink(e), url: e.url }; });
   }
 
   // eBird species page (label keys are eBird taxon codes) — shows recent
@@ -1543,7 +1561,10 @@
                   '<summary data-i18n="ctrl.customurls">Custom country links</summary>' +
                   '<p class="cu-hint" data-i18n="ctrl.customurlsHint">Open extra sites for a country in the map popups. Country code = ISO-3166 (e.g. NO, GB).</p>' +
                   '<div id="custom-urls-list"></div>' +
-                  '<button type="button" id="custom-urls-add" class="demo-btn" data-i18n="ctrl.customurlsAdd">+ Add</button>' +
+                  '<div class="cu-actions">' +
+                    '<button type="button" id="custom-urls-add" class="demo-btn" data-i18n="ctrl.customurlsAdd">+ Add</button>' +
+                    '<button type="button" id="custom-urls-reset" class="demo-btn demo-btn-light" data-i18n="ctrl.customurlsReset">Reset</button>' +
+                  '</div>' +
                 '</details>' +
               '</div>' +
               '<div class="ctrl-group" id="barchart-threshold-wrap" style="display:none">' +
@@ -2998,17 +3019,22 @@
       applyShowSci();
     });
 
-    // Custom per-country links: add / edit / remove rows; persist complete pairs.
+    // National-database list: add / edit / remove rows; the whole list (built-in
+    // defaults seeded + user edits) is persisted as countryLinks once touched.
     var cuList = document.getElementById("custom-urls-list");
-    cuList.addEventListener("input", function () { saveCustomCountryUrls(collectCustomUrls()); });
+    cuList.addEventListener("input", function () { saveCountryLinks(collectCustomUrls()); });
     cuList.addEventListener("click", function (e) {
       var del = e.target.closest && e.target.closest(".cu-del");
-      if (del) { del.closest(".cu-row").remove(); saveCustomCountryUrls(collectCustomUrls()); }
+      if (del) { del.closest(".cu-row").remove(); saveCountryLinks(collectCustomUrls()); }
     });
     document.getElementById("custom-urls-add").addEventListener("click", function () {
       cuList.insertAdjacentHTML("beforeend", cuRowHtml("", ""));
       var rows = cuList.querySelectorAll(".cu-row");
       rows[rows.length - 1].querySelector(".cu-cc").focus();
+    });
+    document.getElementById("custom-urls-reset").addEventListener("click", function () {
+      window.GeoState.save({ countryLinks: null });   // revert to built-in defaults
+      renderCustomUrls();
     });
 
 

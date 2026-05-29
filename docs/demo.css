@@ -442,7 +442,9 @@ input:focus-visible {
 .cu-row .cu-url { flex: 1 1 auto; min-width: 0; }
 .cu-row input { font: inherit; font-size: 0.82rem; padding: 3px 6px; border: 1px solid var(--border, #ccc); border-radius: 4px; background: var(--md-default-bg-color, #fff); color: var(--ink, inherit); }
 .cu-row .cu-del { flex: 0 0 auto; width: 26px; height: 26px; border: 1px solid var(--border, #ccc); border-radius: 4px; background: var(--surface, #fff); color: var(--danger, #c0392b); cursor: pointer; line-height: 1; }
-#custom-urls-add { font-size: 0.78rem; padding: 3px 8px; margin-top: 2px; }
+.cu-actions { display: flex; gap: 6px; margin-top: 4px; }
+.cu-actions .demo-btn { font-size: 0.78rem; padding: 3px 8px; }
+#custom-urls-list { max-height: 40vh; overflow-y: auto; }
 
 /* Probability cell — integer percent, with the bar as a low-opacity overlay
    so the number stays legible and the cell stays narrow. */
