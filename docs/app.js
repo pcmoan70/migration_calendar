@@ -140,6 +140,19 @@
     if (h) document.documentElement.style.setProperty("--header-h", h.offsetHeight + "px");
   }
 
+  // Stretch the map from its current top down to the bottom of the viewport so
+  // it uses the full screen height (overrides the CSS aspect-ratio sizing). The
+  // top is read live, so it adapts to the controls bar wrapping or mode changes.
+  function fitMapHeight() {
+    var el = document.getElementById("demo-map");
+    if (!el || el.offsetParent === null) return;   // not visible yet
+    var top = el.getBoundingClientRect().top;
+    el.style.aspectRatio = "auto";
+    el.style.maxHeight = "none";
+    el.style.height = Math.max(320, Math.round(window.innerHeight - top - 8)) + "px";
+    if (map) map.invalidateSize();
+  }
+
   // Grid resolution per zoom level (degrees per cell). Finer cells at deeper
   // zoom keep the heatmap detailed without exploding the cell count.
   var ZOOM_STEP = { 2: 3, 3: 2, 4: 1, 5: 0.5, 6: 0.5, 7: 0.25, 8: 0.25, 9: 0.125, 10: 0.0625, 11: 0.03125,
@@ -1492,6 +1505,11 @@
             '<input id="species-search" type="text" autocomplete="off" data-i18n-ph="ph.species" placeholder="Search species\u2026" />' +
             '<div id="species-results"></div>' +
           '</div>' +
+          '<div class="ctrl-group" id="place-search-wrap" style="display:none">' +
+            '<label for="place-search" data-i18n="ctrl.place">Place</label>' +
+            '<input id="place-search" type="text" autocomplete="off" data-i18n-ph="ph.place" placeholder="Search place\u2026" />' +
+            '<div id="place-results"></div>' +
+          '</div>' +
           '<div class="ctrl-group ctrl-group-btn" id="play-btn-wrap">' +
             '<button id="play-btn" class="demo-btn" data-i18n="btn.play">\u25b6 Play migration</button>' +
           '</div>' +
@@ -1790,7 +1808,6 @@
           '<div id="about-body"></div>' +
         '</div></div>' +
         '<div id="last-change"></div>' +
-        '<div id="visit-counter"><img src="https://api.visitorbadge.io/api/visitors?path=https%3A%2F%2Fpcmoan70.github.io%2Fmigration_calendar&label=page%20visits&labelColor=%230f1b24&countColor=%232f6f4f" alt="page visits" /></div>' +
         '<div id="perf-modal" style="display:none"><div id="perf-modal-box">' +
           '<h2 class="perf-title" data-i18n="popup.title">Species distributions and checklists</h2>' +
           '<p data-i18n="popup.perf"></p>' +
@@ -1820,7 +1837,7 @@
       var mpWrap = document.getElementById("mp-wrap");
       if (hdr && mpWrap) hdr.appendChild(mpWrap);
       syncHeaderHeight();
-      window.addEventListener("resize", syncHeaderHeight);
+      window.addEventListener("resize", function () { syncHeaderHeight(); fitMapHeight(); });
       populateLangSelect();
       populateWeekSelect();
       restoreControls();
@@ -1832,6 +1849,7 @@
       refreshHiddenUI();
       refreshChecklists();
       setStatus(modeHint());
+      fitMapHeight();
       showLastChange();
       showPerfModal();
       initOfflineIndicator();
@@ -2018,7 +2036,8 @@
       selSp.setAttribute("placeholder", speciesName(lbl) + " (" + lbl.sci + ")");
     }
     var about = document.getElementById("about-body");
-    if (about) about.innerHTML = t("about.html");   // raw HTML doc, localized
+    if (about) about.innerHTML = t("about.html") +   // raw HTML doc, localized
+      '<div id="visit-counter"><img src="https://api.visitorbadge.io/api/visitors?path=https%3A%2F%2Fpcmoan70.github.io%2Fmigration_calendar&label=page%20visits&labelColor=%230f1b24&countColor=%232f6f4f" alt="page visits" /></div>';
     updateLegend();
   }
 
@@ -3143,6 +3162,9 @@
     var isRange = currentMode === "range";
     var isMap = currentMode === "range" || currentMode === "richness";
     document.getElementById("species-search-wrap").style.display = isRange ? "" : "none";
+    // The same slot above the map hosts a place (location) search in every mode
+    // except Range, where it's the species picker.
+    document.getElementById("place-search-wrap").style.display = isRange ? "none" : "";
     // Species List + Species Range both produce a per-point species list (which
     // uses "Compare to" and the 2nd-name column), so show these in both.
     var listish = currentMode === "list" || currentMode === "range";
@@ -3160,6 +3182,7 @@
     document.getElementById("hires-wrap").style.display = isMap ? "" : "none";
     updateRangeSpecies();   // clickable species name above the map (range only)
     relocateCsvButton();
+    fitMapHeight();         // controls/mode changes shift the map's top edge
   }
 
   // Show the "Last change" timestamp (written into last-change.txt by the
@@ -3907,6 +3930,69 @@
     document.addEventListener("click", function (e) {
       if (!resultsEl.contains(e.target) && e.target !== searchEl) resultsEl.style.display = "none";
     });
+
+    wirePlaceSearch();
+  }
+
+  // ---- Place (location) search — geocode within the current map view --------
+  // Uses Nominatim with a viewbox of the current bounds + bounded=1 so results
+  // stay within what's on screen, matching the user's intent.
+  var placeMarker = null;
+  function wirePlaceSearch() {
+    var inp = document.getElementById("place-search");
+    var res = document.getElementById("place-results");
+    if (!inp || !res) return;
+    var selIdx = -1, timer = null, reqTok = 0;
+    var run = function () {
+      var q = inp.value.trim();
+      if (q.length < 2) { res.style.display = "none"; res.innerHTML = ""; return; }
+      var b = map.getBounds();
+      var vb = [b.getWest(), b.getNorth(), b.getEast(), b.getSouth()].map(function (n) { return n.toFixed(6); }).join(",");
+      var url = "https://nominatim.openstreetmap.org/search?format=jsonv2&limit=10&addressdetails=0&bounded=1&viewbox=" +
+        vb + "&accept-language=" + encodeURIComponent(lang) + "&q=" + encodeURIComponent(q);
+      var my = ++reqTok;
+      fetch(url, { headers: { Accept: "application/json" } })
+        .then(function (r) { return r.ok ? r.json() : []; })
+        .then(function (list) {
+          if (my !== reqTok) return;   // a newer query superseded this one
+          selIdx = -1;
+          renderPlaceResults(res, Array.isArray(list) ? list : []);
+        })
+        .catch(function () { if (my === reqTok) { res.style.display = "none"; } });
+    };
+    inp.addEventListener("input", function () { clearTimeout(timer); timer = setTimeout(run, 350); });
+    inp.addEventListener("focus", function () { if (res.innerHTML) res.style.display = "block"; });
+    inp.addEventListener("keydown", function (e) {
+      var items = res.querySelectorAll(".sr-item");
+      if (e.key === "ArrowDown") { e.preventDefault(); selIdx = Math.min(selIdx + 1, items.length - 1); highlightItem(items, selIdx); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); selIdx = Math.max(selIdx - 1, 0); highlightItem(items, selIdx); }
+      else if (e.key === "Enter") { e.preventDefault(); if (selIdx >= 0 && items[selIdx]) items[selIdx].click(); else { clearTimeout(timer); run(); } }
+      else if (e.key === "Escape") { res.style.display = "none"; }
+    });
+    document.addEventListener("click", function (e) {
+      if (!res.contains(e.target) && e.target !== inp) res.style.display = "none";
+    });
+  }
+  function renderPlaceResults(res, list) {
+    if (!list.length) { res.innerHTML = '<div class="sr-empty">' + escapeHtml(t("place.none")) + "</div>"; res.style.display = "block"; return; }
+    res.innerHTML = list.map(function (r) {
+      return '<div class="sr-item" data-lat="' + (+r.lat) + '" data-lon="' + (+r.lon) + '">' + escapeHtml(r.display_name || "") + "</div>";
+    }).join("");
+    res.style.display = "block";
+    res.querySelectorAll(".sr-item").forEach(function (el) {
+      el.addEventListener("click", function () {
+        gotoPlace(+el.dataset.lat, +el.dataset.lon, el.textContent);
+        res.style.display = "none";
+      });
+    });
+  }
+  // Pan to a found place (keeping the current zoom so it stays in the same view)
+  // and drop a labelled marker that clears on the next map click.
+  function gotoPlace(lat, lon, label) {
+    if (!isFinite(lat) || !isFinite(lon) || !map) return;
+    map.panTo([lat, lon]);
+    if (placeMarker) map.removeLayer(placeMarker);
+    placeMarker = L.marker([lat, lon]).addTo(map).bindPopup(escapeHtml(label || "")).openPopup();
   }
 
   // Per-species probabilities at the current map centre/week, used to rank the
@@ -4604,6 +4690,7 @@
     // Don't fire the point-options popup if the user was tapping a plotted
     // detection (or just a few pixels off it).
     if (clickNearDetection(e.latlng)) return;
+    if (placeMarker) { map.removeLayer(placeMarker); placeMarker = null; }
     if (marker) map.removeLayer(marker);
     // Normalize: latitude clamped to [-90, 90]; longitude wrapped to [-180, 180]
     // (a click on a panned world-copy can otherwise give e.g. lon = 635).
