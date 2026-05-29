@@ -377,6 +377,7 @@
   // name or # column header overrides it and toggles asc/desc.
   var speciesListSort = { col: "", dir: "" };
   var menuKey = null, menuName = "", menuSci = "";  // species the menu targets
+  var menuNatGen = 0;   // bumped each open so a slow country lookup can't show a stale item
 
   function isHidden(key) { return !!hiddenSpecies[key]; }
   function loadHidden() {
@@ -554,6 +555,20 @@
   // taxon, vs. a species page that would 404 on a naming mismatch).
   function xenoCantoUrl(sci) {
     return "https://xeno-canto.org/explore?query=" + encodeURIComponent(String(sci || "").trim());
+  }
+  // National observation sites — homepage URLs. We append the scientific name
+  // as a hash so the species is visible in the address bar for copy/paste into
+  // the site's own search; the sites don't reliably take a search query string.
+  var NAT_LIST_URLS = {
+    NO: "https://www.artsobservasjoner.no/",
+    SE: "https://www.artportalen.se/",
+    DK: "https://dofbasen.dk/",
+    FI: "https://www.tiira.fi/"
+  };
+  function natListUrl(cc, sci) {
+    var base = NAT_LIST_URLS[cc]; if (!base) return null;
+    var name = String(sci || "").trim();
+    return name ? base + "#species=" + encodeURIComponent(name) : base;
   }
 
   // eBird species page (label keys are eBird taxon codes) — shows recent
@@ -840,16 +855,29 @@
       var t = Date.parse(dt); if (!isNaN(t) && t > extras[k].latestTs) extras[k].latestTs = t;
     }
     (gbif || []).forEach(function (o) {
+      // Drop higher-rank identifications (ORDER, FAMILY, GENUS, …). Without
+      // this filter "Passeriformes" or "Passer" — observations the recorder
+      // wouldn't commit to a species — end up as separate species-list rows.
+      var rank = String(o.taxonRank || "").toUpperCase();
+      if (rank && rank !== "SPECIES" && rank !== "SUBSPECIES" && rank !== "VARIETY" && rank !== "FORM") return;
       var sciName = o.species || o.scientificName; if (!sciName) return;
+      // Strip the author citation GBIF often appends ("Genus species Author, year").
+      sciName = sciName.replace(/\s+\([^)]*\)\s*/g, " ").replace(/,\s*\d{4}.*$/, "").trim();
+      // Skip leftovers that are clearly not binomials (one word = genus or above).
+      if (!/\s/.test(sciName)) return;
       var lbl = sci[sciName.toLowerCase()];
       if (lbl) bump(lbl.key, o.eventDate);
       else bumpExtra(sciName, "", o.eventDate, normClass(o.class));
     });
     (inat || []).forEach(function (o) {
-      var sciName = o.taxon && o.taxon.name; if (!sciName) return;
+      var tax = o.taxon || {};
+      var rank = String(tax.rank || "").toLowerCase();
+      if (rank && rank !== "species" && rank !== "subspecies" && rank !== "variety" && rank !== "form") return;
+      var sciName = tax.name; if (!sciName) return;
+      if (!/\s/.test(sciName)) return;   // genus-only name slipped through
       var lbl = sci[sciName.toLowerCase()];
       if (lbl) bump(lbl.key, o.observed_on || o.time_observed_at);
-      else bumpExtra(sciName, (o.taxon && o.taxon.preferred_common_name) || "", o.observed_on || o.time_observed_at, normClass(o.taxon && o.taxon.iconic_taxon_name));
+      else bumpExtra(sciName, tax.preferred_common_name || "", o.observed_on || o.time_observed_at, normClass(tax.iconic_taxon_name));
     });
     (ebird || []).forEach(function (o) {
       if (labelsByKey[o.speciesCode]) bump(o.speciesCode, o.obsDt);
@@ -1592,6 +1620,10 @@
           '<button type="button" class="sp-menu-item" data-act="birdlife" data-i18n="menu.birdlife">BirdLife</button>' +
           '<button type="button" class="sp-menu-item" data-act="macaulay" data-i18n="menu.macaulay">Macaulay Library</button>' +
           '<button type="button" class="sp-menu-item" data-act="xeno" data-i18n="menu.xeno">Xeno-canto (audio)</button>' +
+          '<button type="button" class="sp-menu-item sp-menu-natlist" data-act="natlist" data-cc="NO" data-i18n="menu.artsobs" style="display:none">Artsobservasjoner (NO)</button>' +
+          '<button type="button" class="sp-menu-item sp-menu-natlist" data-act="natlist" data-cc="SE" data-i18n="menu.artportalen" style="display:none">Artportalen (SE)</button>' +
+          '<button type="button" class="sp-menu-item sp-menu-natlist" data-act="natlist" data-cc="DK" data-i18n="menu.dofbasen" style="display:none">DOFbasen (DK)</button>' +
+          '<button type="button" class="sp-menu-item sp-menu-natlist" data-act="natlist" data-cc="FI" data-i18n="menu.tiira" style="display:none">Tiira (FI)</button>' +
           '<button type="button" class="sp-menu-item" data-act="interesting" data-i18n="menu.interestingAdd">★ Mark interesting</button>' +
           '<button type="button" class="sp-menu-item" data-act="hide" data-i18n="menu.hide">Do not show</button>' +
         '</div>' +
@@ -2360,15 +2392,19 @@
   }
 
   // ---- Add / edit popup ----
+  // "edit" mode is determined by the presence of an id on the passed object,
+  // NOT just by it being non-null — a fresh add still passes {lat,lon,...} so
+  // truthiness would mis-detect it as an edit and silently no-op the save.
   function openPointEditor(existing) {
     var p = existing || { lat: null, lon: null, name: "", tags: [], note: "" };
+    var isEdit = !!(existing && existing.id);
     // Re-use a single working popup; close any other detail popups first.
     if (mpEditPopup) map.closePopup(mpEditPopup);
-    var html = mpEditorHtml(p, !!existing);
+    var html = mpEditorHtml(p, isEdit);
     var pop = L.popup({ closeButton: true, autoClose: false, maxWidth: 280, className: "mp-popup" })
       .setLatLng([p.lat, p.lon]).setContent(html);
     mpEditPopup = pop; pop.openOn(map);
-    setTimeout(function () { wireEditorPopup(p, !!existing); }, 0);
+    setTimeout(function () { wireEditorPopup(p, isEdit); }, 0);
   }
   var mpEditPopup = null;
   function mpEditorHtml(p, isEdit) {
@@ -3423,6 +3459,18 @@
         // Dynamic label on the Interesting item — add vs remove based on state.
         var intBtn = spMenu.querySelector('[data-act="interesting"]');
         if (intBtn) intBtn.textContent = t(isInteresting(menuKey) ? "menu.interestingRemove" : "menu.interestingAdd");
+        // National observation-site items — hidden until the click point's
+        // country resolves; then exactly the matching one (if any) is shown.
+        spMenu.querySelectorAll(".sp-menu-natlist").forEach(function (b) { b.style.display = "none"; });
+        var natToken = ++menuNatGen;
+        var ll = marker ? marker.getLatLng() : (map ? map.getCenter() : null);
+        if (ll && bird) {
+          countryCode(ll.lat, ll.lng).then(function (cc) {
+            if (natToken !== menuNatGen || spMenu.style.display === "none") return;
+            var btn = spMenu.querySelector('.sp-menu-natlist[data-cc="' + cc + '"]');
+            if (btn) btn.style.display = "";
+          });
+        }
         spMenu.style.left = e.pageX + "px";
         spMenu.style.top = e.pageY + "px";
         spMenu.style.display = "block";
@@ -3446,6 +3494,10 @@
         else if (act === "xeno") openExternal(xenoCantoUrl(menuSci || menuName));
         else if (act === "distmap") showDistMap(menuName, menuSci || menuName, menuKey);
         else if (act === "recent") { var rl = marker ? marker.getLatLng() : map.getCenter(); showRecent(menuName, menuSci || menuName, rl.lat, rl.lng, menuKey); }
+        else if (act === "natlist") {
+          var url = natListUrl(this.getAttribute("data-cc"), menuSci || menuName);
+          if (url) openExternal(url);
+        }
         spMenu.style.display = "none";
       });
     });
