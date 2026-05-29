@@ -2520,6 +2520,11 @@
   var mpFilter = [];
   var mpShown = true;   // master visibility toggle — hides all markers but keeps the data
   var mpLayer = null;
+  // Named collections — saveable/retrievable point lists (e.g. "Owl nests",
+  // "Spring trip"). mpActiveName is the loaded list; edits to the working set
+  // auto-sync into it. Shape: GeoState.mapPointSets = [{ name, points[] }].
+  var mpCollections = [];
+  var mpActiveName = "";
 
   var MP_COLORS = ["#1f77b4","#ff7f0e","#2ca02c","#d62728","#9467bd","#8c564b","#e377c2","#7f7f7f","#bcbd22","#17becf"];
   function mpHashColor(tag) {
@@ -2537,8 +2542,42 @@
     mapPoints = (window.GeoState.get("mapPoints", []) || []).filter(function (p) { return p && isFinite(p.lat) && isFinite(p.lon); });
     mpFilter = window.GeoState.get("mapPointsFilter", []) || [];
     mpShown = window.GeoState.get("mapPointsShown", true) !== false;
+    mpCollections = (window.GeoState.get("mapPointSets", []) || []).filter(function (c) { return c && c.name; });
+    mpActiveName = window.GeoState.get("mapPointSetActive", "") || "";
   }
-  function saveMapPoints() { window.GeoState.save({ mapPoints: mapPoints, mapPointsFilter: mpFilter, mapPointsShown: mpShown }); }
+  function saveMapPoints() {
+    // Keep the loaded collection in lock-step with the working set so a list
+    // stays current as the user adds/edits/removes pins after loading it.
+    if (mpActiveName) {
+      var c = mpCollections.filter(function (x) { return x.name === mpActiveName; })[0];
+      if (c) c.points = mapPoints.slice();
+    }
+    window.GeoState.save({ mapPoints: mapPoints, mapPointsFilter: mpFilter, mapPointsShown: mpShown, mapPointSets: mpCollections, mapPointSetActive: mpActiveName });
+  }
+  // Snapshot the current pins under a name (overwrites a list of the same name).
+  function saveCollection(name) {
+    name = String(name || "").trim(); if (!name) return;
+    var c = mpCollections.filter(function (x) { return x.name === name; })[0];
+    if (c) c.points = mapPoints.slice();
+    else mpCollections.push({ name: name, points: mapPoints.slice() });
+    mpActiveName = name;
+    saveMapPoints(); renderMapPoints();
+  }
+  // Replace the working set with a named list and make it the active list.
+  function loadCollection(name) {
+    var c = mpCollections.filter(function (x) { return x.name === name; })[0]; if (!c) return;
+    mapPoints = (c.points || []).map(function (p) { return Object.assign({}, p); });
+    mpActiveName = name; mpFilter = [];
+    saveMapPoints(); renderMapPoints();
+    var pts = mapPoints.filter(function (p) { return isFinite(p.lat) && isFinite(p.lon); });
+    if (pts.length && map) { try { map.fitBounds(L.latLngBounds(pts.map(function (p) { return [p.lat, p.lon]; })).pad(0.2)); } catch (e) {} }
+  }
+  // Forget a named list. The pins currently on the map are left untouched.
+  function deleteCollection(name) {
+    mpCollections = mpCollections.filter(function (x) { return x.name !== name; });
+    if (mpActiveName === name) mpActiveName = "";
+    saveMapPoints(); renderMapPoints();
+  }
   function addMapPoint(p) {
     p.id = p.id || mpUid();
     p.createdAt = p.createdAt || new Date().toISOString();
@@ -2558,7 +2597,9 @@
     renderMapPoints();
   }
   function clearMapPoints() {
-    mapPoints = []; mpFilter = []; saveMapPoints(); renderMapPoints();
+    // Detach first so we don't sync the now-empty working set onto the saved
+    // list — the named list survives "Delete"; only the live pins are cleared.
+    mpActiveName = ""; mapPoints = []; mpFilter = []; saveMapPoints(); renderMapPoints();
   }
   // Distinct tag pool across all stored points, alphabetically sorted.
   function mpAllTags() {
@@ -2714,6 +2755,17 @@
         '<button type="button" id="mp-export" class="demo-btn"' + (mapPoints.length ? "" : " disabled") + '>' + escapeHtml(t("points.export")) + "</button>" +
         '<button type="button" id="mp-clear" class="demo-btn demo-btn-light">' + escapeHtml(t("points.delete")) + "</button>" +
       "</div>" +
+      '<div class="mp-coll">' +
+        '<select id="mp-coll-select" title="' + escapeHtml(t("points.collection")) + '">' +
+          '<option value="">' + escapeHtml(t("points.collection")) + "</option>" +
+          mpCollections.slice().sort(function (a, b) { return a.name.localeCompare(b.name); }).map(function (c) {
+            return '<option value="' + escapeHtml(c.name) + '"' + (c.name === mpActiveName ? " selected" : "") + ">" +
+              escapeHtml(c.name) + " (" + ((c.points && c.points.length) || 0) + ")</option>";
+          }).join("") +
+        "</select>" +
+        '<button type="button" id="mp-coll-save" class="demo-btn">' + escapeHtml(t("points.saveAs")) + "</button>" +
+        (mpActiveName ? '<button type="button" id="mp-coll-del" class="demo-btn demo-btn-light" title="' + escapeHtml(t("points.deleteColl")) + '">🗑</button>' : "") +
+      "</div>" +
       (chipsHtml ? '<div class="mp-chips">' + chipsHtml + "</div>" : "") +
       '<div class="mp-list">' + listHtml + "</div>";
     // Wire interactions
@@ -2748,6 +2800,22 @@
     if (sh) sh.addEventListener("change", function () { mpShown = !!this.checked; saveMapPoints(); renderMapPoints(); });
     var clr = panel.querySelector("#mp-clear");
     if (clr) clr.addEventListener("click", function () { if (mapPoints.length && confirm(t("points.clearAllPrompt"))) clearMapPoints(); });
+    var collSel = panel.querySelector("#mp-coll-select");
+    if (collSel) collSel.addEventListener("change", function () { if (this.value) loadCollection(this.value); });
+    var collSave = panel.querySelector("#mp-coll-save");
+    if (collSave) collSave.addEventListener("click", function () {
+      var n = prompt(t("points.saveAsPrompt"), mpActiveName || "");
+      if (n && n.trim()) {
+        var name = n.trim();
+        var exists = mpCollections.some(function (x) { return x.name === name; });
+        if (exists && name !== mpActiveName && !confirm(t("points.overwritePrompt", { name: name }))) return;
+        saveCollection(name);
+      }
+    });
+    var collDel = panel.querySelector("#mp-coll-del");
+    if (collDel) collDel.addEventListener("click", function () {
+      if (mpActiveName && confirm(t("points.deleteCollPrompt", { name: mpActiveName }))) deleteCollection(mpActiveName);
+    });
   }
 
   // ---- File import ----
