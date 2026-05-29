@@ -4293,6 +4293,18 @@
       mk.closePopup();
       countryInfo(lat, lon).then(function (info) { openExternal(birdLifeCountryUrl(info.cc, info.name)); });
     }));
+    // National observation/registration service — only when this point's
+    // country has one (NO / SE / DK / FI). Appended once the reverse-geocode
+    // resolves so the popup opens instantly.
+    var natKeys = { NO: "menu.artsobs", SE: "menu.artportalen", DK: "menu.dofbasen", FI: "menu.tiira" };
+    countryInfo(lat, lon).then(function (info) {
+      var key = natKeys[info.cc], url = natListUrl(info.cc, "");
+      if (!key || !url) return;
+      wrap.appendChild(makePopupBtn(t(key) + " ↗", "demo-btn-light", function () {
+        mk.closePopup(); openExternal(url);
+      }));
+      var pop = mk.getPopup(); if (pop && pop.isOpen()) pop.update();   // re-layout for the added button
+    }).catch(function () { /* leave as-is */ });
     mk.bindPopup(wrap, { closeButton: true, autoClose: false, autoPan: true, className: "choose-popup", offset: [0, -8] });
     mk.openPopup();
   }
