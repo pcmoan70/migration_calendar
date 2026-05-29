@@ -2478,8 +2478,8 @@
     el.innerHTML = '<div class="det-legend-head">' +
         '<button type="button" class="det-min" title="' + escapeHtml(t("det.minimise")) + '" aria-label="' + escapeHtml(t("det.minimise")) + '">−</button>' +
         '<button type="button" class="det-clear">' + escapeHtml(t("det.clearAll")) + "</button>" +
+        '<select id="det-recency" title="' + escapeHtml(t("det.recency")) + '">' + recOpts + "</select>" +
       "</div>" +
-      '<div class="det-recency-row"><label for="det-recency">' + escapeHtml(t("det.recency")) + '</label><select id="det-recency">' + recOpts + "</select></div>" +
       keys.map(function (k) {
         var e = detPlot[k], nm = escapeHtml(detName(e));
         var vis = (e.group && e.group._visibleCount != null) ? e.group._visibleCount : e.rows.length;
