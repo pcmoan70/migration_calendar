@@ -26,6 +26,7 @@
   var taxByCode = {};          // species_code -> { com_name, class_name, common_name_xx, ... }
   var secondLang = "";         // optional 2nd species-name language ("" = off)
   var secondTaxCol = "";       // taxonomy column for the 2nd language
+  var showSci = true;          // show the scientific-name column in lists
 
   function t(key, vars) { return window.GeoI18N.t(lang, key, vars); }
 
@@ -55,6 +56,12 @@
   function setSecondLang(code) {
     secondLang = code || "";
     secondTaxCol = secondLang ? window.GeoI18N.langByCode(secondLang).taxCol : "";
+  }
+  // Toggle the scientific-name column on the species-list table via a class
+  // (CSS hides .sci cells + the header when present). Pure presentation.
+  function applyShowSci() {
+    var tbl = document.getElementById("species-list-table");
+    if (tbl) tbl.classList.toggle("hide-sci", !showSci);
   }
 
   // ---- Species-group filter (taxonomic class) ------------------------------
@@ -1384,6 +1391,9 @@
               '<div class="ctrl-group" id="secondlang-wrap" style="display:none">' +
                 '<label for="secondlang-select" data-i18n="ctrl.secondlang">2nd name</label>' +
                 '<select id="secondlang-select"></select>' +
+              '</div>' +
+              '<div class="ctrl-group">' +
+                '<label class="ctrl-check"><input type="checkbox" id="show-sci-toggle" checked> <span data-i18n="ctrl.showsci">Scientific names</span></label>' +
               '</div>' +
               '<div class="ctrl-group">' +
                 '<label for="group-select" data-i18n="ctrl.group">Species group</label>' +
@@ -2897,6 +2907,14 @@
       setSecondLang(this.value);
       window.GeoState.save({ secondLang: secondLang });
       rerenderPointList();
+    });
+
+    // Scientific-name column toggle — pure CSS show/hide on the live table,
+    // no re-render needed.
+    document.getElementById("show-sci-toggle").addEventListener("change", function () {
+      showSci = !!this.checked;
+      window.GeoState.save({ showSci: showSci });
+      applyShowSci();
     });
 
 
@@ -5729,6 +5747,7 @@
       document.getElementById("sp-delta-head").textContent = spp ? t("th.source") : "";
       var tbl = document.getElementById("species-list-table");
       tbl.classList.toggle("has-name2", !!secondLang);
+      tbl.classList.toggle("hide-sci", !showSci);
       document.getElementById("sp-name2-head").textContent = secondLang ? window.GeoI18N.langByCode(secondLang).name : "";
       var mergeHint = "";
       if (!spp) {
@@ -5828,6 +5847,7 @@
       // Optional second-language name column.
       var tbl = document.getElementById("species-list-table");
       tbl.classList.toggle("has-name2", !!secondLang);
+      tbl.classList.toggle("hide-sci", !showSci);
       document.getElementById("sp-name2-head").textContent = secondLang ? window.GeoI18N.langByCode(secondLang).name : "";
       setCoordsWithPlace(document.getElementById("sp-coords"), lat, lon,
         t("sp.summary", { lat: lat.toFixed(4), lon: lon.toFixed(4), week: week, n: results.length, p: (pmin * 100).toFixed(0) }));
@@ -6404,6 +6424,10 @@
     if (cmp !== null) document.getElementById("compare-select").value = cmp;
 
     setSecondLang(window.GeoState.get("secondLang", ""));
+
+    showSci = window.GeoState.get("showSci", true) !== false;
+    document.getElementById("show-sci-toggle").checked = showSci;
+    applyShowSci();
 
     analysisTab = window.GeoState.get("analysisTab", "timeline");
     document.getElementById("an-rankby").value = window.GeoState.get("scatterRankBy", "arrival");
