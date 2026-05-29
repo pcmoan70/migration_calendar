@@ -1602,7 +1602,7 @@
                 '</select>' +
               '</div>' +
               '<div class="ctrl-group">' +
-                '<details id="custom-urls-wrap" open>' +
+                '<details id="custom-urls-wrap">' +
                   '<summary data-i18n="ctrl.customurls">National databases</summary>' +
                   '<p class="cu-hint" data-i18n="ctrl.customurlsHint">Open extra sites for a country in the map popups. Country code = ISO-3166 (e.g. NO, GB).</p>' +
                   '<div id="custom-urls-list"></div>' +
@@ -2276,6 +2276,7 @@
   // Click a legend row to "select" it — selected species draw in their colour
   // and the unselected ones are hidden entirely.
   var detSelected = {};
+  var mapClickGuardUntil = 0;   // onMapClick ignores clicks before this time (set after legend re-renders)
   function detSelectionActive() { return Object.keys(detSelected).some(function (k) { return detPlot[k]; }); }
   function detIsVisible(key) { return !detSelectionActive() || !!detSelected[key]; }
   function detIsMuted(key) { return !detSelectionActive(); }   // no selection → all grey
@@ -2468,7 +2469,7 @@
     // Collapsed: a single pill in the corner showing the species count.
     if (detLegendMini) {
       el.innerHTML = '<button type="button" class="det-restore" title="' + escapeHtml(t("det.expand")) + '">📍 ' + keys.length + "</button>";
-      el.querySelector(".det-restore").addEventListener("click", function () { detLegendMini = false; updateDetLegend(); });
+      el.querySelector(".det-restore").addEventListener("click", function () { mapClickGuardUntil = Date.now() + 250; detLegendMini = false; updateDetLegend(); });
       return;
     }
     var rDays = detRecencyDays();
@@ -2492,7 +2493,7 @@
         return '<div class="' + rowCls + '" data-key="' + escapeHtml(k) + '"><span class="det-sw" style="background:' + sw + '"></span><span class="det-nm" title="' + nm + '">' + interestingStar(e.key) + nm + '</span><span class="det-ct">' + ct + '</span><button type="button" class="det-del" data-key="' + escapeHtml(k) + '" aria-label="remove">×</button></div>';
       }).join("");
     el.querySelector(".det-clear").addEventListener("click", clearDetections);
-    el.querySelector(".det-min").addEventListener("click", function () { detLegendMini = true; updateDetLegend(); });
+    el.querySelector(".det-min").addEventListener("click", function () { mapClickGuardUntil = Date.now() + 250; detLegendMini = true; updateDetLegend(); });
     el.querySelectorAll(".det-del").forEach(function (b) { b.addEventListener("click", function (e) { e.stopPropagation(); removeDetection(this.getAttribute("data-key")); }); });
     // Click a row to toggle its visibility selection.
     el.querySelectorAll(".det-row-click").forEach(function (row) {
@@ -3143,6 +3144,10 @@
       window.GeoState.save({ countryLinks: null, customCountryUrls: null });   // revert to built-in defaults
       renderCustomUrls();
     });
+    // Persist the National-databases section's open/closed state (default closed).
+    var natDetails = document.getElementById("custom-urls-wrap");
+    natDetails.open = window.GeoState.get("natdbOpen", false) === true;
+    natDetails.addEventListener("toggle", function () { window.GeoState.save({ natdbOpen: natDetails.open }); });
 
 
     document.getElementById("hires-factor").addEventListener("change", function () {
@@ -4477,6 +4482,9 @@
   function onMapClick(e) {
     // List + Range show the per-point species list; Migration the analysis.
     if (["list", "barchart", "range"].indexOf(currentMode) < 0) return;
+    // A legend control that re-renders (minimise / restore) can let the same
+    // click leak through to the map; ignore map clicks for a short window after.
+    if (Date.now() < mapClickGuardUntil) return;
     // Don't fire the point-options popup if the user was tapping a plotted
     // detection (or just a few pixels off it).
     if (clickNearDetection(e.latlng)) return;
