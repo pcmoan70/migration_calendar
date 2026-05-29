@@ -411,7 +411,7 @@ window.GeoI18N = (function () {
       "th.rank": "#",
       "th.species": "Species",
       "th.sci": "Scientific name",
-      "th.prob": "Probability",
+      "th.prob": "Prob.",
       "th.count": "#",
       "th.age": "Age",
       "th.nd": "n(d)",
