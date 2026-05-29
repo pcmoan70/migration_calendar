@@ -2355,14 +2355,19 @@
     if (!currentSpView || currentSpView.mode !== "point") { setStatus(t("det.none")); return; }
     setStatus(t("sp.plotting"));
     fetchAllSightingsAt(currentSpView.lat, currentSpView.lon).then(function (result) {
+      // Respect the active species-group filter so e.g. "Birds" mode doesn't
+      // plot insects / reptiles / plants picked up from GBIF / iNaturalist.
+      var grp = speciesGroup;
+      function modelKeyInGroup(key) { return grp === "all" || ((taxByCode[key] || {}).class_name || "").toLowerCase() === grp; }
+      function extraInGroup(cls) { return grp === "all" || (cls && String(cls).toLowerCase() === grp); }
       var entries = [];
       Object.keys(result.agg).forEach(function (key) {
         var a = result.agg[key];
-        if (a.rows && a.rows.length) entries.push({ key: key, name: (labelsByKey[key] && speciesName(labelsByKey[key])) || key, rows: a.rows, count: a.count });
+        if (a.rows && a.rows.length && modelKeyInGroup(key)) entries.push({ key: key, name: (labelsByKey[key] && speciesName(labelsByKey[key])) || key, rows: a.rows, count: a.count });
       });
       Object.keys(result.extras).forEach(function (k) {
         var ex = result.extras[k];
-        if (ex.rows && ex.rows.length) entries.push({ key: "x:" + k, name: ex.name || ex.sci, rows: ex.rows, count: ex.count });
+        if (ex.rows && ex.rows.length && extraInGroup(ex.cls)) entries.push({ key: "x:" + k, name: ex.name || ex.sci, rows: ex.rows, count: ex.count });
       });
       if (!entries.length) { setStatus(t("det.none")); return; }
       entries.sort(function (a, b) { return b.count - a.count; });
