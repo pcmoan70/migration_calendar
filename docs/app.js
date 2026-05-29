@@ -562,14 +562,37 @@
   function xenoCantoUrl(sci) {
     return "https://xeno-canto.org/explore?query=" + encodeURIComponent(String(sci || "").trim());
   }
-  // National observation sites — homepage URLs. We append the scientific name
-  // as a hash so the species is visible in the address bar for copy/paste into
-  // the site's own search; the sites don't reliably take a search query string.
+  // National observation sites by ISO-3166 alpha-2 country code — homepage
+  // URLs plus the i18n key for each label. We append the scientific name as a
+  // hash so the species is visible in the address bar for copy/paste into the
+  // site's own search; the sites don't reliably take a search query string.
+  // GB and IE share BirdTrack. Single source of truth for both the map-click
+  // chooser and the saved-point popup.
   var NAT_LIST_URLS = {
     NO: "https://www.artsobservasjoner.no/",
     SE: "https://www.artportalen.se/",
     DK: "https://dofbasen.dk/",
-    FI: "https://www.tiira.fi/"
+    FI: "https://www.tiira.fi/",
+    DE: "https://www.ornitho.de/",
+    AT: "https://www.ornitho.at/",
+    CH: "https://www.ornitho.ch/",
+    FR: "https://www.faune-france.org/",
+    IT: "https://www.ornitho.it/",
+    LU: "https://www.ornitho.lu/",
+    PL: "https://www.ornitho.pl/",
+    HR: "https://www.fauna.hr/",
+    NL: "https://waarneming.nl/",
+    BE: "https://waarnemingen.be/",
+    GB: "https://www.bto.org/our-science/projects/birdtrack",
+    IE: "https://www.bto.org/our-science/projects/birdtrack",
+    LV: "https://dabasdati.lv/"
+  };
+  var NAT_LIST_KEY = {
+    NO: "menu.artsobs", SE: "menu.artportalen", DK: "menu.dofbasen", FI: "menu.tiira",
+    DE: "menu.ornithode", AT: "menu.ornithoat", CH: "menu.ornithoch", FR: "menu.faunefr",
+    IT: "menu.ornithoit", LU: "menu.ornitholu", PL: "menu.ornithopl", HR: "menu.faunahr",
+    NL: "menu.waarnemingnl", BE: "menu.waarnemingenbe", GB: "menu.birdtrack", IE: "menu.birdtrack",
+    LV: "menu.dabasdati"
   };
   function natListUrl(cc, sci) {
     var base = NAT_LIST_URLS[cc]; if (!base) return null;
@@ -2440,10 +2463,9 @@
     // Country-gated link to a national observation service. Hidden until the
     // reverse-geocode resolves; shown only when the point's country has a
     // matching site in NAT_LIST_URLS.
-    var natKeys = { NO: "menu.artsobs", SE: "menu.artportalen", DK: "menu.dofbasen", FI: "menu.tiira" };
     countryCode(p.lat, p.lon).then(function (cc) {
       var slot = document.getElementById("mp-natlist"); if (!slot) return;
-      var key = natKeys[cc], url = natListUrl(cc, "");
+      var key = NAT_LIST_KEY[cc], url = natListUrl(cc, "");
       if (!key || !url) return;
       slot.style.display = "";
       slot.innerHTML = '<a href="' + escapeHtml(url) + '" target="_blank" rel="noopener">' + escapeHtml(t(key)) + " ↗</a>";
@@ -4294,11 +4316,10 @@
       countryInfo(lat, lon).then(function (info) { openExternal(birdLifeCountryUrl(info.cc, info.name)); });
     }));
     // National observation/registration service — only when this point's
-    // country has one (NO / SE / DK / FI). Appended once the reverse-geocode
+    // country has one (see NAT_LIST_KEY). Appended once the reverse-geocode
     // resolves so the popup opens instantly.
-    var natKeys = { NO: "menu.artsobs", SE: "menu.artportalen", DK: "menu.dofbasen", FI: "menu.tiira" };
     countryInfo(lat, lon).then(function (info) {
-      var key = natKeys[info.cc], url = natListUrl(info.cc, "");
+      var key = NAT_LIST_KEY[info.cc], url = natListUrl(info.cc, "");
       if (!key || !url) return;
       wrap.appendChild(makePopupBtn(t(key) + " ↗", "demo-btn-light", function () {
         mk.closePopup(); openExternal(url);
