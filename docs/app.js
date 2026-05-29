@@ -152,6 +152,18 @@
     el.style.height = Math.max(320, Math.round(window.innerHeight - top - 8)) + "px";
     if (map) map.invalidateSize();
   }
+  function isFullscreen() { return !!(document.fullscreenElement || document.webkitFullscreenElement); }
+  function fsIconSvg() {
+    // Outward arrows when normal (→ expand), inward when already full-screen.
+    return isFullscreen()
+      ? '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>'
+      : '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>';
+  }
+  function toggleFullscreen() {
+    var d = document, el = d.documentElement;
+    if (!isFullscreen()) { var req = el.requestFullscreen || el.webkitRequestFullscreen; if (req) req.call(el); }
+    else { var ex = d.exitFullscreen || d.webkitExitFullscreen; if (ex) ex.call(d); }
+  }
 
   // Grid resolution per zoom level (degrees per cell). Finer cells at deeper
   // zoom keep the heatmap detailed without exploding the cell count.
@@ -1872,7 +1884,6 @@
           '<h3 data-i18n="about.title">About the model &amp; how values are computed</h3>' +
           '<div id="about-body"></div>' +
         '</div></div>' +
-        '<div id="last-change"></div>' +
         '<div id="perf-modal" style="display:none"><div id="perf-modal-box">' +
           '<h2 class="perf-title" data-i18n="popup.title">Species distributions and checklists</h2>' +
           '<p data-i18n="popup.perf"></p>' +
@@ -1901,6 +1912,15 @@
       if (hdr && chkWrap) hdr.appendChild(chkWrap);
       var mpWrap = document.getElementById("mp-wrap");
       if (hdr && mpWrap) hdr.appendChild(mpWrap);
+      // Surface the basemap (Map type) selector directly in the controls bar
+      // above the map instead of burying it in Settings.
+      var ctrlsBar = document.getElementById("demo-controls");
+      var mapTypeWrap = document.getElementById("maptype-wrap");
+      var placeWrap = document.getElementById("place-search-wrap");
+      if (ctrlsBar && mapTypeWrap) {
+        if (placeWrap) ctrlsBar.insertBefore(mapTypeWrap, placeWrap.nextSibling);
+        else ctrlsBar.appendChild(mapTypeWrap);
+      }
       syncHeaderHeight();
       window.addEventListener("resize", function () { syncHeaderHeight(); fitMapHeight(); });
       populateLangSelect();
@@ -2100,10 +2120,21 @@
       var lbl = labelsByKey[selSp.dataset.selectedKey];
       selSp.setAttribute("placeholder", speciesName(lbl) + " (" + lbl.sci + ")");
     }
-    var about = document.getElementById("about-body");
-    if (about) about.innerHTML = t("about.html") +   // raw HTML doc, localized
-      '<div id="visit-counter"><img src="https://api.visitorbadge.io/api/visitors?path=https%3A%2F%2Fpcmoan70.github.io%2Fmigration_calendar&label=page%20visits&labelColor=%230f1b24&countColor=%232f6f4f" alt="page visits" /></div>';
+    renderAboutBody();
     updateLegend();
+  }
+  // The About panel ends with a footer holding the visit counter and the
+  // "Last change" timestamp. Rebuilt on language change and when the timestamp
+  // resolves, so both survive re-renders.
+  var lastChangeText = "";
+  function renderAboutBody() {
+    var about = document.getElementById("about-body");
+    if (!about) return;
+    about.innerHTML = t("about.html") +   // raw HTML doc, localized
+      '<div id="about-footer">' +
+        '<div id="visit-counter"><img src="https://api.visitorbadge.io/api/visitors?path=https%3A%2F%2Fpcmoan70.github.io%2Fmigration_calendar&label=page%20visits&labelColor=%230f1b24&countColor=%232f6f4f" alt="page visits" /></div>' +
+        (lastChangeText ? '<div id="last-change">' + escapeHtml(t("footer.lastchange", { t: lastChangeText })) + "</div>" : "") +
+      "</div>";
   }
 
   // Build the 48-week dropdown with localized labels.
@@ -2186,6 +2217,27 @@
     });
     map.addControl(new LocateControl());
     map.on("locationerror", function () { setStatus(t("status.locateError")); });
+
+    // Full-screen toggle — expands the whole page (collapsing the browser's
+    // address bar). Only added where the Fullscreen API is available.
+    if (document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen) {
+      var FullscreenControl = L.Control.extend({
+        options: { position: "topright" },
+        onAdd: function () {
+          var c = L.DomUtil.create("div", "leaflet-bar leaflet-control");
+          var a = L.DomUtil.create("a", "fs-toggle-btn", c);
+          a.href = "#"; a.title = t("ctrl.fullscreen"); a.setAttribute("aria-label", t("ctrl.fullscreen"));
+          a.innerHTML = fsIconSvg();
+          L.DomEvent.on(a, "click", function (e) { L.DomEvent.preventDefault(e); L.DomEvent.stopPropagation(e); toggleFullscreen(); });
+          return c;
+        }
+      });
+      map.addControl(new FullscreenControl());
+      document.addEventListener("fullscreenchange", function () {
+        var b = document.querySelector(".fs-toggle-btn"); if (b) b.innerHTML = fsIconSvg();
+        fitMapHeight();
+      });
+    }
 
     // After locating, populate the click-driven modes at the current position.
     map.on("locationfound", function (e) {
@@ -3103,13 +3155,11 @@
   // Show the "Last change" timestamp (written into last-change.txt by the
   // pre-commit hook on every commit/push to main).
   function showLastChange() {
-    var el = document.getElementById("last-change");
-    if (!el) return;
     fetch("last-change.txt", { cache: "no-store" }).then(function (r) {
       return r.ok ? r.text() : "";
     }).then(function (txt) {
-      txt = (txt || "").trim();
-      if (txt) el.textContent = t("footer.lastchange", { t: txt });
+      lastChangeText = (txt || "").trim();
+      if (lastChangeText) renderAboutBody();   // fold it into the About footer
     }).catch(function () { /* offline — leave blank */ });
   }
 

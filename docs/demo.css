@@ -73,7 +73,7 @@ input:focus-visible {
   flex-wrap: wrap;
   gap: 14px;
   align-items: flex-end;
-  margin: 16px 0 14px;
+  margin: 16px 0 6px;
   padding: 14px 16px;
   background: var(--surface);
   border: 1px solid var(--border);
@@ -102,6 +102,12 @@ input:focus-visible {
   position: relative;
   flex: 1 1 260px;
   max-width: 400px;
+}
+/* Place search is a single row: hide its label (the placeholder labels it),
+   but keep it for screen readers. */
+#place-search-wrap label {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
 }
 
 #species-search,
@@ -189,8 +195,8 @@ input:focus-visible {
 #demo-status {
   font-size: 0.8rem;
   color: var(--md-default-fg-color--light, #666);
-  min-height: 1.4em;
-  margin-bottom: 6px;
+  min-height: 1.2em;
+  margin-bottom: 2px;
 }
 
 /* Selected species name above the map (Range mode), clickable for the menu */
@@ -228,17 +234,14 @@ input:focus-visible {
 /* ---------- Map ---------- */
 #demo-map {
   width: 100%;
-  /* Balanced landscape proportions instead of a thin, wide letterbox. The
-     aspect ratio drives the height from the width, capped to the viewport so
-     the controls/panels below stay easy to reach, with a floor for narrow
-     (mobile) screens. */
+  /* Height is set by JS (fitMapHeight) to fill down to the viewport bottom;
+     these are just fallbacks before that runs. */
   aspect-ratio: 16 / 10;
   height: auto;
-  max-height: 72vh;
   min-height: 400px;
-  border-radius: var(--radius);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow-md);
+  /* Edge-to-edge map: no card border/radius/shadow stealing space. */
+  border: 0;
+  border-radius: 0;
   z-index: 1;
 }
 
@@ -328,11 +331,15 @@ input:focus-visible {
 }
 #chk-loc-input:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
 
-/* Map wrapper */
+/* Map wrapper — full-bleed: break out of the centered #demo-app container so
+   the map spans the full viewport width, edge to edge. */
 #demo-map-wrap {
   position: relative;
-  margin-top: 8px;
-  margin-bottom: 12px;
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
+  margin-top: 2px;
+  margin-bottom: 0;
 }
 
 #demo-computing {
@@ -708,6 +715,7 @@ input:focus-visible {
 /* ===== Standalone page chrome (added for the static site) ===== */
 body {
   margin: 0;
+  overflow-x: hidden;   /* the full-bleed 100vw map must not add a horizontal scrollbar */
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   color: var(--ink);
   background: var(--page-bg);
@@ -1406,7 +1414,10 @@ table.chk-table .chk-text { min-width: 100px; }
 }
 
 /* Visit counter (footer) */
-#visit-counter { padding: 4px 16px 16px; }
+/* About-panel footer: visit counter + "Last change" timestamp side by side */
+#about-footer { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 16px; margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--md-default-fg-color--lightest, #eee); }
+#about-footer #visit-counter { padding: 0; }
+#about-footer #last-change { padding: 0; }
 #visit-counter img { height: 20px; vertical-align: middle; }
 
 /* Optional 2nd-language name column in the Species List (toggled by JS) */
@@ -1469,7 +1480,7 @@ table.chk-table .chk-text { min-width: 100px; }
 
 
 /* "Last change" line in the footer */
-#last-change { padding: 0 16px 2px; font-size: 0.72rem; opacity: 0.6; }
+#last-change { font-size: 0.72rem; opacity: 0.6; }
 
 /* Checklist disclaimer note (also printed at the bottom of the PDF) */
 .chk-note { margin: 14px 0 4px; font-size: 0.78rem; line-height: 1.45; color: var(--md-default-fg-color--light, #666); }
@@ -1630,8 +1641,9 @@ tr.row-list-only .prob-na { color: var(--ink-muted, #999); }
 /* "Locate me" crosshair control on the map */
 /* Center the crosshair SVG in the Leaflet bar button (higher specificity than
    Leaflet's own ".leaflet-bar a { display:block }" so flex centering wins). */
-.leaflet-bar a.geo-locate-btn { display: flex; align-items: center; justify-content: center; color: var(--brand-deep); }
-.geo-locate-btn svg { display: block; }
+.leaflet-bar a.geo-locate-btn,
+.leaflet-bar a.fs-toggle-btn { display: flex; align-items: center; justify-content: center; color: var(--brand-deep); }
+.geo-locate-btn svg, .fs-toggle-btn svg { display: block; }
 
 /* ---------- Field checklist (full-screen mobile live entry) ---------- */
 #field-page {
