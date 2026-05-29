@@ -2073,6 +2073,8 @@
 
     setBasemap(window.GeoState.get("basemap", "light"));
 
+    L.control.scale({ position: "bottomleft", imperial: false, maxWidth: 140 }).addTo(map);
+
     map.on("click", onMapClick);
 
     // "Locate me" crosshair control — zooms to the device's current location.
