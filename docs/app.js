@@ -353,6 +353,18 @@
     }
   }
   var marker = null;
+  // Drop (or move) the single location pin so the map always shows which point
+  // the Species List / Migration page is computed for. No-op if it's already
+  // there, so click-driven renders don't flicker the marker.
+  function setPointMarker(lat, lon) {
+    if (!map || !isFinite(lat) || !isFinite(lon)) return;
+    if (marker) {
+      var ll = marker.getLatLng();
+      if (Math.abs(ll.lat - lat) < 1e-6 && Math.abs(ll.lng - lon) < 1e-6) return;
+      map.removeLayer(marker);
+    }
+    marker = L.marker([lat, lon]).addTo(map);
+  }
   var currentMode = "range";
   var fieldData = null;       // current probability-ranked species for the field checklist
   var fieldQuery = "";        // fuzzy filter text for the field checklist
@@ -1185,21 +1197,60 @@
     });
     return out;
   }
+  // Loose (unsaved) pins for a stored state = the working set, but only when no
+  // named list is active (an active working set IS that list, already in sets).
+  function loosePointsOf(state) {
+    if (!state || state.mapPointSetActive) return [];
+    return Array.isArray(state.mapPoints) ? state.mapPoints : [];
+  }
+  // Union two pin arrays, de-duping by id (idempotent re-imports don't pile up).
+  function mergePins(a, b) {
+    var seen = Object.create(null), out = [];
+    (a || []).concat(b || []).forEach(function (p) {
+      if (!p || !isFinite(p.lat) || !isFinite(p.lon)) return;
+      var id = p.id || (p.lat + "," + p.lon + "|" + (p.name || ""));
+      if (seen[id]) return; seen[id] = 1; out.push(p);
+    });
+    return out;
+  }
+  // Merge incoming named lists into local: same-named lists ask the user to
+  // merge (union the pins) or overwrite (replace with the imported list).
+  function mergePointSets(localSets, incSets) {
+    var out = (Array.isArray(localSets) ? localSets : []).map(function (c) { return { name: c.name, points: (c.points || []).slice() }; });
+    var byName = Object.create(null); out.forEach(function (c) { byName[c.name] = c; });
+    (Array.isArray(incSets) ? incSets : []).forEach(function (inc) {
+      if (!inc || !inc.name) return;
+      var cur = byName[inc.name];
+      if (!cur) { var added = { name: inc.name, points: (inc.points || []).slice() }; out.push(added); byName[inc.name] = added; return; }
+      if (confirm(t("sync.listMergePrompt", { name: inc.name }))) cur.points = mergePins(cur.points, inc.points);
+      else cur.points = (inc.points || []).slice();
+    });
+    return out;
+  }
   function importAppData(jsonText) {
     var data; try { data = JSON.parse(jsonText); } catch (e) { throw new Error("Invalid JSON"); }
     if (!data || data.app !== "migration_calendar") throw new Error(t("sync.notBackup"));
     var local = {}; try { local = JSON.parse(localStorage.getItem("geomodel-explorer-v1") || "{}"); } catch (e) {}
     var incoming = data.state || {};
     var mergedCl = mergeChecklists(local.fieldChecklists, incoming.fieldChecklists);
-    // Incoming overrides local for everything else; fieldChecklists is the merged map.
+    // Map points: merge rather than overwrite. Loose pins from both sides are
+    // unioned into the working set; named lists are merged/overwritten by name.
+    var mergedLoose = mergePins(loosePointsOf(local), loosePointsOf(incoming));
+    var mergedSets = mergePointSets(local.mapPointSets, incoming.mapPointSets);
+    // Incoming overrides local for everything else; the above are merged.
     var newState = {}; Object.keys(local).forEach(function (k) { newState[k] = local[k]; });
     Object.keys(incoming).forEach(function (k) { newState[k] = incoming[k]; });
     newState.fieldChecklists = mergedCl;
+    newState.mapPoints = mergedLoose;
+    newState.mapPointSets = mergedSets;
+    newState.mapPointSetActive = "";   // show the merged unsaved set after import
     try { localStorage.setItem("geomodel-explorer-v1", JSON.stringify(newState)); } catch (e) { throw new Error("storage write failed: " + e.message); }
     if (data.ebirdKey) setEbirdKey(data.ebirdKey);
     return {
       checklistsIncoming: Object.keys(incoming.fieldChecklists || {}).length,
       checklistsTotal: Object.keys(mergedCl).length,
+      pointsTotal: mergedLoose.length,
+      listsTotal: mergedSets.length,
       hadKey: !!data.ebirdKey
     };
   }
@@ -1533,7 +1584,6 @@
               '<span id="mp-btn-text" class="hdr-count"></span>' +
             '</button>' +
             '<div id="mp-panel" class="dd-panel" style="display:none"></div>' +
-            '<input type="file" id="mp-file" accept=".kml,.kmz,.gpx" style="display:none" />' +
           '</div>' +
           '<div class="ctrl-group" id="settings-wrap">' +
             '<button type="button" id="settings-toggle" class="settings-icon-btn" aria-haspopup="true" aria-label="Settings" title="Settings"></button>' +
@@ -2129,7 +2179,7 @@
 
     setupAreaOverlays();   // protected/priority-area overlay toggles (off by default)
     loadDetections();      // restore any "Show in map" detection points
-    loadMapPoints();       // user-added pins + imported KML/KMZ/GPX points
+    loadMapPoints();       // user-added pins + saved named lists (from localStorage)
     ensureMpLayer();
     renderMapPoints();
     map.on("contextmenu", onMapContextMenu);   // right-click / long-press → add point dialog
@@ -2536,7 +2586,7 @@
     });
   }
 
-  // ---- Map points (user-added pins + KML/KMZ/GPX import) --------------------
+  // ---- Map points (user-added pins + named lists) ---------------------------
   // Storage: GeoState.mapPoints = [{ id, lat, lon, name, tags[], note, source, createdAt }]
   // Filter:  GeoState.mapPointsFilter = [tag, ...]; "" means the "(no tag)" chip.
   // Markers live in mpLayer (a single Leaflet layerGroup) so we can rebuild
@@ -2602,12 +2652,6 @@
     mpCollections = mpCollections.filter(function (x) { return x.name !== name; });
     if (mpActiveName === name) mpActiveName = "";
     saveMapPoints(); renderMapPoints();
-  }
-  // Rebuild a named list from imported pins (replaces one of the same name).
-  function importCollection(name, pts) {
-    var points = pts.map(function (p) { return Object.assign({ id: mpUid(), createdAt: new Date().toISOString() }, p); });
-    var c = mpCollections.filter(function (x) { return x.name === name; })[0];
-    if (c) c.points = points; else mpCollections.push({ name: name, points: points });
   }
   // "Unsaved" = pins on the map that aren't captured by any named list. Happens
   // when no list is active (a loaded list auto-syncs, so it's always saved).
@@ -2779,27 +2823,23 @@
         '<button type="button" class="dd-del mp-del" data-id="' + escapeHtml(p.id) + '" aria-label="remove">×</button>' +
       "</div>";
     }).join("") : '<p class="dd-empty">' + escapeHtml(t("points.empty")) + "</p>";
+    var collHtml = mpCollections.slice().sort(function (a, b) { return a.name.localeCompare(b.name); }).map(function (c) {
+      var active = c.name === mpActiveName;
+      return '<span class="mp-coll-chip' + (active ? " is-active" : "") + '">' +
+        '<button type="button" class="mp-coll-load" data-name="' + escapeHtml(c.name) + '">' + escapeHtml(c.name) + " (" + ((c.points && c.points.length) || 0) + ")</button>" +
+        '<button type="button" class="mp-coll-del" data-name="' + escapeHtml(c.name) + '" title="' + escapeHtml(t("points.deleteColl")) + '" aria-label="' + escapeHtml(t("points.deleteColl")) + '">×</button>' +
+      "</span>";
+    }).join("");
     panel.innerHTML =
       '<div class="mp-head">' +
         '<label class="mp-show-label" title="' + escapeHtml(t("points.showOnMap")) + '">' +
           '<input type="checkbox" id="mp-show"' + (mpShown ? " checked" : "") + '>' +
           escapeHtml(t("points.show")) +
         "</label>" +
-        '<button type="button" id="mp-import" class="demo-btn">' + escapeHtml(t("points.load")) + "</button>" +
-        '<button type="button" id="mp-export" class="demo-btn"' + ((mapPoints.length || mpCollections.length) ? "" : " disabled") + '>' + escapeHtml(t("points.export")) + "</button>" +
+        '<button type="button" id="mp-coll-save" class="demo-btn">' + escapeHtml(t("points.save")) + "</button>" +
         '<button type="button" id="mp-clear" class="demo-btn demo-btn-light">' + escapeHtml(t("points.clear")) + "</button>" +
       "</div>" +
-      '<div class="mp-coll">' +
-        '<select id="mp-coll-select" title="' + escapeHtml(t("points.collection")) + '">' +
-          '<option value="">' + escapeHtml(t("points.collection")) + "</option>" +
-          mpCollections.slice().sort(function (a, b) { return a.name.localeCompare(b.name); }).map(function (c) {
-            return '<option value="' + escapeHtml(c.name) + '"' + (c.name === mpActiveName ? " selected" : "") + ">" +
-              escapeHtml(c.name) + " (" + ((c.points && c.points.length) || 0) + ")</option>";
-          }).join("") +
-        "</select>" +
-        '<button type="button" id="mp-coll-save" class="demo-btn">' + escapeHtml(t("points.saveAs")) + "</button>" +
-        (mpActiveName ? '<button type="button" id="mp-coll-del" class="demo-btn demo-btn-light" title="' + escapeHtml(t("points.deleteColl")) + '">🗑</button>' : "") +
-      "</div>" +
+      (collHtml ? '<div class="mp-coll">' + collHtml + "</div>" : "") +
       (mpHasUnsaved() ? '<div class="mp-unsaved">' + escapeHtml(t("points.unsaved", { n: mapPoints.length })) + "</div>" : "") +
       (chipsHtml ? '<div class="mp-chips">' + chipsHtml + "</div>" : "") +
       '<div class="mp-list">' + listHtml + "</div>";
@@ -2823,14 +2863,6 @@
     panel.querySelectorAll(".mp-del").forEach(function (b) {
       b.addEventListener("click", function () { deleteMapPoint(this.getAttribute("data-id")); });
     });
-    var imp = panel.querySelector("#mp-import");
-    if (imp) imp.addEventListener("click", function () { document.getElementById("mp-file").click(); });
-    var exp = panel.querySelector("#mp-export");
-    if (exp) exp.addEventListener("click", function () {
-      if (!mapPoints.length && !mpCollections.length) return;
-      var date = new Date().toISOString().slice(0, 10);
-      downloadCsv("map_points_" + date + ".kml", buildPointsKml());
-    });
     var sh = panel.querySelector("#mp-show");
     if (sh) sh.addEventListener("change", function () { mpShown = !!this.checked; saveMapPoints(); renderMapPoints(); });
     var clr = panel.querySelector("#mp-clear");
@@ -2839,13 +2871,22 @@
       var msg = mpHasUnsaved() ? t("points.clearUnsavedPrompt") : t("points.clearAllPrompt");
       if (confirm(msg)) clearMapPoints();
     });
-    var collSel = panel.querySelector("#mp-coll-select");
-    if (collSel) collSel.addEventListener("change", function () {
-      if (!this.value) return;
-      // Loading a list replaces the working set — warn if that would lose pins
-      // not kept in any list.
-      if (mpHasUnsaved() && !confirm(t("points.discardUnsavedPrompt"))) { this.value = ""; return; }
-      loadCollection(this.value);
+    // Click a list to load it (warn first if it would discard unsaved pins).
+    panel.querySelectorAll(".mp-coll-load").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var name = this.getAttribute("data-name");
+        if (name === mpActiveName) return;
+        if (mpHasUnsaved() && !confirm(t("points.discardUnsavedPrompt"))) return;
+        loadCollection(name);
+      });
+    });
+    // The small × on each list deletes just that list (after confirming).
+    panel.querySelectorAll(".mp-coll-del").forEach(function (b) {
+      b.addEventListener("click", function (e) {
+        e.stopPropagation();
+        var name = this.getAttribute("data-name");
+        if (confirm(t("points.deleteCollPrompt", { name: name }))) deleteCollection(name);
+      });
     });
     var collSave = panel.querySelector("#mp-coll-save");
     if (collSave) collSave.addEventListener("click", function () {
@@ -2857,186 +2898,6 @@
         saveCollection(name);
       }
     });
-    var collDel = panel.querySelector("#mp-coll-del");
-    if (collDel) collDel.addEventListener("click", function () {
-      if (mpActiveName && confirm(t("points.deleteCollPrompt", { name: mpActiveName }))) deleteCollection(mpActiveName);
-    });
-  }
-
-  // ---- File import ----
-  function onMpFileChange(e) {
-    var f = e.target.files && e.target.files[0]; if (!f) return;
-    var name = f.name.toLowerCase();
-    var done = function (pts) {
-      if (!pts || !pts.length) { setStatus(t("points.importEmpty")); return; }
-      var loose = [], byList = {}, n = 0;
-      pts.forEach(function (p) {
-        if (!isFinite(p.lat) || !isFinite(p.lon)) return;
-        var rec = { lat: +p.lat, lon: +p.lon, name: p.name || "", tags: p.tags || [], note: p.note || "", source: p.source || "file" };
-        n++;
-        if (p.list) (byList[p.list] = byList[p.list] || []).push(rec); else loose.push(rec);
-      });
-      Object.keys(byList).forEach(function (nm) { importCollection(nm, byList[nm]); });
-      loose.forEach(addMapPoint);   // each saves + renders; works with/without an active list
-      if (Object.keys(byList).length) { saveMapPoints(); renderMapPoints(); }
-      setStatus(t("points.importOk", { n: n }));
-    };
-    var fail = function (err) { setStatus(t("points.importFail", { msg: (err && err.message) || "" })); console.warn(err); };
-    if (name.endsWith(".kml")) {
-      f.text().then(function (txt) { done(parseKml(txt)); }).catch(fail);
-    } else if (name.endsWith(".gpx")) {
-      f.text().then(function (txt) { done(parseGpx(txt)); }).catch(fail);
-    } else if (name.endsWith(".kmz")) {
-      f.arrayBuffer().then(parseKmz).then(done).catch(fail);
-    } else {
-      setStatus(t("points.importFail", { msg: name }));
-    }
-    // Reset so re-selecting the same file fires change again.
-    e.target.value = "";
-  }
-
-  // Export everything to a KML that round-trips through parseKml: tags land in
-  // <Data name="tags">, notes in <description>, coordinates as "lon,lat,0".
-  // Named lists become <Folder>s and each of their placemarks carries a
-  // <Data name="list"> so import can rebuild the lists (not just flat pins).
-  function buildPointsKml() {
-    var xml = function (s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); };
-    var parts = ['<?xml version="1.0" encoding="UTF-8"?>',
-      '<kml xmlns="http://www.opengis.net/kml/2.2"><Document>',
-      "<name>Map points</name>"];
-    var placemark = function (p, listName) {
-      var tagStr = (p.tags || []).join(", ");
-      var ed = "";
-      if (tagStr) ed += '<Data name="tags"><value>' + xml(tagStr) + "</value></Data>";
-      if (listName) ed += '<Data name="list"><value>' + xml(listName) + "</value></Data>";
-      parts.push("<Placemark>");
-      if (p.name) parts.push("<name>" + xml(p.name) + "</name>");
-      if (p.note) parts.push("<description>" + xml(p.note) + "</description>");
-      if (ed) parts.push("<ExtendedData>" + ed + "</ExtendedData>");
-      parts.push("<Point><coordinates>" + p.lon.toFixed(6) + "," + p.lat.toFixed(6) + ",0</coordinates></Point>");
-      parts.push("</Placemark>");
-    };
-    mpCollections.forEach(function (c) {
-      parts.push("<Folder><name>" + xml(c.name) + "</name>");
-      (c.points || []).forEach(function (p) { placemark(p, c.name); });
-      parts.push("</Folder>");
-    });
-    // The active list's pins live in mpCollections already (auto-synced); only
-    // export the working set when it isn't representing a saved list.
-    if (!mpActiveName) mapPoints.forEach(function (p) { placemark(p, ""); });
-    parts.push("</Document></kml>");
-    return parts.join("\n");
-  }
-  function parseKml(text) {
-    var doc = new DOMParser().parseFromString(text, "application/xml");
-    if (doc.querySelector("parsererror")) throw new Error("KML parse error");
-    var pts = [];
-    var nodes = doc.getElementsByTagName("Placemark");
-    for (var i = 0; i < nodes.length; i++) {
-      var n = nodes[i];
-      var pt = n.getElementsByTagName("Point")[0]; if (!pt) continue;
-      var coords = pt.getElementsByTagName("coordinates")[0];
-      if (!coords) continue;
-      var c = String(coords.textContent || "").trim().split(/[\s,]+/);
-      var lon = parseFloat(c[0]), lat = parseFloat(c[1]);
-      if (!isFinite(lat) || !isFinite(lon)) continue;
-      var name = (n.getElementsByTagName("name")[0] || {}).textContent || "";
-      var desc = (n.getElementsByTagName("description")[0] || {}).textContent || "";
-      var tags = [];
-      var listName = "";
-      // ExtendedData/Data[name="tags"|"list"]
-      var datas = n.getElementsByTagName("Data");
-      for (var d = 0; d < datas.length; d++) {
-        var dn = datas[d].getAttribute("name");
-        var v = datas[d].getElementsByTagName("value")[0];
-        if (dn === "tags") { if (v && v.textContent) mpParseTags(v.textContent).forEach(function (x) { tags.push(x); }); }
-        else if (dn === "list") { if (v) listName = (v.textContent || "").trim(); }
-      }
-      // Folder ancestor → tag, but only for foreign files: when this placemark
-      // belongs to one of our saved lists the folder *is* the list, not a tag.
-      if (!listName) {
-        var anc = n.parentNode;
-        while (anc && anc.nodeType === 1) {
-          if (anc.nodeName === "Folder") {
-            var fn = anc.getElementsByTagName("name")[0];
-            if (fn && fn.parentNode === anc && fn.textContent.trim()) tags.push(fn.textContent.trim());
-          }
-          anc = anc.parentNode;
-        }
-      }
-      pts.push({ lat: lat, lon: lon, name: name.trim(), tags: mpParseTags(tags.join(",")), note: desc.trim(), source: "kml", list: listName });
-    }
-    return pts;
-  }
-  function parseGpx(text) {
-    var doc = new DOMParser().parseFromString(text, "application/xml");
-    if (doc.querySelector("parsererror")) throw new Error("GPX parse error");
-    var pts = [];
-    var wpts = doc.getElementsByTagName("wpt");
-    for (var i = 0; i < wpts.length; i++) {
-      var w = wpts[i];
-      var lat = parseFloat(w.getAttribute("lat")), lon = parseFloat(w.getAttribute("lon"));
-      if (!isFinite(lat) || !isFinite(lon)) continue;
-      var name = (w.getElementsByTagName("name")[0] || {}).textContent || "";
-      var desc = (w.getElementsByTagName("desc")[0] || {}).textContent || "";
-      var type = (w.getElementsByTagName("type")[0] || {}).textContent || "";
-      var sym = (w.getElementsByTagName("sym")[0] || {}).textContent || "";
-      var tags = mpParseTags([type, sym].join(","));
-      pts.push({ lat: lat, lon: lon, name: name.trim(), tags: tags, note: desc.trim(), source: "gpx" });
-    }
-    return pts;
-  }
-  // Minimal ZIP reader for KMZ: scan the End of Central Directory (EOCD), walk
-  // the Central Directory entries, find the first *.kml, slice + inflate it via
-  // the platform-native DecompressionStream (deflate-raw). No JSZip dependency.
-  async function parseKmz(buf) {
-    var view = new DataView(buf);
-    var u8 = new Uint8Array(buf);
-    // Locate EOCD signature 0x06054b50 from the end, scanning up to 64 KiB.
-    var eocd = -1;
-    var maxScan = Math.min(buf.byteLength, 65557);
-    for (var i = buf.byteLength - 22; i >= buf.byteLength - maxScan; i--) {
-      if (view.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
-    }
-    if (eocd < 0) throw new Error("KMZ: EOCD not found");
-    var nEntries = view.getUint16(eocd + 10, true);
-    var cdSize = view.getUint32(eocd + 12, true);
-    var cdOff = view.getUint32(eocd + 16, true);
-    var p = cdOff;
-    for (var k = 0; k < nEntries; k++) {
-      if (view.getUint32(p, true) !== 0x02014b50) throw new Error("KMZ: bad CD entry");
-      var method = view.getUint16(p + 10, true);
-      var compSize = view.getUint32(p + 20, true);
-      var uncompSize = view.getUint32(p + 24, true);
-      var nameLen = view.getUint16(p + 28, true);
-      var extraLen = view.getUint16(p + 30, true);
-      var commentLen = view.getUint16(p + 32, true);
-      var localOff = view.getUint32(p + 42, true);
-      var fname = new TextDecoder().decode(u8.subarray(p + 46, p + 46 + nameLen));
-      p += 46 + nameLen + extraLen + commentLen;
-      if (!/\.kml$/i.test(fname)) continue;
-      // Read the local file header to get the actual data start.
-      if (view.getUint32(localOff, true) !== 0x04034b50) throw new Error("KMZ: bad local header");
-      var lfNameLen = view.getUint16(localOff + 26, true);
-      var lfExtraLen = view.getUint16(localOff + 28, true);
-      var dataStart = localOff + 30 + lfNameLen + lfExtraLen;
-      var compressed = u8.subarray(dataStart, dataStart + compSize);
-      var kmlText;
-      if (method === 0) {
-        kmlText = new TextDecoder().decode(compressed);
-      } else if (method === 8) {
-        if (typeof DecompressionStream === "undefined") throw new Error("KMZ: browser lacks DecompressionStream");
-        var blob = new Blob([compressed]);
-        var ds = new DecompressionStream("deflate-raw");
-        var stream = blob.stream().pipeThrough(ds);
-        var arr = await new Response(stream).arrayBuffer();
-        kmlText = new TextDecoder().decode(new Uint8Array(arr));
-      } else {
-        throw new Error("KMZ: unsupported compression method " + method);
-      }
-      return parseKml(kmlText);
-    }
-    throw new Error("KMZ: no .kml entry found");
   }
 
   // ---- Sticky fan-out for overlapping detection markers ---------------------
@@ -3781,7 +3642,6 @@
     wireDropdown("hidden-btn", "hidden-panel");
     wireDropdown("checklists-toggle", "checklists-panel");
     wireDropdown("mp-toggle", "mp-panel");
-    document.getElementById("mp-file").addEventListener("change", onMpFileChange);
     // Re-render the panel after open so distances reflect the current map centre.
     document.getElementById("mp-toggle").addEventListener("click", function () {
       setTimeout(refreshMpPanel, 0);
@@ -6263,6 +6123,7 @@
 
   async function renderSpeciesList(lat, lon) {
     currentSpView = { mode: "point", lat: lat, lon: lon };
+    setPointMarker(lat, lon);   // show the pin for the point this list is about
     // Reset the agg toggle on the prob column header (country-only feature).
     var ph0 = document.getElementById("sp-prob-head");
     if (ph0) { ph0.textContent = t("th.prob"); ph0.title = ""; ph0.classList.remove("clickable-head"); }
@@ -6469,6 +6330,7 @@
   // re-render from cache without new inference.
   async function renderAnalysis(lat, lon) {
     var nSpecies = labels.length;
+    setPointMarker(lat, lon);   // show the pin for the point this analysis is about
     document.getElementById("species-panel").style.display = "none";
     document.getElementById("barchart-panel").style.display = "none";
     showComputingOverlay(true, t("panel.bcTitle"));
@@ -6533,10 +6395,8 @@
     else if (analysisTab === "scatter") window.GeoAnalysis.renderScatter(container, ctx);
     else window.GeoAnalysis.renderHeatmap(container, ctx, analysisTab);   // "prob" | "arrival" | "focus"
 
-    // CSV reflects the active tab.
-    var built = window.GeoAnalysis.buildCsv(ctx, analysisTab);
-    lastCsvData = { filename: "Geomodel_" + analysisTab + "_" + lat.toFixed(2) + "_" + lon.toFixed(2) + ".csv", content: built.content };
-    showCsvBtn();
+    // The Migration page has no CSV download (data is explored on-page).
+    hideCsvBtn();
   }
 
   // Timeline tab: per-species 48-week phenology bars (sorted by annual mean).
