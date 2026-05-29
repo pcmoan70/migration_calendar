@@ -2283,7 +2283,7 @@
     rows.forEach(function (r) {
       if (!recentEnough(r.date, maxDays)) return;
       visible++;
-      var m = L.circleMarker([r.lat, r.lon], { radius: 5, color: "#1a1a1a", weight: 1, opacity: strokeOp, fillColor: fill, fillOpacity: fillOp });
+      var m = L.circleMarker([r.lat, r.lon], { radius: 5, color: "#1a1a1a", weight: 1, opacity: strokeOp, fillColor: fill, fillOpacity: fillOp, bubblingMouseEvents: false });
       m.bindTooltip(detTooltipHtml(name, r), { direction: "top", className: "area-tip" });
       // Metadata for the fan-out so it can reconstruct clones in place. Keep
       // the true species colour too, so fanned clones are distinguishable even
@@ -2904,7 +2904,7 @@
       var pt = L.point(centerPt.x + Math.cos(angle) * radius, centerPt.y + Math.sin(angle) * radius);
       var ll = map.containerPointToLatLng(pt);
       g.addLayer(L.polyline([centerLatLng, ll], { color: "#666", weight: 1, opacity: 0.55, interactive: false }));
-      var clone = L.circleMarker(ll, { radius: 6, color: "#1a1a1a", weight: 1, opacity: 0.95, fillColor: orig._detTrueColor || orig._detColor, fillOpacity: 0.95 });
+      var clone = L.circleMarker(ll, { radius: 6, color: "#1a1a1a", weight: 1, opacity: 0.95, fillColor: orig._detTrueColor || orig._detColor, fillOpacity: 0.95, bubblingMouseEvents: false });
       var r = orig._detRow;
       // Permanent tooltip on hover; click → the observation's source page.
       clone.bindTooltip(detTooltipHtml(orig._detName, r), { direction: "top", className: "area-tip" });
