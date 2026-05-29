@@ -686,11 +686,17 @@
     return arr;
   }
   // All observation/registration links to offer for a country, from the
-  // effective (possibly user-edited) list. Returns [{ label, url }].
+  // effective (possibly user-edited) list. Returns [{ label, url }]. When a
+  // country has no entry at all, fall back to its eBird region page
+  // (ebird.org/region/<CC>) — eBird has a page for essentially every country.
   function natServicesFor(cc) {
-    return effectiveCountryLinks()
+    var out = effectiveCountryLinks()
       .filter(function (e) { return String(e.cc).toUpperCase() === cc; })
       .map(function (e) { return { label: labelForLink(e), url: e.url }; });
+    if (!out.length && /^[A-Z]{2}$/.test(cc || "")) {
+      out.push({ label: "eBird (" + cc + ")", url: "https://ebird.org/region/" + cc });
+    }
+    return out;
   }
 
   // eBird species page (label keys are eBird taxon codes) — shows recent
