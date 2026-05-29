@@ -377,7 +377,6 @@
   // name or # column header overrides it and toggles asc/desc.
   var speciesListSort = { col: "", dir: "" };
   var menuKey = null, menuName = "", menuSci = "";  // species the menu targets
-  var menuNatGen = 0;   // bumped each open so a slow country lookup can't show a stale item
 
   function isHidden(key) { return !!hiddenSpecies[key]; }
   function loadHidden() {
@@ -1620,10 +1619,6 @@
           '<button type="button" class="sp-menu-item" data-act="birdlife" data-i18n="menu.birdlife">BirdLife</button>' +
           '<button type="button" class="sp-menu-item" data-act="macaulay" data-i18n="menu.macaulay">Macaulay Library</button>' +
           '<button type="button" class="sp-menu-item" data-act="xeno" data-i18n="menu.xeno">Xeno-canto (audio)</button>' +
-          '<button type="button" class="sp-menu-item sp-menu-natlist" data-act="natlist" data-cc="NO" data-i18n="menu.artsobs" style="display:none">Artsobservasjoner (NO)</button>' +
-          '<button type="button" class="sp-menu-item sp-menu-natlist" data-act="natlist" data-cc="SE" data-i18n="menu.artportalen" style="display:none">Artportalen (SE)</button>' +
-          '<button type="button" class="sp-menu-item sp-menu-natlist" data-act="natlist" data-cc="DK" data-i18n="menu.dofbasen" style="display:none">DOFbasen (DK)</button>' +
-          '<button type="button" class="sp-menu-item sp-menu-natlist" data-act="natlist" data-cc="FI" data-i18n="menu.tiira" style="display:none">Tiira (FI)</button>' +
           '<button type="button" class="sp-menu-item" data-act="interesting" data-i18n="menu.interestingAdd">★ Mark interesting</button>' +
           '<button type="button" class="sp-menu-item" data-act="hide" data-i18n="menu.hide">Do not show</button>' +
         '</div>' +
@@ -2302,6 +2297,7 @@
   // cheaply on edit/filter changes without touching the rest of the map.
   var mapPoints = [];
   var mpFilter = [];
+  var mpShown = true;   // master visibility toggle — hides all markers but keeps the data
   var mpLayer = null;
 
   var MP_COLORS = ["#1f77b4","#ff7f0e","#2ca02c","#d62728","#9467bd","#8c564b","#e377c2","#7f7f7f","#bcbd22","#17becf"];
@@ -2319,8 +2315,9 @@
   function loadMapPoints() {
     mapPoints = (window.GeoState.get("mapPoints", []) || []).filter(function (p) { return p && isFinite(p.lat) && isFinite(p.lon); });
     mpFilter = window.GeoState.get("mapPointsFilter", []) || [];
+    mpShown = window.GeoState.get("mapPointsShown", true) !== false;
   }
-  function saveMapPoints() { window.GeoState.save({ mapPoints: mapPoints, mapPointsFilter: mpFilter }); }
+  function saveMapPoints() { window.GeoState.save({ mapPoints: mapPoints, mapPointsFilter: mpFilter, mapPointsShown: mpShown }); }
   function addMapPoint(p) {
     p.id = p.id || mpUid();
     p.createdAt = p.createdAt || new Date().toISOString();
@@ -2364,6 +2361,8 @@
   function renderMapPoints() {
     if (!map) return;
     ensureMpLayer().clearLayers();
+    // Master toggle off → keep the data and the panel, but draw nothing.
+    if (!mpShown) { refreshMpPanel(); updateMpBadge(); return; }
     mapPoints.forEach(function (p) {
       if (!mpVisible(p)) return;
       var m = L.circleMarker([p.lat, p.lon], {
@@ -2389,6 +2388,7 @@
   }
   function updateMpBadge() {
     var el = document.getElementById("mp-btn-text"); if (el) el.textContent = mapPoints.length ? String(mapPoints.length) : "";
+    var wrap = document.getElementById("mp-wrap"); if (wrap) wrap.classList.toggle("mp-off", !mpShown);
   }
 
   // ---- Add / edit popup ----
@@ -2414,6 +2414,7 @@
       '<label>' + esc(t("points.tags")) + '<input type="text" id="mp-tags" value="' + esc((p.tags || []).join(", ")) + '" placeholder="' + esc(t("points.tagsPh")) + '" /></label>' +
       '<label>' + esc(t("points.note")) + '<textarea id="mp-note" rows="2">' + esc(p.note || "") + '</textarea></label>' +
       '<div class="mp-meta">' + p.lat.toFixed(5) + ", " + p.lon.toFixed(5) + "</div>" +
+      '<div id="mp-natlist" class="mp-natlist" style="display:none"></div>' +
       '<div class="mp-actions">' +
         '<button type="button" id="mp-save" class="demo-btn">' + esc(t("points.save")) + '</button>' +
         (isEdit ? '<button type="button" id="mp-del" class="demo-btn demo-btn-light">' + esc(t("btn.delete")) + '</button>' : "") +
@@ -2432,6 +2433,17 @@
     });
     var del = document.getElementById("mp-del");
     if (del) del.addEventListener("click", function () { deleteMapPoint(p.id); map.closePopup(); });
+    // Country-gated link to a national observation service. Hidden until the
+    // reverse-geocode resolves; shown only when the point's country has a
+    // matching site in NAT_LIST_URLS.
+    var natKeys = { NO: "menu.artsobs", SE: "menu.artportalen", DK: "menu.dofbasen", FI: "menu.tiira" };
+    countryCode(p.lat, p.lon).then(function (cc) {
+      var slot = document.getElementById("mp-natlist"); if (!slot) return;
+      var key = natKeys[cc], url = natListUrl(cc, "");
+      if (!key || !url) return;
+      slot.style.display = "";
+      slot.innerHTML = '<a href="' + escapeHtml(url) + '" target="_blank" rel="noopener">' + escapeHtml(t(key)) + " ↗</a>";
+    }).catch(function () { /* leave hidden */ });
   }
   // Right-click on desktop, long-press on touch — Leaflet fires both as "contextmenu".
   function onMapContextMenu(e) {
@@ -2470,6 +2482,10 @@
     }).join("") : '<p class="dd-empty">' + escapeHtml(t("points.empty")) + "</p>";
     panel.innerHTML =
       '<div class="mp-head">' +
+        '<label class="mp-show-label" title="' + escapeHtml(t("points.showOnMap")) + '">' +
+          '<input type="checkbox" id="mp-show"' + (mpShown ? " checked" : "") + '>' +
+          escapeHtml(t("points.showOnMap")) +
+        "</label>" +
         '<button type="button" id="mp-import" class="demo-btn">' + escapeHtml(t("points.import")) + "</button>" +
         '<button type="button" id="mp-clear" class="demo-btn demo-btn-light">' + escapeHtml(t("points.clearAll")) + "</button>" +
       "</div>" +
@@ -2497,6 +2513,8 @@
     });
     var imp = panel.querySelector("#mp-import");
     if (imp) imp.addEventListener("click", function () { document.getElementById("mp-file").click(); });
+    var sh = panel.querySelector("#mp-show");
+    if (sh) sh.addEventListener("change", function () { mpShown = !!this.checked; saveMapPoints(); renderMapPoints(); });
     var clr = panel.querySelector("#mp-clear");
     if (clr) clr.addEventListener("click", function () { if (mapPoints.length && confirm(t("points.clearAllPrompt"))) clearMapPoints(); });
   }
@@ -3459,18 +3477,6 @@
         // Dynamic label on the Interesting item — add vs remove based on state.
         var intBtn = spMenu.querySelector('[data-act="interesting"]');
         if (intBtn) intBtn.textContent = t(isInteresting(menuKey) ? "menu.interestingRemove" : "menu.interestingAdd");
-        // National observation-site items — hidden until the click point's
-        // country resolves; then exactly the matching one (if any) is shown.
-        spMenu.querySelectorAll(".sp-menu-natlist").forEach(function (b) { b.style.display = "none"; });
-        var natToken = ++menuNatGen;
-        var ll = marker ? marker.getLatLng() : (map ? map.getCenter() : null);
-        if (ll && bird) {
-          countryCode(ll.lat, ll.lng).then(function (cc) {
-            if (natToken !== menuNatGen || spMenu.style.display === "none") return;
-            var btn = spMenu.querySelector('.sp-menu-natlist[data-cc="' + cc + '"]');
-            if (btn) btn.style.display = "";
-          });
-        }
         spMenu.style.left = e.pageX + "px";
         spMenu.style.top = e.pageY + "px";
         spMenu.style.display = "block";
@@ -3494,10 +3500,6 @@
         else if (act === "xeno") openExternal(xenoCantoUrl(menuSci || menuName));
         else if (act === "distmap") showDistMap(menuName, menuSci || menuName, menuKey);
         else if (act === "recent") { var rl = marker ? marker.getLatLng() : map.getCenter(); showRecent(menuName, menuSci || menuName, rl.lat, rl.lng, menuKey); }
-        else if (act === "natlist") {
-          var url = natListUrl(this.getAttribute("data-cc"), menuSci || menuName);
-          if (url) openExternal(url);
-        }
         spMenu.style.display = "none";
       });
     });
