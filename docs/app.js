@@ -2017,6 +2017,8 @@
       showLastChange();
       showPerfModal();
       initOfflineIndicator();
+      var hasHere = false; try { hasHere = new URLSearchParams(location.search).has("here"); } catch (e) {}
+      if (!hasHere) restoreSession();   // return to the view we left (reload-safe)
       maybeUrlAutoLocate();   // ?here=1 → geolocate + open species list
     } catch (e) {
       document.getElementById("demo-loading").innerHTML =
@@ -3368,6 +3370,7 @@
       stopAnimation();
       currentMode = modeEl.value;
       window.GeoState.save({ mode: currentMode });
+      saveSession({ mode: currentMode, page: "" });   // switching mode closes any open page
       updateModeVisibility();
       var spPanel = document.getElementById("species-panel");
       spPanel.classList.remove("as-page");
@@ -3824,6 +3827,7 @@
       var sp = document.getElementById("species-panel");
       sp.classList.remove("as-page");
       sp.style.display = "none";
+      saveSession({ page: "" });
       if (map) map.invalidateSize();
     });
     // Back from the full-screen Migration analysis page to the map.
@@ -3831,6 +3835,7 @@
       var bc = document.getElementById("barchart-panel");
       bc.classList.remove("as-page");
       bc.style.display = "none";
+      saveSession({ page: "" });
       if (map) map.invalidateSize();
     });
 
@@ -6417,6 +6422,7 @@
 
   async function renderSpeciesList(lat, lon) {
     currentSpView = { mode: "point", lat: lat, lon: lon };
+    if (currentMode === "list") saveSession({ mode: "list", page: "species", lat: lat, lon: lon });
     setPointMarker(lat, lon);   // show the pin for the point this list is about
     // Reset the agg toggle on the prob column header (country-only feature).
     var ph0 = document.getElementById("sp-prob-head");
@@ -6625,6 +6631,7 @@
   async function renderAnalysis(lat, lon) {
     var nSpecies = labels.length;
     setPointMarker(lat, lon);   // show the pin for the point this analysis is about
+    saveSession({ mode: "barchart", page: "migration", lat: lat, lon: lon });
     document.getElementById("species-panel").style.display = "none";
     document.getElementById("barchart-panel").style.display = "none";
     showComputingOverlay(true, t("panel.bcTitle"));
@@ -7032,8 +7039,32 @@
   }
 
   // ---- Restore persisted control values ------------------------------------
+  // Remember the active view (mode + open page + point) so a reload — e.g. when
+  // a phone discards the tab while you're on an external site — returns you to
+  // where you left off, not the default page.
+  function saveSession(patch) {
+    var s = window.GeoState.get("session", {}) || {};
+    for (var k in patch) if (Object.prototype.hasOwnProperty.call(patch, k)) s[k] = patch[k];
+    window.GeoState.save({ session: s });
+  }
+  function restoreSession() {
+    var s = window.GeoState.get("session", null);
+    var mode = (s && s.mode) || "list";
+    if (["list", "barchart", "range", "richness"].indexOf(mode) < 0) mode = "list";
+    var modeEl = document.getElementById("mode-select");
+    if (modeEl.value !== mode) { modeEl.value = mode; modeEl.dispatchEvent(new Event("change", { bubbles: true })); }
+    if (mode === "range") {
+      var sp = window.GeoState.get("species", null);
+      if (sp && labelsByKey[sp]) selectSpecies(sp);
+    } else if (s && s.page === "species" && isFinite(s.lat) && isFinite(s.lon)) {
+      renderSpeciesList(s.lat, s.lon);
+    } else if (s && s.page === "migration" && isFinite(s.lat) && isFinite(s.lon)) {
+      renderAnalysis(s.lat, s.lon);
+    }
+  }
   function restoreControls() {
-    // Always start in Species List mode (overrides any saved mode).
+    // Default to Species List mode on a fresh start; restoreSession() reopens
+    // the last view afterwards if there is one.
     currentMode = "list";
     document.getElementById("mode-select").value = currentMode;
 
