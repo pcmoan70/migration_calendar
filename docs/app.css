@@ -1704,9 +1704,11 @@ tr.row-list-only .prob-na { color: var(--ink-muted, #999); }
 .geo-locate-btn svg, .fs-toggle-btn svg, .place-search-btn svg, .anim-btn svg { display: block; }
 /* Active state when the locate button is live-tracking */
 .leaflet-bar a.geo-locate-btn.is-active { background: var(--brand-soft, #e6f0ee); }
-/* Live position indicator (a plus following GPS) — no div-icon chrome */
-.live-pos { background: transparent; border: 0; color: #1565c0; }
+/* Position indicators (plus markers) — no div-icon chrome */
+.live-pos { background: transparent; border: 0; }
 .live-pos svg { display: block; filter: drop-shadow(0 0 2px rgba(255,255,255,.95)); }
+.live-pos-blue { color: #1565c0; }   /* live, follows GPS */
+.live-pos-red { color: #d32f2f; }    /* current location at click time */
 a.place-search-btn.is-open { background: var(--brand-soft, #e6f0ee); }
 
 /* ---------- Field checklist (full-screen mobile live entry) ---------- */

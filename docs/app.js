@@ -438,11 +438,12 @@
     }
     marker = L.marker([lat, lon]).addTo(map);
   }
-  // Live device-position indicator (a plus / crosshair that follows GPS).
-  var posMarker = null, posWatching = false, posCentered = false;
-  function livePosIcon() {
+  // Position indicators: a red plus marks where you were when you tapped the
+  // crosshairs (a snapshot); a blue plus follows the live GPS position.
+  var posMarker = null, posFixedMarker = null, posWatching = false, posCentered = false;
+  function livePosIcon(kind) {
     return L.divIcon({
-      className: "live-pos",
+      className: "live-pos live-pos-" + kind,
       html: '<svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">' +
         '<line x1="14" y1="1" x2="14" y2="9"/><line x1="14" y1="19" x2="14" y2="27"/>' +
         '<line x1="1" y1="14" x2="9" y2="14"/><line x1="19" y1="14" x2="27" y2="14"/>' +
@@ -456,6 +457,7 @@
       posWatching = false;
       try { map.stopLocate(); } catch (e) {}
       if (posMarker) { map.removeLayer(posMarker); posMarker = null; }
+      if (posFixedMarker) { map.removeLayer(posFixedMarker); posFixedMarker = null; }
       if (btn) btn.classList.remove("is-active");
       return;
     }
@@ -2378,10 +2380,13 @@
     // later fixes just move the plus (no re-centring, no re-querying).
     map.on("locationfound", function (e) {
       if (!posWatching) return;
+      // Blue plus follows the live position.
       if (posMarker) posMarker.setLatLng(e.latlng);
-      else posMarker = L.marker(e.latlng, { icon: livePosIcon(), interactive: false, keyboard: false, zIndexOffset: 1000 }).addTo(map);
+      else posMarker = L.marker(e.latlng, { icon: livePosIcon("blue"), interactive: false, keyboard: false, zIndexOffset: 1100 }).addTo(map);
       if (!posCentered) {
         posCentered = true;
+        // Red plus marks the current location at the moment of the click.
+        posFixedMarker = L.marker(e.latlng, { icon: livePosIcon("red"), interactive: false, keyboard: false, zIndexOffset: 1000 }).addTo(map);
         map.setView(e.latlng, Math.max(map.getZoom() || 0, 11));
         if (["list", "barchart", "range"].indexOf(currentMode) >= 0) onMapClick(e);
       }
