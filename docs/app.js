@@ -438,6 +438,31 @@
     }
     marker = L.marker([lat, lon]).addTo(map);
   }
+  // Live device-position indicator (a plus / crosshair that follows GPS).
+  var posMarker = null, posWatching = false, posCentered = false;
+  function livePosIcon() {
+    return L.divIcon({
+      className: "live-pos",
+      html: '<svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">' +
+        '<line x1="14" y1="1" x2="14" y2="9"/><line x1="14" y1="19" x2="14" y2="27"/>' +
+        '<line x1="1" y1="14" x2="9" y2="14"/><line x1="19" y1="14" x2="27" y2="14"/>' +
+        '<circle cx="14" cy="14" r="3" fill="currentColor" stroke="none"/></svg>',
+      iconSize: [28, 28], iconAnchor: [14, 14]
+    });
+  }
+  function toggleLiveLocate() {
+    var btn = document.querySelector(".geo-locate-btn");
+    if (posWatching) {   // turn tracking off
+      posWatching = false;
+      try { map.stopLocate(); } catch (e) {}
+      if (posMarker) { map.removeLayer(posMarker); posMarker = null; }
+      if (btn) btn.classList.remove("is-active");
+      return;
+    }
+    posWatching = true; posCentered = false;
+    if (btn) btn.classList.add("is-active");
+    map.locate({ watch: true, enableHighAccuracy: true, maximumAge: 3000, timeout: 20000 });
+  }
   var currentMode = "range";
   var fieldData = null;       // current probability-ranked species for the field checklist
   var fieldQuery = "";        // fuzzy filter text for the field checklist
@@ -2262,7 +2287,7 @@
           '<line x1="1" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="23" y2="12"/></svg>';
         L.DomEvent.on(a, "click", function (e) {
           L.DomEvent.preventDefault(e); L.DomEvent.stopPropagation(e);
-          map.locate({ setView: true, maxZoom: 11, enableHighAccuracy: true, timeout: 10000 });
+          toggleLiveLocate();
         });
         return c;
       }
@@ -2348,9 +2373,18 @@
       });
     }
 
-    // After locating, populate the click-driven modes at the current position.
+    // Live position: keep the plus marker on the current location. On the first
+    // fix, centre the map and populate the click-driven modes at that point;
+    // later fixes just move the plus (no re-centring, no re-querying).
     map.on("locationfound", function (e) {
-      if (["list", "barchart", "range"].indexOf(currentMode) >= 0) onMapClick(e);
+      if (!posWatching) return;
+      if (posMarker) posMarker.setLatLng(e.latlng);
+      else posMarker = L.marker(e.latlng, { icon: livePosIcon(), interactive: false, keyboard: false, zIndexOffset: 1000 }).addTo(map);
+      if (!posCentered) {
+        posCentered = true;
+        map.setView(e.latlng, Math.max(map.getZoom() || 0, 11));
+        if (["list", "barchart", "range"].indexOf(currentMode) >= 0) onMapClick(e);
+      }
     });
 
     setupAreaOverlays();   // protected/priority-area overlay toggles (off by default)
